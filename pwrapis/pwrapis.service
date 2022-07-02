@@ -1,0 +1,11 @@
+[Unit]
+Description= Power API Service. 
+
+[Service]
+ExecStart=/usr/sbin/pwrapis  /etc/sysconfig/pwrapis_config.ini
+Restart=always
+RestartSec=5
+User=root
+
+[Install]
+WantedBy=multi-user.target
