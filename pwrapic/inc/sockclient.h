@@ -20,4 +20,5 @@ int InitSockClient();
 int FiniSockClient();
 
 int SendMsgSyn(PwrMsg *msg, PwrMsg **rsp);
+int SendReqAndWaitForRsp(PwrMsg *req, PwrMsg **rsp);
 #endif

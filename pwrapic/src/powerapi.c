@@ -32,12 +32,12 @@ static void DefaultLogCallback(int level, const char *fmt, va_list vl)
     printf(fmt);
 }
 
-void (*PwrLogCallback)(int level, const char *fmt, va_list vl) = DefaultLogCallback;
+void (*g_pwrlog_callback)(int level, const char *fmt, va_list vl) = DefaultLogCallback;
 
 int PWR_SetLogCallback(void(LogCallback)(int, const char *, va_list))
 {
     if (LogCallback) {
-        PwrLogCallback = LogCallback;
+        g_pwrlog_callback = LogCallback;
         return 0;
     }
     return -1;
@@ -55,11 +55,19 @@ int PWR_Register()
 
 int PWR_UnRegister()
 {
-    CHECK_STATUS
     int ret = FiniSockClient();
     // todo: 增加必要的其他去初始化动作
     g_registed = 0;
     return ret;
+}
+
+int PWR_CPU_GetInfo(PWR_CPU_Info *cpuInfo)
+{
+    CHECK_STATUS
+    if (!cpuInfo) {
+        return ERR_NULL_POINTER;
+    }
+    return GetCpuInfo(cpuInfo);
 }
 
 int PWR_CPU_GetUsage(CPUUsage *usage)

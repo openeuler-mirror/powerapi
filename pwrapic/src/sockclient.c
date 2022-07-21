@@ -277,6 +277,7 @@ int FiniSockClient()
     ResetPwrMsgBuffer(&g_sendBuff);
     ResetPwrMsgBuffer(&g_recvBuff);
     ResetResultWaitingList(&g_waitList);
+    DestroyMsgFactory();
     return SUCCESS;
 }
 
@@ -312,5 +313,24 @@ int SendMsgSyn(PwrMsg *msg, PwrMsg **rsp)
     node->reqMsg = NULL;
     node->rspMsg = NULL;
     ReleaseResultWaitingMsgNode(node);
+    return SUCCESS;
+}
+
+int SendReqAndWaitForRsp(PwrMsg *req, PwrMsg **rsp)
+{
+    if (!req || !rsp) {
+        return ERR_NULL_POINTER;
+    }
+    CHECK_SOCKET_STATUS();
+
+    if (SendMsgSyn(req, rsp) != SUCCESS) {
+        PwrLog(ERROR, "send msg to server failed. optType: %d, seqId:%d", req->head.optType, req->head.seqId);
+        return ERR_SYS_EXCEPTION;
+    }
+
+    if (*rsp == NULL || (*rsp)->head.rspCode != SUCCESS) {
+        PwrLog(ERROR, "rsp error. optType: %d, seqId:%d", req->head.optType, req->head.seqId);
+        return *rsp == NULL ? ERR_COMMON : (*rsp)->head.rspCode;
+    }
     return SUCCESS;
 }

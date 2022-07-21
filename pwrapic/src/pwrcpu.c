@@ -20,48 +20,54 @@
 #include "pwrmsg.h"
 #include "sockclient.h"
 
+int GetCpuInfo(PWR_CPU_Info *cpuInfo)
+{
+    PwrMsg *req = CreateReqMsg(CPU_GET_INFO, 0, 0, NULL);
+    if (!req) {
+        PwrLog(ERROR, "Create CPU_GET_INFO req msg failed.");
+        return ERR_SYS_EXCEPTION;
+    }
+
+    PwrMsg *rsp = NULL;
+    int ret = SendReqAndWaitForRsp(req, &rsp);
+    if (ret != SUCCESS || !(rsp->data) || rsp->head.dataLen != sizeof(PWR_CPU_Info)) {
+        PwrLog(ERROR, "CPU_GET_INFO req failed. ret:%d", ret);
+        ReleasePwrMsg(&req);
+        ReleasePwrMsg(&rsp);
+        return ret == SUCCESS ? ERR_COMMON : ret;
+    }
+
+    memcpy(cpuInfo, rsp->data, sizeof(PWR_CPU_Info));
+    PwrLog(DEBUG, "CPU_GET_INFO Succeed.");
+    ReleasePwrMsg(&req);
+    ReleasePwrMsg(&rsp);
+    return SUCCESS;
+}
+
 int GetUsage(CPUUsage *usage)
 {
-    if (!usage) {
-        return ERR_NULL_POINTER;
-    }
     // 组装消息
-    PwrMsg *msg = (PwrMsg *)malloc(sizeof(PwrMsg));
-    if (!msg) {
-        PwrLog(ERROR, "malloc failed.");
-        return ERR_COMMON;
-    }
-    bzero(msg, sizeof(PwrMsg));
-    if (GenerateReqMsg(msg, GET_CPU_USAGE, 0, 0, NULL) != SUCCESS) {
-        PwrLog(ERROR, "Generate GetUsage req msg failed.");
-        ReleasePwrMsg(&msg);
-        return ERR_COMMON;
+    PwrMsg *req = CreateReqMsg(CPU_GET_USAGE, 0, 0, NULL);
+    if (!req) {
+        PwrLog(ERROR, "Create CPU_GET_USAGE req msg failed.");
+        return ERR_SYS_EXCEPTION;
     }
 
     // 发送消息
     PwrMsg *rsp = NULL;
-    if (SendMsgSyn(msg, &rsp) != SUCCESS) {
-        PwrLog(ERROR, "send GET_CPU_USAGE msg failed.");
-        ReleasePwrMsg(&msg);
+    int ret = SendReqAndWaitForRsp(req, &rsp);
+    if (ret != SUCCESS || !(rsp->data) || rsp->head.dataLen != sizeof(CPUUsage)) {
+        PwrLog(ERROR, "CPU_GET_USAGE req failed. ret:%d", ret);
+        ReleasePwrMsg(&req);
         ReleasePwrMsg(&rsp);
-        return ERR_COMMON;
-    }
-
-    if (rsp == NULL || rsp->head.rspCode != SUCCESS) {
-        ReleasePwrMsg(&msg);
-        ReleasePwrMsg(&rsp);
-        return rsp == NULL ? ERR_COMMON : rsp->head.rspCode;
+        return ret == SUCCESS ? ERR_COMMON : ret;
     }
 
     // 填充结果
-    if (rsp->data) {
-        usage->usage = ((CPUUsage *)(rsp->data))->usage;
-    } else {
-        usage->usage = 0;
-    }
+    usage->usage = ((CPUUsage *)(rsp->data))->usage;
 
     PwrLog(DEBUG, "GET_CPU_USAGE succeed.");
-    ReleasePwrMsg(&msg);
+    ReleasePwrMsg(&req);
     ReleasePwrMsg(&rsp);
     return SUCCESS;
 }

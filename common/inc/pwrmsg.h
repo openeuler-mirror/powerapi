@@ -47,10 +47,10 @@ typedef struct PwrMsg {
 } PwrMsg;
 
 enum OperationType {
-    GET_CPU_USAGE = 0,
-    GET_CPU_CACHE_MISS,
-    GET_CPU_TOP,
-    GET_DISK_IO_RATE = 30,
+    CPU_GET_USAGE = 0,
+    CPU_GET_INFO,
+    CPU_GET_CACHE_MISS,
+    DISK_GET_IO_RATE = 30,
     // todo
 };
 enum DataFormat {
@@ -74,9 +74,10 @@ static inline void ReleasePwrMsg(PwrMsg **msg)
     *msg = NULL;
 }
 
-int GenerateReqMsg(PwrMsg *msg, enum OperationType optType, uint32_t dataLen, uint32_t taskNo, char *data);
 PwrMsg *ClonePwrMsg(PwrMsg *msg);
+PwrMsg * CreateReqMsg(enum OperationType optType, uint32_t taskNo, uint32_t dataLen, char *data);
 int InitMsgFactory();
+void DestroyMsgFactory();
 int GenerateRspMsg(PwrMsg *req, PwrMsg *rsp, int rspCode, char *data, int dataLen);
 
 #define TRUE 1
