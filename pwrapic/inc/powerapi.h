@@ -32,6 +32,7 @@ PWR_API int PWR_Register();
 PWR_API int PWR_UnRegister();
 
 // CPU
+PWR_API int PWR_CPU_GetInfo(PWR_CPU_Info *cpuInfo);
 PWR_API int PWR_CPU_GetUsage(CPUUsage *usage);
 
 #ifdef __cplusplus

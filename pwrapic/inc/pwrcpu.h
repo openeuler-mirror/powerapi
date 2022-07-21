@@ -16,7 +16,7 @@
 #define __POWERAPI_CPU_H__
 
 #include "powerapi.h"
-
+int GetCpuInfo(PWR_CPU_Info *cpuInfo);
 int GetUsage(CPUUsage *usage);
 
 

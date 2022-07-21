@@ -24,13 +24,13 @@ enum PwrLogLevel {
     ERROR
 };
 
-extern void (*PwrLogCallback)(int level, const char *fmt, va_list vl);
+extern void (*g_pwrlog_callback)(int level, const char *fmt, va_list vl);
 static inline void PwrLog(int level, const char *fmt, ...)
 {
-    if (PwrLogCallback) {
+    if (g_pwrlog_callback) {
         va_list vl;
         va_start(vl, fmt);
-        PwrLogCallback(level, fmt, vl);
+        g_pwrlog_callback(level, fmt, vl);
         va_end(vl);
     }
 }

@@ -19,19 +19,26 @@
 #include <unistd.h>
 
 static pid_t g_pid = 0;
+static pthread_mutex_t g_seqLock;
 
 static uint32_t GenerateSeqId()
 {
-    // todo
-    return 0;
+    static uint16_t seed = 0;
+    uint32_t pid = g_pid << 16;
+    pthread_mutex_lock((pthread_mutex_t *)&g_seqLock);
+    uint32_t seqId = pid + seed;
+    seed++;
+    pthread_mutex_unlock((pthread_mutex_t *)&g_seqLock);
+    return seqId;
 }
+
 static uint32_t GenerateCrcMagic()
 {
     // todo
     return 0;
 }
 
-static int GenerateReqMsgHead(MsgHead *head, enum OperationType optType, uint32_t dataLen, uint32_t taskNo)
+static int GenerateReqMsgHead(MsgHead *head, enum OperationType optType, uint32_t taskNo, uint32_t dataLen)
 {
     if (!head) {
         return ERR_NULL_POINTER;
@@ -51,14 +58,17 @@ static int GenerateReqMsgHead(MsgHead *head, enum OperationType optType, uint32_
     return SUCCESS;
 }
 
-int GenerateReqMsg(PwrMsg *msg, enum OperationType optType, uint32_t dataLen, uint32_t taskNo, char *data)
+PwrMsg * CreateReqMsg(enum OperationType optType, uint32_t taskNo,  uint32_t dataLen, char *data)
 {
-    if (!msg) {
-        return ERR_NULL_POINTER;
+    PwrMsg *req = (PwrMsg*) malloc(sizeof(PwrMsg));
+    if(!req) {
+        return NULL;
     }
-    bzero(msg, sizeof(PwrMsg));
-    msg->data = data;
-    return GenerateReqMsgHead(&msg->head, optType, dataLen, taskNo);
+
+    bzero(req, sizeof(PwrMsg));
+    req->data = data;
+    GenerateReqMsgHead(&req->head, optType, dataLen, taskNo);
+    return req;
 }
 
 PwrMsg *ClonePwrMsg(PwrMsg *msg)
@@ -71,6 +81,7 @@ PwrMsg *ClonePwrMsg(PwrMsg *msg)
         return NULL;
     }
     c->head = msg->head;
+    c->data = NULL;
     if (msg->data) {
         char *data = (char *)malloc(sizeof(msg->head.dataLen));
         if (!data) {
@@ -86,7 +97,14 @@ PwrMsg *ClonePwrMsg(PwrMsg *msg)
 int InitMsgFactory()
 {
     g_pid = getpid();
+    pthread_mutex_init((pthread_mutex_t *)&g_seqLock, NULL);
 }
+
+void DestroyMsgFactory()
+{
+    pthread_mutex_destroy((pthread_mutex_t *)&g_seqLock);
+}
+
 
 int GenerateRspMsg(PwrMsg *req, PwrMsg *rsp, int rspCode, char *data, int dataLen)
 {

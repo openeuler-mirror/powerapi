@@ -32,8 +32,8 @@
 
 static int g_listenFd = -1;
 static pthread_mutex_t g_listenFdLock = PTHREAD_MUTEX_INITIALIZER;
-ThreadInfo g_sockProcThread;
-ThreadInfo g_ServiceThread;
+static ThreadInfo g_sockProcThread;
+static ThreadInfo g_serviceThread;
 
 static PwrClient g_pwrClients[MAX_LICENT_NUM]; // 对该结构的读和写都在一个线程完成，因而不需要加锁
 static PwrMsgBuffer g_sendBuff;                // 发送队列
@@ -314,16 +314,16 @@ static void WaitForMsg()
 static void ProcessReqMsg(PwrMsg *req)
 {
     switch (req->head.optType) {
-        case GET_CPU_USAGE:
+        case CPU_GET_USAGE:
             GetCpuUsage(req);
             break;
-        case GET_CPU_CACHE_MISS:
+        case CPU_GET_CACHE_MISS:
             // todo
             break;
-        case GET_CPU_TOP:
+        case CPU_GET_INFO:
             // todo
             break;
-        case GET_DISK_IO_RATE:
+        case DISK_GET_IO_RATE:
             // todo
             break;
         default:
@@ -339,7 +339,7 @@ static void ProcessReqMsg(PwrMsg *req)
  */
 static void *RunServiceProcess()
 {
-    while (g_ServiceThread.keepRunning) {
+    while (g_serviceThread.keepRunning) {
         if (IsEmptyBuffer(&g_recvBuff)) {
             WaitForMsg();
         }
@@ -357,7 +357,7 @@ int StartServer()
     InitMsgFactory();
     InitPwrMsgBuffer(&g_sendBuff);
     InitPwrMsgBuffer(&g_recvBuff);
-    InitThreadInfo(&g_ServiceThread);
+    InitThreadInfo(&g_serviceThread);
     InitThreadInfo(&g_sockProcThread);
     pthread_mutex_init((pthread_mutex_t *)&g_waitMsgMutex, NULL);
     pthread_cond_init((pthread_cond_t *)&g_waitMsgCond, NULL);
@@ -368,7 +368,7 @@ int StartServer()
         return ERR_SYS_EXCEPTION;
     }
 
-    ret = CreateThread(&g_ServiceThread, RunServiceProcess);
+    ret = CreateThread(&g_serviceThread, RunServiceProcess);
     if (ret != SUCCESS) {
         Logger(ERROR, MD_NM_SVR, "Create service thread failed! ret[%d]", ret);
         return ERR_SYS_EXCEPTION;
@@ -385,10 +385,11 @@ int StartServer()
 void StopServer()
 {
     FiniThreadInfo(&g_sockProcThread);
-    FiniThreadInfo(&g_ServiceThread);
+    FiniThreadInfo(&g_serviceThread);
     StopListen();
     ResetPwrMsgBuffer(&g_sendBuff);
     ResetPwrMsgBuffer(&g_recvBuff);
+    DestroyMsgFactory();
     pthread_cond_destroy((pthread_cond_t *)&g_waitMsgCond);
     pthread_mutex_destroy((pthread_mutex_t *)&g_waitMsgMutex);
 }
