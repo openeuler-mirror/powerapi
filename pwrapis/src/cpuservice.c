@@ -26,13 +26,14 @@ void GetCpuUsage(PwrMsg *req)
     if (!req) {
         return;
     }
-    Logger(DEBUG, MD_NM_SVR_CPU, "Get GetCpuUsage Req. seqId:%d, sysId:%d", req->head.seqId, req->head.sysId);
+    Logger(DEBUG, MD_NM_SVR_CPU, "Get GetCpuUsage Req. seqId:%u, sysId:%d", req->head.seqId, req->head.sysId);
     int rspCode = SUCCESS;
-    CPUUsage *rstData = malloc(sizeof(CPUUsage));
+    PWR_CPU_Usage *rstData = malloc(sizeof(PWR_CPU_Usage));
     if (!rstData) {
         return;
     }
-    rstData->usage = 40; // todo 调用适配层能力获取CPU使用率
+    rstData->avgUsage = 40; // todo 调用适配层能力获取CPU使用率
+    rstData->coreNum = 0;
 
     PwrMsg *rsp = (PwrMsg *)malloc(sizeof(PwrMsg));
     if (!rsp) {
@@ -41,7 +42,7 @@ void GetCpuUsage(PwrMsg *req)
         return;
     }
     bzero(rsp, sizeof(PwrMsg));
-    GenerateRspMsg(req, rsp, rspCode, (char *)rstData, sizeof(CPUUsage));
+    GenerateRspMsg(req, rsp, rspCode, (char *)rstData, sizeof(PWR_CPU_Usage));
     if (SendRspMsg(rsp) != SUCCESS) {
         ReleasePwrMsg(&rsp);
     }

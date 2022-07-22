@@ -17,7 +17,7 @@
 
 #include "powerapi.h"
 int GetCpuInfo(PWR_CPU_Info *cpuInfo);
-int GetUsage(CPUUsage *usage);
+int GetCpuUsage(PWR_CPU_Usage *usage, uint32_t bufferSize);
 
 
 #endif

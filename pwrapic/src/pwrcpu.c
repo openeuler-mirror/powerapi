@@ -44,7 +44,7 @@ int GetCpuInfo(PWR_CPU_Info *cpuInfo)
     return SUCCESS;
 }
 
-int GetUsage(CPUUsage *usage)
+int GetCpuUsage(PWR_CPU_Usage *usage, uint32_t bufferSize)
 {
     // 组装消息
     PwrMsg *req = CreateReqMsg(CPU_GET_USAGE, 0, 0, NULL);
@@ -56,7 +56,7 @@ int GetUsage(CPUUsage *usage)
     // 发送消息
     PwrMsg *rsp = NULL;
     int ret = SendReqAndWaitForRsp(req, &rsp);
-    if (ret != SUCCESS || !(rsp->data) || rsp->head.dataLen != sizeof(CPUUsage)) {
+    if (ret != SUCCESS || !(rsp->data) || rsp->head.dataLen < sizeof(PWR_CPU_Usage)) {
         PwrLog(ERROR, "CPU_GET_USAGE req failed. ret:%d", ret);
         ReleasePwrMsg(&req);
         ReleasePwrMsg(&rsp);
@@ -64,7 +64,9 @@ int GetUsage(CPUUsage *usage)
     }
 
     // 填充结果
-    usage->usage = ((CPUUsage *)(rsp->data))->usage;
+    int dlen = rsp->head.dataLen < bufferSize ? rsp->head.dataLen : bufferSize;
+    memcpy(usage, rsp->data, dlen);
+    usage->coreNum = (dlen - sizeof(PWR_CPU_Usage)) / sizeof(PWR_CPU_CoreUsage);
 
     PwrLog(DEBUG, "GET_CPU_USAGE succeed.");
     ReleasePwrMsg(&req);

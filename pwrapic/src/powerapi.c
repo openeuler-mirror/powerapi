@@ -70,12 +70,16 @@ int PWR_CPU_GetInfo(PWR_CPU_Info *cpuInfo)
     return GetCpuInfo(cpuInfo);
 }
 
-int PWR_CPU_GetUsage(CPUUsage *usage)
+int PWR_CPU_GetUsage(PWR_CPU_Usage *usage, uint32_t bufferSize)
 {
     CHECK_STATUS
     if (!usage) {
         return ERR_NULL_POINTER;
     }
-    int ret = GetUsage(usage);
+    if (bufferSize < sizeof(PWR_CPU_Usage)) {
+        return ERR_INVALIDE_PARAM;
+    }
+
+    int ret = GetCpuUsage(usage, bufferSize);
     return ret;
 }

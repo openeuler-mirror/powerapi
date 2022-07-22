@@ -11,7 +11,7 @@
  * Author: queyanwen
  * Create: 2022-06-23
  * Description: Message struct and operations implementation. These messages used for communication between
- *      PowerAPI.so and PowerAPI service.
+ * PowerAPI.so and PowerAPI service.
  * **************************************************************************** */
 #include "pwrmsg.h"
 #include <stdlib.h>
@@ -58,10 +58,10 @@ static int GenerateReqMsgHead(MsgHead *head, enum OperationType optType, uint32_
     return SUCCESS;
 }
 
-PwrMsg * CreateReqMsg(enum OperationType optType, uint32_t taskNo,  uint32_t dataLen, char *data)
+PwrMsg *CreateReqMsg(enum OperationType optType, uint32_t taskNo, uint32_t dataLen, char *data)
 {
-    PwrMsg *req = (PwrMsg*) malloc(sizeof(PwrMsg));
-    if(!req) {
+    PwrMsg *req = (PwrMsg *)malloc(sizeof(PwrMsg));
+    if (!req) {
         return NULL;
     }
 
@@ -122,7 +122,6 @@ int GenerateRspMsg(PwrMsg *req, PwrMsg *rsp, int rspCode, char *data, int dataLe
     rsp->head.seqId = req->head.seqId;
     rsp->head.taskNo = req->head.taskNo;
     rsp->head.crcMagic = GenerateCrcMagic();
-    ;
     rsp->head.dataLen = dataLen;
     rsp->head.sysId = req->head.sysId;
     rsp->data = data;
