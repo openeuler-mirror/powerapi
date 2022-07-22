@@ -77,10 +77,21 @@ int main(int argc, const char *args[])
         continue;
     }
     printf("main regist succeed.\n");
-    CPUUsage u;
-    bzero(&u, sizeof(CPUUsage));
-    PWR_CPU_GetUsage(&u);
-    printf("CPU usage:%d\n", u.usage);
+
+    int ret = 0;
+
+    // PWR_CPU_GetUsage
+    int buffSize = sizeof(PWR_CPU_Usage) + 128 * sizeof(PWR_CPU_CoreUsage);
+    PWR_CPU_Usage *u = (PWR_CPU_Usage *)malloc(buffSize);
+    bzero(u, buffSize);
+    ret = PWR_CPU_GetUsage(u, buffSize);
+    printf("ret: %d, CPU avgUsage:%f, coreNum: %d \n", ret, u->avgUsage, u->coreNum);
+    for (int i = 0; i < u->coreNum; i++) {
+        printf("core%d usage: %f\n", u->coreUsage[i].coreNo, u->coreUsage[i].usage);
+    }
+    free(u);
+
+
     // todo: 其他接口测试
 
     while (g_run) {

@@ -121,8 +121,8 @@ static void RecvMsgFromSocket()
         return;
     }
 
-    char *msgcontent = malloc(sizeof(msg->head.dataLen));
-    if (!msgcontent || ReadMsg(msgcontent, sizeof(msg->head.dataLen)) != SUCCESS) {
+    char *msgcontent = malloc(msg->head.dataLen);
+    if (!msgcontent || ReadMsg(msgcontent, msg->head.dataLen) != SUCCESS) {
         ReleasePwrMsg(&msg);
         return;
     }
@@ -324,12 +324,12 @@ int SendReqAndWaitForRsp(PwrMsg *req, PwrMsg **rsp)
     CHECK_SOCKET_STATUS();
 
     if (SendMsgSyn(req, rsp) != SUCCESS) {
-        PwrLog(ERROR, "send msg to server failed. optType: %d, seqId:%d", req->head.optType, req->head.seqId);
+        PwrLog(ERROR, "send msg to server failed. optType: %d, seqId:%u", req->head.optType, req->head.seqId);
         return ERR_SYS_EXCEPTION;
     }
 
     if (*rsp == NULL || (*rsp)->head.rspCode != SUCCESS) {
-        PwrLog(ERROR, "rsp error. optType: %d, seqId:%d", req->head.optType, req->head.seqId);
+        PwrLog(ERROR, "rsp error. optType: %d, seqId:%u", req->head.optType, req->head.seqId);
         return *rsp == NULL ? ERR_COMMON : (*rsp)->head.rspCode;
     }
     return SUCCESS;

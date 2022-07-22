@@ -16,6 +16,7 @@
 #define __POWERAPI_H__
 
 #include <stdarg.h>
+#include <stdint.h>
 #include "pwrerr.h"
 #include "pwrdata.h"
 
@@ -33,7 +34,7 @@ PWR_API int PWR_UnRegister();
 
 // CPU
 PWR_API int PWR_CPU_GetInfo(PWR_CPU_Info *cpuInfo);
-PWR_API int PWR_CPU_GetUsage(CPUUsage *usage);
+PWR_API int PWR_CPU_GetUsage(PWR_CPU_Usage *usage, uint32_t bufferSize);
 
 #ifdef __cplusplus
 }

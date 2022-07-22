@@ -11,7 +11,7 @@
  * Author: queyanwen
  * Create: 2022-06-23
  * Description: Message struct and operations definition. These messages used for communication between
- *      PowerAPI.so and PowerAPI service.
+ * PowerAPI.so and PowerAPI service.
  * **************************************************************************** */
 #ifndef __POWERAPI_PROTOCOL_H__
 #define __POWERAPI_PROTOCOL_H__
@@ -47,8 +47,8 @@ typedef struct PwrMsg {
 } PwrMsg;
 
 enum OperationType {
-    CPU_GET_USAGE = 0,
-    CPU_GET_INFO,
+    CPU_GET_INFO = 1,
+    CPU_GET_USAGE,
     CPU_GET_CACHE_MISS,
     DISK_GET_IO_RATE = 30,
     // todo
@@ -57,7 +57,7 @@ enum DataFormat {
     FMT_BIN = 0,
 };
 enum MsgType {
-    MT_REQ = 0, // Request message
+    MT_REQ = 1, // Request message
     MT_RSP,     // Response message
     MT_EVT,     // event notification
     MT_MDT      // metadata
@@ -75,7 +75,7 @@ static inline void ReleasePwrMsg(PwrMsg **msg)
 }
 
 PwrMsg *ClonePwrMsg(PwrMsg *msg);
-PwrMsg * CreateReqMsg(enum OperationType optType, uint32_t taskNo, uint32_t dataLen, char *data);
+PwrMsg *CreateReqMsg(enum OperationType optType, uint32_t taskNo, uint32_t dataLen, char *data);
 int InitMsgFactory();
 void DestroyMsgFactory();
 int GenerateRspMsg(PwrMsg *req, PwrMsg *rsp, int rspCode, char *data, int dataLen);

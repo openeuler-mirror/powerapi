@@ -15,19 +15,20 @@
 #ifndef __POWERAPI_DATA_H__
 #define __POWERAPI_DATA_H__
 
+#define MAX_ARCH_NAME_LEN 32
 #define MAX_NAME_LEN 128
-#define MAX_CPU_LIST_LEN 256
+#define MAX_CPU_LIST_LEN 248
 #define MAX_NUMA_NODE_NUM 16
 
-typedef struct PWR_CPU_NumaInfo{
+typedef struct PWR_CPU_NumaInfo {
     int nodeNo;
     char cpuList[MAX_CPU_LIST_LEN];
 } PWR_CPU_NumaInfo;
 
-typedef struct PWR_CPU_Info{
-    int arch;
-    int byteOrder;
+typedef struct PWR_CPU_Info {
+    char arch[MAX_ARCH_NAME_LEN];
     char modelName[MAX_NAME_LEN];
+    int byteOrder;
     int coreNum;
     char onlineList[MAX_CPU_LIST_LEN];
     int threadsPerCore;
@@ -38,10 +39,15 @@ typedef struct PWR_CPU_Info{
     PWR_CPU_NumaInfo numa[MAX_NUMA_NODE_NUM];
 } PWR_CPU_Info;
 
+typedef struct PWR_CPU_CoreUsage {
+    int coreNo;
+    double usage;
+} PWR_CPU_CoreUsage;
 
-typedef struct CPUUsage {
-    // todo complete CPUUsage definition
-    int usage;
-} CPUUsage;
+typedef struct PWR_CPU_Usage {
+    double avgUsage;
+    int coreNum;
+    PWR_CPU_CoreUsage coreUsage[0];
+} PWR_CPU_Usage;
 
 #endif
