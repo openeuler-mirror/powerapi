@@ -15,10 +15,13 @@
 #ifndef __POWERAPI_DATA_H__
 #define __POWERAPI_DATA_H__
 
-#define MAX_ARCH_NAME_LEN 32
+#define MAX_ELEMENT_NAME_LEN 32
 #define MAX_NAME_LEN 128
 #define MAX_CPU_LIST_LEN 248
 #define MAX_NUMA_NODE_NUM 16
+#define MAX_GOV_NUM 16
+
+#define MAX_CPU_DMA_LATENCY 2000000000
 
 typedef struct PWR_CPU_NumaInfo {
     int nodeNo;
@@ -26,7 +29,7 @@ typedef struct PWR_CPU_NumaInfo {
 } PWR_CPU_NumaInfo;
 
 typedef struct PWR_CPU_Info {
-    char arch[MAX_ARCH_NAME_LEN];
+    char arch[MAX_ELEMENT_NAME_LEN];
     char modelName[MAX_NAME_LEN];
     int byteOrder;
     int coreNum;
@@ -49,5 +52,28 @@ typedef struct PWR_CPU_Usage {
     int coreNum;
     PWR_CPU_CoreUsage coreUsage[0];
 } PWR_CPU_Usage;
+
+/*
+typedef enum PWR_CPU_FREQ_DRIVER {
+    PWR_CPU_FREQ_DRV_CPPC = 1,      // cppc_cpufreq
+    PWR_CPU_FREQ_DRV_INTEL,         // intel_cpufreq
+    PWR_CPU_FREQ_DRV_INTEL_PSTATE,  // intel_pstate
+} PWR_CPU_FREQ_DRIVER;
+
+typedef enum PWR_CPU_FREQ_GOV {
+    PWR_CPU_FREQ_GOV_CONSERVATIVE = 1,      // conservative governor
+    PWR_CPU_FREQ_GOV_ONDEMAND,              // ondemand governoor
+    PWR_CPU_FREQ_GOV_USERSPACE,             // userspace governor
+    PWR_CPU_FREQ_GOV_POWERSAVE,             // powersave governor
+    PWR_CPU_FREQ_GOV_PERFORMANCE = 5,       // performance governor
+    PWR_CPU_FREQ_GOV_SCHEDUTIL,             // schedutil governor
+    PWR_CPU_FREQ_GOV_SEEP,                  // seep governor
+} PWR_CPU_FREQ_GOV;*/
+
+typedef struct PWR_CPU_FreqAbility {
+    char curDriver[MAX_ELEMENT_NAME_LEN];
+    int avGovNum; 
+    int avGovList[MAX_GOV_NUM][MAX_ELEMENT_NAME_LEN];
+} PWR_CPU_FreqAbility;
 
 #endif

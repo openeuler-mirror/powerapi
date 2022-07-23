@@ -16,9 +16,20 @@
 #define __POWERAPI_CONNECTION_H__
 #include "pwrmsg.h"
 
+typedef struct ReqInputParam {
+    enum OperationType optType;
+    uint32_t taskNo;
+    uint32_t dataLen;
+    char *data;
+} ReqInputParam;
+
+typedef struct RspOutputParam {
+    uint32_t *rspBuffSize;
+    char * rspData;
+} RspOutputParam;
+
 int InitSockClient();
 int FiniSockClient();
 
-int SendMsgSyn(PwrMsg *msg, PwrMsg **rsp);
-int SendReqAndWaitForRsp(PwrMsg *req, PwrMsg **rsp);
+int SendReqAndWaitForRsp(ReqInputParam input, RspOutputParam output);
 #endif

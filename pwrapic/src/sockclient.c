@@ -243,6 +243,60 @@ static void *RunSocketProcess()
 }
 
 
+static int SendMsgSyn(PwrMsg *msg, PwrMsg **rsp)
+{
+    if (!msg || !rsp) {
+        return ERR_NULL_POINTER;
+    }
+    CHECK_SOCKET_STATUS();
+
+    // copy to sending buffer
+    PwrMsg *copy = ClonePwrMsg(msg);
+    if (!copy) {
+        return -1;
+    }
+    AddToBufferTail(&g_sendBuff, copy);
+
+    // Waiting for response
+    ResultWaitingMsgNode *node = CreateResultWaitingMsgNode();
+    if (!node) {
+        PwrLog(ERROR, "Malloc failed.");
+        ReleasePwrMsg(&msg);
+        return ERR_SYS_EXCEPTION;
+    }
+    node->reqMsg = msg;
+    AddToWaitingListTail(&g_waitList, node);
+    int ret = WaitingForResponse(node);
+    if (ret != SUCCESS) {
+        // timeout or error scenario. the msg still waiting in the list. need to move out.
+        MoveOutWaitingMsg(&g_waitList, node);
+    }
+    *rsp = node->rspMsg;
+    node->reqMsg = NULL;
+    node->rspMsg = NULL;
+    ReleaseResultWaitingMsgNode(node);
+    return SUCCESS;
+}
+
+static int SendReqMsgAndWaitForRsp(PwrMsg *req, PwrMsg **rsp)
+{
+    if (!req || !rsp) {
+        return ERR_NULL_POINTER;
+    }
+    CHECK_SOCKET_STATUS();
+
+    if (SendMsgSyn(req, rsp) != SUCCESS) {
+        PwrLog(ERROR, "send msg to server failed. optType: %d, seqId:%u", req->head.optType, req->head.seqId);
+        return ERR_SYS_EXCEPTION;
+    }
+
+    if (*rsp == NULL || (*rsp)->head.rspCode != SUCCESS) {
+        PwrLog(ERROR, "rsp error. optType: %d, seqId:%u", req->head.optType, req->head.seqId);
+        return *rsp == NULL ? ERR_COMMON : (*rsp)->head.rspCode;
+    }
+    return SUCCESS;
+}
+
 // public****************************************************************************************/
 int InitSockClient()
 {
@@ -281,56 +335,50 @@ int FiniSockClient()
     return SUCCESS;
 }
 
-int SendMsgSyn(PwrMsg *msg, PwrMsg **rsp)
+int SendReqAndWaitForRsp(ReqInputParam input, RspOutputParam output)
 {
-    if (!msg || !rsp) {
-        return ERR_NULL_POINTER;
+    if ((output.rspData && (!output.rspBuffSize || *output.rspBuffSize == 0))) {
+        return ERR_INVALIDE_PARAM;
     }
-    CHECK_SOCKET_STATUS();
 
-    // copy to sending buffer
-    PwrMsg *copy = ClonePwrMsg(msg);
-    if (!copy) {
-        return -1;
+    char *inputData = NULL;
+    if (input.data && input.dataLen != 0) {
+        inputData = (char*) malloc(input.dataLen);
+        bzero(inputData, input.dataLen);
+        memcpy(inputData, input.data, input.dataLen);
     }
-    AddToBufferTail(&g_sendBuff, copy);
 
-    // Waiting for response
-    ResultWaitingMsgNode *node = CreateResultWaitingMsgNode();
-    if (!node) {
-        PwrLog(ERROR, "Malloc failed.");
-        ReleasePwrMsg(&msg);
+    PwrMsg *req = CreateReqMsg(input.optType, input.taskNo, input.dataLen, inputData);
+    if (!req) {
+        PwrLog(ERROR, "Create req msg failed. optType:%d", input.optType);
+        free(inputData);
         return ERR_SYS_EXCEPTION;
     }
-    node->reqMsg = msg;
-    AddToWaitingListTail(&g_waitList, node);
-    int ret = WaitingForResponse(node);
+
+    PwrMsg *rsp = NULL;
+    int ret = SendReqMsgAndWaitForRsp(req, &rsp);
     if (ret != SUCCESS) {
-        // timeout or error scenario. the msg still waiting in the list. need to move out.
-        MoveOutWaitingMsg(&g_waitList, node);
-    }
-    *rsp = node->rspMsg;
-    node->reqMsg = NULL;
-    node->rspMsg = NULL;
-    ReleaseResultWaitingMsgNode(node);
-    return SUCCESS;
-}
-
-int SendReqAndWaitForRsp(PwrMsg *req, PwrMsg **rsp)
-{
-    if (!req || !rsp) {
-        return ERR_NULL_POINTER;
-    }
-    CHECK_SOCKET_STATUS();
-
-    if (SendMsgSyn(req, rsp) != SUCCESS) {
-        PwrLog(ERROR, "send msg to server failed. optType: %d, seqId:%u", req->head.optType, req->head.seqId);
-        return ERR_SYS_EXCEPTION;
+        PwrLog(ERROR, "Send req failed. optType:%d, ret:%d", input.optType, ret);
+        ReleasePwrMsg(&req);
+        ReleasePwrMsg(&rsp);
+        return ret;
     }
 
-    if (*rsp == NULL || (*rsp)->head.rspCode != SUCCESS) {
-        PwrLog(ERROR, "rsp error. optType: %d, seqId:%u", req->head.optType, req->head.seqId);
-        return *rsp == NULL ? ERR_COMMON : (*rsp)->head.rspCode;
+    uint32_t srcSize = *output.rspBuffSize;
+    if (output.rspData) {
+        if (rsp->data) {
+            int dlen = srcSize < rsp->head.dataLen ? srcSize : rsp->head.dataLen;
+            memcpy(output.rspData, rsp->data, dlen);
+            *output.rspBuffSize = dlen;
+        } else {
+            ReleasePwrMsg(&req);
+            ReleasePwrMsg(&rsp);
+            return ERR_WRONG_RESPONSE_FROM_SERVER;
+        }
     }
+
+    PwrLog(DEBUG, "Request Succeed. optType:%d", input.optType);
+    ReleasePwrMsg(&req);
+    ReleasePwrMsg(&rsp);
     return SUCCESS;
 }

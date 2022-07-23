@@ -18,6 +18,9 @@
 #include "powerapi.h"
 int GetCpuInfo(PWR_CPU_Info *cpuInfo);
 int GetCpuUsage(PWR_CPU_Usage *usage, uint32_t bufferSize);
-
-
+int GetCpuFreqAbility(PWR_CPU_FreqAbility *freqAbi);
+int GetCpuFreqGovernor(char gov[], uint32_t size);
+int SetCpuFreqGovernor(char gov[], uint32_t size);
+int GetCpuDmaLatency(int *latency);
+int SetCpuDmaLatency(int latency);
 #endif
