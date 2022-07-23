@@ -15,17 +15,25 @@
 
 #include "powerapi.h"
 #include <stdio.h>
+#include <string.h>
 #include "pwrlog.h"
 #include "sockclient.h"
 #include "pwrcpu.h"
 
 static int g_registed = 0;
 
-#define CHECK_STATUS                    \
+#define CHECK_STATUS() {                  \
     if (!g_registed) {                  \
         PwrLog(ERROR, "Not Registed."); \
         return ERR_NOT_REGISTED;        \
-    }
+    }                                   \
+}
+
+#define CHECK_NULL_POINTER(p) {         \
+    if (!(p)) {                         \
+        return ERR_NULL_POINTER;        \
+    }                                   \
+}
 
 static void DefaultLogCallback(int level, const char *fmt, va_list vl)
 {
@@ -63,23 +71,68 @@ int PWR_UnRegister()
 
 int PWR_CPU_GetInfo(PWR_CPU_Info *cpuInfo)
 {
-    CHECK_STATUS
-    if (!cpuInfo) {
-        return ERR_NULL_POINTER;
-    }
+    CHECK_STATUS();
+    CHECK_NULL_POINTER(cpuInfo);
+
     return GetCpuInfo(cpuInfo);
 }
 
 int PWR_CPU_GetUsage(PWR_CPU_Usage *usage, uint32_t bufferSize)
 {
-    CHECK_STATUS
-    if (!usage) {
-        return ERR_NULL_POINTER;
-    }
+    CHECK_STATUS();
+    CHECK_NULL_POINTER(usage);
+
     if (bufferSize < sizeof(PWR_CPU_Usage)) {
         return ERR_INVALIDE_PARAM;
     }
 
-    int ret = GetCpuUsage(usage, bufferSize);
-    return ret;
+    return GetCpuUsage(usage, bufferSize);;
+}
+
+int PWR_CPU_GetFreqAbility(PWR_CPU_FreqAbility *freqAbi)
+{
+    CHECK_STATUS();
+    CHECK_NULL_POINTER(freqAbi);
+
+    return GetCpuFreqAbility(freqAbi);
+}
+
+int PWR_CPU_GetFreqGovernor(char gov[], uint32_t size)
+{
+    CHECK_STATUS();
+    CHECK_NULL_POINTER(gov);
+    if (size < MAX_ELEMENT_NAME_LEN) {
+        return ERR_INVALIDE_PARAM;
+    }
+
+    return GetCpuFreqGovernor(gov, size);
+}
+
+int PWR_CPU_SetFreqGovernor(char gov[])
+{
+    CHECK_STATUS();
+    CHECK_NULL_POINTER(gov);
+    if (strlen(gov) == 0 || strlen(gov) >= MAX_ELEMENT_NAME_LEN) {
+        return ERR_INVALIDE_PARAM;
+    }
+
+    return SetCpuFreqGovernor(gov, strlen(gov) + 1);
+}
+
+int PWR_CPU_DmaGetLatency(int *latency)
+{
+    CHECK_STATUS();
+    CHECK_NULL_POINTER(latency);
+
+    return GetCpuDmaLatency(latency);
+}
+
+int PWR_CPU_DmaSetLatency(int latency)
+{
+    CHECK_STATUS();
+    if (latency < 0 || latency > MAX_CPU_DMA_LATENCY) {
+        return ERR_INVALIDE_PARAM;
+    }
+
+    return SetCpuDmaLatency(latency);
 }
