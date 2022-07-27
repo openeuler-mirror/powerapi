@@ -1,5 +1,5 @@
 /* *****************************************************************************
- * Copyright (c) Huawei Technologies Co., Ltd. 2021-2023. All rights reserved.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2022-2022. All rights reserved.
  * PowerAPI licensed under the Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
@@ -18,9 +18,11 @@
 #include "powerapi.h"
 int GetCpuInfo(PWR_CPU_Info *cpuInfo);
 int GetCpuUsage(PWR_CPU_Usage *usage, uint32_t bufferSize);
-int GetCpuFreqAbility(PWR_CPU_FreqAbility *freqAbi);
+int GetCpuFreqAbility(PWR_CPU_FreqAbility *freqAbi, uint32_t bufferSize);
 int GetCpuFreqGovernor(char gov[], uint32_t size);
 int SetCpuFreqGovernor(char gov[], uint32_t size);
+int GetCpuCurFreq(PWR_CPU_CurFreq curFreq[], uint32_t *len, int spec);
+int SetCpuCurFreq(PWR_CPU_CurFreq curFreq[], uint32_t len);
 int GetCpuDmaLatency(int *latency);
 int SetCpuDmaLatency(int latency);
 #endif

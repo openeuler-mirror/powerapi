@@ -1,5 +1,5 @@
 /* *****************************************************************************
- * Copyright (c) Huawei Technologies Co., Ltd. 2021-2023. All rights reserved.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2022-2022. All rights reserved.
  * PowerAPI licensed under the Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
@@ -47,15 +47,29 @@ typedef struct PwrMsg {
 } PwrMsg;
 
 enum OperationType {
-    CPU_GET_INFO = 1,
+    CPU_GET_INFO = 100,
     CPU_GET_USAGE,
     CPU_GET_CACHE_MISS,
     CPU_GET_FREQ_ABILITY,
     CPU_GET_FREQ_GOVERNOR,
     CPU_SET_FREQ_GOVERNOR,
+    CPU_GET_CUR_FREQ,
+    CPU_SET_CUR_FREQ,
     CPU_GET_DMA_LATENCY,
     CPU_SET_DMA_LATENCY,
-    DISK_GET_IO_RATE = 30,
+    DISK_GET_IO_RATE = 200,
+    DISK_GET_LIST,
+    DISK_GET_LOAD,
+    DISK_GET_POWER_LEVEL,
+    DISK_SET_POWER_LEVEL,
+    DISK_GET_SCSI_POLICY,
+    DISK_SET_SCSI_POLICY,
+    NET_GET_INFO = 300,
+    NET_GET_THROUGH,
+    NET_GET_SPEED_MOD,
+    NET_SET_SPEED_MOD,
+    USB_GET_AUTO_SUSPEND = 400,
+    USB_SET_AUTO_SUSPEND,
     // todo
 };
 enum DataFormat {
@@ -85,8 +99,7 @@ int InitMsgFactory();
 void DestroyMsgFactory();
 int GenerateRspMsg(PwrMsg *req, PwrMsg *rsp, int rspCode, char *data, int dataLen);
 
-#define TRUE 1
-#define FALSE 0
+
 typedef struct ThreadInfo {
     pthread_t tid;
     int keepRunning;
