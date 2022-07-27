@@ -50,8 +50,8 @@ typedef struct ServCfg {
     char sockFile[MAX_FILE_NAME];
 } ServCfg;
 
-int InitConfig();
-LogCfg *GetLogCfg();
-ServCfg *GetServCfg();
-int CheckAndUpdateConfig();
+int InitConfig(void);
+LogCfg *GetLogCfg(void);
+ServCfg *GetServCfg(void);
+int CheckAndUpdateConfig(void);
 #endif

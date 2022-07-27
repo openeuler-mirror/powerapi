@@ -37,7 +37,7 @@ static FILE *g_pFile = NULL; // todo 需要mutex保护
 static uint32_t g_curSize = 0;
 static regex_t g_logCmpFlRgx;
 
-static FILE *OpenLogFile()
+static FILE *OpenLogFile(void)
 {
     struct stat st;
     char fullName[MAX_FULL_NAME] = {0};
@@ -66,7 +66,7 @@ static int LogCmpFileFilter(const struct dirent *item)
     }
 }
 // Release space by deleting the earlier compressed files
-static void SpaceChkAndDel()
+static void SpaceChkAndDel(void)
 {
     int cnt;
     int fileCnt;
@@ -94,7 +94,7 @@ static void SpaceChkAndDel()
     free(fileList);
 }
 
-static int RotateFile()
+static int RotateFile(void)
 {
     int ret;
     char curTime[MAX_STD_TIME] = {0};
@@ -148,7 +148,7 @@ static const char *GetLevelName(enum LogLevel level)
     }
 }
 
-int InitLogger()
+int InitLogger(void)
 {
     regcomp(&g_logCmpFlRgx, "^", REG_EXTENDED | REG_NOSUB);
 
@@ -171,7 +171,7 @@ int InitLogger()
     return SUCCESS;
 }
 
-void ClearLogger()
+void ClearLogger(void)
 {
     if (g_pFile != NULL) {
         fclose(g_pFile);

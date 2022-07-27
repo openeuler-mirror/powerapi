@@ -1,5 +1,5 @@
 /* *****************************************************************************
- * Copyright (c) Huawei Technologies Co., Ltd. 2021-2022 All rights reserved.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2022-2022 All rights reserved.
  * PowerAPI licensed under the Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
@@ -21,6 +21,7 @@
 #include "log.h"
 
 #define ARGS_NUM 2
+#define MAIN_LOOP_INTERVAL 5
 static int g_keepMainRunning;
 
 static void PrintUsage(const char *args[])
@@ -28,7 +29,7 @@ static void PrintUsage(const char *args[])
     printf("Usage: %s < config_file_name > \n", args[0]);
 }
 
-static int BaseInit()
+static int BaseInit(void)
 {
     int ret = SUCCESS;
     ret = InitConfig();
@@ -45,18 +46,18 @@ static int BaseInit()
     return SUCCESS;
 }
 
-static void ClearEnv()
+static void ClearEnv(void)
 {
     // todo：必要的环境清理动作
     ClearLogger();
 }
 
-static void SignalHandler()
+static void SignalHandler(int none)
 {
     g_keepMainRunning = EXIT;
 }
 
-static void SetupSignal()
+static void SetupSignal(void)
 {
     // regist signal handler
     signal(SIGINT, SignalHandler);
@@ -90,7 +91,7 @@ int main(int argc, const char *args[])
     SetupSignal();
     g_keepMainRunning = KEEP_RUN;
     while (g_keepMainRunning) {
-        sleep(5);
+        sleep(MAIN_LOOP_INTERVAL);
         CheckAndUpdateConfig();
         // todo 系统定时任务(比如配置文件更新)触发
     }

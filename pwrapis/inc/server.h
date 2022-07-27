@@ -24,8 +24,8 @@
  * Note: return connected socket fd if success;
  * return < 1 if failed
  */
-int StartServer();
-void StopServer();
+int StartServer(void);
+void StopServer(void);
 int SendRspMsg(PwrMsg *rsp);
 
 #endif

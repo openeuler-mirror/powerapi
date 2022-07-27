@@ -1,5 +1,5 @@
 /* *****************************************************************************
- * Copyright (c) Huawei Technologies Co., Ltd. 2021-2022 All rights reserved.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2022-2022 All rights reserved.
  * PowerAPI licensed under the Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
@@ -30,7 +30,7 @@
 
 #define CLIENT_ADDR "pwrclient.sock."
 #define SERVER_ADDR "pwrserver.sock"
-#define INVALID_FD -1
+#define INVALID_FD (-1)
 #define SOCK_THREAD_LOOP_INTERVAL 2000 // us
 
 static int g_sockFd = INVALID_FD;
@@ -113,7 +113,7 @@ static void ProcessOtherMsg(PwrMsg *msg)
     }
 }
 
-static void RecvMsgFromSocket()
+static void RecvMsgFromSocket(void)
 {
     PwrMsg *msg = (PwrMsg *)malloc(sizeof(PwrMsg));
     if (!msg || ReadMsg(msg, sizeof(PwrMsg)) != SUCCESS) {
@@ -135,7 +135,7 @@ static void RecvMsgFromSocket()
     }
 }
 
-static void SendMsgToSocket()
+static void SendMsgToSocket(void)
 {
     int count = 0;
     static char data[MAX_DATA_SIZE];
@@ -171,7 +171,7 @@ static void SendMsgToSocket()
 }
 
 
-static int CreateConnection()
+static int CreateConnection(void)
 {
     int clientFd;
     clientFd = socket(AF_UNIX, SOCK_STREAM, 0);
@@ -213,7 +213,7 @@ static int CreateConnection()
     return SUCCESS;
 }
 
-static void *RunSocketProcess()
+static void *RunSocketProcess(void* none)
 {
     fd_set recvFdSet;
     struct timeval tv;
@@ -298,7 +298,7 @@ static int SendReqMsgAndWaitForRsp(PwrMsg *req, PwrMsg **rsp)
 }
 
 // public****************************************************************************************/
-int InitSockClient()
+int InitSockClient(void)
 {
     InitPwrMsgBuffer(&g_sendBuff);
     InitPwrMsgBuffer(&g_recvBuff);
@@ -324,10 +324,11 @@ int InitSockClient()
     return ret;
 }
 
-int FiniSockClient()
+int FiniSockClient(void)
 {
     FiniThreadInfo(&g_sockThread);
     close(g_sockFd);
+    g_sockFd = INVALID_FD;
     ResetPwrMsgBuffer(&g_sendBuff);
     ResetPwrMsgBuffer(&g_recvBuff);
     ResetResultWaitingList(&g_waitList);

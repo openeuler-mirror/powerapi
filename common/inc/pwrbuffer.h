@@ -14,9 +14,9 @@
  * **************************************************************************** */
 #ifndef __POWERAPI_UTILS_H__
 #define __POWERAPI_UTILS_H__
-#include "pwrmsg.h"
 #include <pthread.h>
 #include <stdlib.h>
+#include "pwrmsg.h"
 
 #define PWR_BUFFER_SIZE 64
 // Ring Queue, FIFO
@@ -64,7 +64,7 @@ static inline int IsFullBuffer(const PwrMsgBuffer *smb)
     return t == smb->head;
 }
 
-ResultWaitingMsgNode *CreateResultWaitingMsgNode();
+ResultWaitingMsgNode *CreateResultWaitingMsgNode(void);
 void ReleaseResultWaitingMsgNode(ResultWaitingMsgNode *node);
 void InitResultWaitingList(ResultWaitingMsgList *rwm);
 void ResetResultWaitingList(ResultWaitingMsgList *rwm);

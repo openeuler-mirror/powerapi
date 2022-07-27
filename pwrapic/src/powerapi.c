@@ -56,7 +56,7 @@ int PWR_SetLogCallback(void(LogCallback)(int, const char *, va_list))
     return -1;
 }
 
-int PWR_Register()
+int PWR_Register(void)
 {
     // todo: 增加必要的其他初始化动作
     if (InitSockClient() != SUCCESS) {
@@ -66,7 +66,7 @@ int PWR_Register()
     return SUCCESS;
 }
 
-int PWR_UnRegister()
+int PWR_UnRegister(void)
 {
     int ret = FiniSockClient();
     // todo: 增加必要的其他去初始化动作
