@@ -28,8 +28,8 @@ typedef struct RspOutputParam {
     char *rspData;
 } RspOutputParam;
 
-int InitSockClient();
-int FiniSockClient();
+int InitSockClient(void);
+int FiniSockClient(void);
 
 int SendReqAndWaitForRsp(ReqInputParam input, RspOutputParam output);
 #endif

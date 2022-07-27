@@ -87,7 +87,7 @@ static int StartUnxListen(const char *localFileName)
     return ListenStart(sockFd, (struct sockaddr *)&tSockaddr);
 }
 
-static void StopListen()
+static void StopListen(void)
 {
     pthread_mutex_lock(&g_listenFdLock);
     if (g_listenFd < 0) {
@@ -99,7 +99,7 @@ static void StopListen()
     pthread_mutex_unlock(&g_listenFdLock);
 }
 
-static void AcceptConnection()
+static void AcceptConnection(void)
 {
     Logger(INFO, MD_NM_SVR, "Received connection request.");
     int newClientFd;
@@ -208,12 +208,12 @@ static int WriteMsg(const void *pData, int len, int dstFd)
     return SUCCESS;
 }
 
-static void ProcessSendMsgToClient()
+static void ProcessSendMsgToClient(void)
 {
     // 从缓存中读取待发送消息，并发送出去
     int count = 0;
     static char data[MAX_DATA_SIZE];
-    while (!IsEmptyBuffer(&g_sendBuff) && count < 5) {
+    while (!IsEmptyBuffer(&g_sendBuff) && count < MAX_PROC_NUM_ONE_LOOP) {
         PwrMsg *msg = PopFromBufferHead(&g_sendBuff);
         count++;
         if (!msg) {
@@ -256,7 +256,7 @@ static void ProcessSendMsgToClient()
  * 1. Accepting connection request
  * 2. Receiving msg from or send msg to client FDs
  */
-static void *RunServerSocketProcess()
+static void *RunServerSocketProcess(void *none)
 {
     fd_set recvFdSet;
     int maxFd = INVALID_FD;
@@ -299,14 +299,14 @@ static void *RunServerSocketProcess()
     CloseAllConnections(g_pwrClients);
 }
 
-static void WaitForMsg()
+static void WaitForMsg(void)
 {
     struct timeval now;
     struct timespec outTime;
     pthread_mutex_lock((pthread_mutex_t *)&g_waitMsgMutex);
     gettimeofday(&now, NULL);
     outTime.tv_sec = now.tv_sec;
-    outTime.tv_nsec = (now.tv_usec + THREAD_LOOP_INTERVAL) * 1000;
+    outTime.tv_nsec = (now.tv_usec + THREAD_LOOP_INTERVAL) * ONE_THOUSAND;
     pthread_cond_timedwait((pthread_cond_t *)&g_waitMsgCond, (pthread_mutex_t *)&g_waitMsgMutex, &outTime);
     pthread_mutex_unlock((pthread_mutex_t *)&g_waitMsgMutex);
 }
@@ -337,7 +337,7 @@ static void ProcessReqMsg(PwrMsg *req)
  * RunServiceProcess - Run RunServiceProcess
  * Process the request msg in receiving buffer g_recvBuff
  */
-static void *RunServiceProcess()
+static void *RunServiceProcess(void *none)
 {
     while (g_serviceThread.keepRunning) {
         if (IsEmptyBuffer(&g_recvBuff)) {
@@ -352,7 +352,7 @@ static void *RunServiceProcess()
 }
 // public======================================================================================
 // Init Socket. Start listening & accepting
-int StartServer()
+int StartServer(void)
 {
     InitMsgFactory();
     InitPwrMsgBuffer(&g_sendBuff);
@@ -382,7 +382,7 @@ int StartServer()
     return SUCCESS;
 }
 
-void StopServer()
+void StopServer(void)
 {
     FiniThreadInfo(&g_sockProcThread);
     FiniThreadInfo(&g_serviceThread);

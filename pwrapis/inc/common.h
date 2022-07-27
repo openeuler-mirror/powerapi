@@ -22,6 +22,7 @@
 #define MAX_PEDDING_SOCKS 5
 #define MS_TO_SEC 1000
 #define ONE_HUNDRED 100
+#define ONE_THOUSAND 1000
 
 // Status code defination
 #define INTERACT_SUCCEED 2003
@@ -259,13 +260,14 @@ enum RunStatus {
 };
 
 
-#define INVALID_FD -1
-#define INVALID_INDEX -1
+#define INVALID_FD (-1)
+#define INVALID_INDEX (-1)
 
 #define MAX_LICENT_NUM 3
 #define THREAD_LOOP_INTERVAL 2000 // us
 #define SERVER_ADDR "pwrserver.sock"
 #define CLIENT_ADDR "pwrclient.sock."
 #define MAX_SYSID_LEN 20
+#define MAX_PROC_NUM_ONE_LOOP 5
 
 #endif

@@ -95,8 +95,8 @@ static inline void ReleasePwrMsg(PwrMsg **msg)
 
 PwrMsg *ClonePwrMsg(PwrMsg *msg);
 PwrMsg *CreateReqMsg(enum OperationType optType, uint32_t taskNo, uint32_t dataLen, char *data);
-int InitMsgFactory();
-void DestroyMsgFactory();
+int InitMsgFactory(void);
+void DestroyMsgFactory(void);
 int GenerateRspMsg(PwrMsg *req, PwrMsg *rsp, int rspCode, char *data, int dataLen);
 
 

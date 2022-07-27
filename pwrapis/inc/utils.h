@@ -37,7 +37,7 @@ struct FieldLocation {
  * GetCurSec - returns the current time as the number of seconds
  * since the Epoch, 1970 - 01 - 01 00:00:00 + 0000 (UTC).
  */
-time_t GetCurSec();
+time_t GetCurSec(void);
 
 /**
  * Return the current time string in the specified format
@@ -69,7 +69,7 @@ time_t GetLastDaySec(const char *day);
 /*
  * GetLastDaySec - Get the last second of the current day
  */
-time_t GetLastCurDaySec();
+time_t GetLastCurDaySec(void);
 /**
  * LcmGetNthField - Find the @nth field separated by @sep in the string
  *

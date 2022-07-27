@@ -1,5 +1,5 @@
 /* *****************************************************************************
- * Copyright (c) Huawei Technologies Co., Ltd. 2021-2022 All rights reserved.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2022-2022 All rights reserved.
  * PowerAPI licensed under the Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
@@ -112,7 +112,7 @@ static ResultWaitingMsgNode *MoveFromList(ResultWaitingMsgList *rwm, ResultWaiti
 
 // list public=======================================================================
 
-ResultWaitingMsgNode *CreateResultWaitingMsgNode()
+ResultWaitingMsgNode *CreateResultWaitingMsgNode(void)
 {
     ResultWaitingMsgNode *node = (ResultWaitingMsgNode *)malloc(sizeof(ResultWaitingMsgNode));
     if (!node) {

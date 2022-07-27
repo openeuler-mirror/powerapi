@@ -1,5 +1,5 @@
 /* *****************************************************************************
- * Copyright (c) Huawei Technologies Co., Ltd. 2021-2022 All rights reserved.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2022-2022 All rights reserved.
  * PowerAPI licensed under the Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
@@ -12,9 +12,9 @@
  * Create: 2022-06-23
  * Description: pwrclient manager. pwrclient refers to the socket connection info.
  * **************************************************************************** */
+#include "pwrclient.h"
 #include <errno.h>
 #include <unistd.h>
-#include "pwrclient.h"
 #include "pwrerr.h"
 #include "common.h"
 #include "log.h"

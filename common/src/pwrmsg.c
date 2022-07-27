@@ -1,5 +1,5 @@
 /* *****************************************************************************
- * Copyright (c) Huawei Technologies Co., Ltd. 2021-2022 All rights reserved.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2022-2022 All rights reserved.
  * PowerAPI licensed under the Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
@@ -94,13 +94,13 @@ PwrMsg *ClonePwrMsg(PwrMsg *msg)
     return c;
 }
 
-int InitMsgFactory()
+int InitMsgFactory(void)
 {
     g_pid = getpid();
     pthread_mutex_init((pthread_mutex_t *)&g_seqLock, NULL);
 }
 
-void DestroyMsgFactory()
+void DestroyMsgFactory(void)
 {
     pthread_mutex_destroy((pthread_mutex_t *)&g_seqLock);
 }

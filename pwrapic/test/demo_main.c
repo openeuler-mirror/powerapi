@@ -1,5 +1,5 @@
 /* *****************************************************************************
- * Copyright (c) Huawei Technologies Co., Ltd. 2021-2022 All rights reserved.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2022-2022 All rights reserved.
  * PowerAPI licensed under the Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
@@ -19,6 +19,7 @@
 #include <stdlib.h>
 #include "powerapi.h"
 
+#define MAIN_LOOP_INTERVAL 5
 static int g_run = 1;
 
 static const char *GetLevelName(int level)
@@ -53,12 +54,12 @@ void LogCallback(int level, const char *fmt, va_list vl)
     printf("%s: %s\n", GetLevelName(level), message);
 }
 
-static void SignalHandler()
+static void SignalHandler(int none)
 {
     g_run = 0;
 }
 
-static void SetupSignal()
+static void SetupSignal(void)
 {
     // regist signal handler
     signal(SIGINT, SignalHandler);
@@ -69,10 +70,13 @@ static void SetupSignal()
 }
 
 // PWR_CPU_GetUsage
-static void TEST_PWR_CPU_GetInfo()
+static void TEST_PWR_CPU_GetInfo(void)
 {
     int ret;
     PWR_CPU_Info *info = (PWR_CPU_Info *)malloc(sizeof(PWR_CPU_Info));
+    if (!info) {
+        return;
+    }
     bzero(info, sizeof(PWR_CPU_Info));
     ret = PWR_CPU_GetInfo(info);
     printf("PWR_CPU_GetInfo ret: %d\n arch:%s\n coreNum: %d\n maxFreq:%f\n minFreq:%d\n modelName: %s\n numaNum: %d\n "
@@ -86,11 +90,14 @@ static void TEST_PWR_CPU_GetInfo()
 }
 
 // PWR_CPU_GetUsage
-static void TEST_PWR_CPU_GetUsage()
+static void TEST_PWR_CPU_GetUsage(void)
 {
     int ret;
     int buffSize = sizeof(PWR_CPU_Usage) + 128 * sizeof(PWR_CPU_CoreUsage);
     PWR_CPU_Usage *u = (PWR_CPU_Usage *)malloc(buffSize);
+    if (!u) {
+        return;
+    }
     bzero(u, buffSize);
     ret = PWR_CPU_GetUsage(u, buffSize);
     printf("PWR_CPU_GetUsage ret: %d, CPU avgUsage:%f, coreNum: %d \n", ret, u->avgUsage, u->coreNum);
@@ -107,7 +114,7 @@ static void TEST_PWR_CPU_GetFreqAbility(void)
     int len = sizeof(PWR_CPU_FreqAbility) + 5 * 128;
     PWR_CPU_FreqAbility *freqAbi = (PWR_CPU_FreqAbility *)malloc(len);
     if(!freqAbi) {
-        return -1;
+        return;
     }
     bzero(freqAbi, len);
     ret = PWR_CPU_GetFreqAbility(freqAbi, len);
@@ -125,7 +132,7 @@ static void TEST_PWR_CPU_GetFreqAbility(void)
     free(freqAbi);
 }
 
-static void TEST_PWR_CPU_SetAndGetFreqGov()
+static void TEST_PWR_CPU_SetAndGetFreqGov(void)
 {
     int ret = 0;
     char gov[MAX_ELEMENT_NAME_LEN] = {0};
@@ -141,7 +148,7 @@ static void TEST_PWR_CPU_SetAndGetFreqGov()
 
 // PWR_CPU_GetFreq PWR_CPU_SetFreq
 #define TEST_FREQ 2400;
-static void TEST_PWR_CPU_SetAndGetCurFreq()
+static void TEST_PWR_CPU_SetAndGetCurFreq(void)
 {
     int ret = 0;
     uint32_t len = 128;
@@ -166,7 +173,7 @@ static void TEST_PWR_CPU_SetAndGetCurFreq()
     printf("Freq Policy %d curFreq:%d\n", curFreq[0].policyId, curFreq[0].curFreq);
 }
 
-static void TEST_PWR_CPU_DmaSetAndGetLatency()
+static void TEST_PWR_CPU_DmaSetAndGetLatency(void)
 {
     int ret = 0;
     int la = -1;
@@ -183,7 +190,7 @@ int main(int argc, const char *args[])
 {
     PWR_SetLogCallback(LogCallback);
     while (PWR_Register() != SUCCESS) {
-        sleep(3);
+        sleep(MAIN_LOOP_INTERVAL);
         printf("main registed failed!\n");
         continue;
     }
@@ -205,9 +212,8 @@ int main(int argc, const char *args[])
     TEST_PWR_CPU_DmaSetAndGetLatency();
 
     // todo: 其他接口测试
-
     while (g_run) {
-        sleep(5);
+        sleep(MAIN_LOOP_INTERVAL);
     }
     PWR_UnRegister();
     return 0;

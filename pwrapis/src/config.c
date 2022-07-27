@@ -1,5 +1,5 @@
 /* *****************************************************************************
- * Copyright (c) Huawei Technologies Co., Ltd. 2021-2022 All rights reserved.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2022-2022 All rights reserved.
  * PowerAPI licensed under the Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
@@ -19,18 +19,18 @@
 #include "log.h"
 
 static struct LogCfg g_logCfg;
-inline LogCfg *GetLogCfg()
+inline LogCfg *GetLogCfg(void)
 {
     return (LogCfg *)&g_logCfg;
 }
 
 static struct ServCfg g_servCfg;
-inline ServCfg *GetServCfg()
+inline ServCfg *GetServCfg(void)
 {
     return (ServCfg *)&g_servCfg;
 }
 
-static int InitLogCfg()
+static int InitLogCfg(void)
 {
     bzero(&g_logCfg, sizeof(g_logCfg));
     g_logCfg.logLevel = DEBUG; // todo 发布时修改为INFO
@@ -47,11 +47,11 @@ static int InitLogCfg()
     return SUCCESS;
 }
 
-static int LoadConfigFile()
+static int LoadConfigFile(void)
 {
     // todo 打开读取文件，解析配置项，校验配置项，有效配置项替换
 }
-static int InitServCfg()
+static int InitServCfg(void)
 {
     strncpy(g_servCfg.sockFile, DEFAULT_SERVER_ADDR, sizeof(g_servCfg.sockFile) - 1);
     g_servCfg.port = 0;
@@ -59,7 +59,7 @@ static int InitServCfg()
 }
 
 
-int InitConfig()
+int InitConfig(void)
 {
     int ret = SUCCESS;
     // Init by default values
@@ -84,7 +84,7 @@ int InitConfig()
     return SUCCESS;
 }
 
-int CheckAndUpdateConfig()
+int CheckAndUpdateConfig(void)
 {
     // todo 检查配置文件是否有更新，有更新则更新系统配置项
 }
@@ -96,7 +96,7 @@ int UpdateLogLevel(enum LogLevel logLevel)
     return SUCCESS;
 }
 
-int GetLogLevel()
+int GetLogLevel(void)
 {
     return g_logCfg.logLevel;
 }

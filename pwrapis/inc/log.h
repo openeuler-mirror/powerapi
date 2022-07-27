@@ -15,8 +15,6 @@
 #ifndef __PAPIS_LOG_H__
 #define __PAPIS_LOG_H__
 
-#include <stdint.h>
-#include "common.h"
 #include "config.h"
 
 /**
@@ -25,7 +23,7 @@
  * Note: Exit on error
  */
 
-int InitLogger();
+int InitLogger(void);
 /**
  * Logger - send messages to the system logger
  *
@@ -33,5 +31,5 @@ int InitLogger();
  */
 void Logger(enum LogLevel level, const char *moduleName, const char *format, ...);
 
-void ClearLogger();
+void ClearLogger(void);
 #endif

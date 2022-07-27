@@ -31,14 +31,14 @@
 
 #define SUCCESS 0
 
-static struct timeval GetCurTv()
+static struct timeval GetCurTv(void)
 {
     struct timeval curTime;
     gettimeofday(&curTime, NULL);
     return curTime;
 }
 // Check head file
-time_t GetCurSec()
+time_t GetCurSec(void)
 {
     struct timeval tv;
     tv = GetCurTv();
@@ -198,7 +198,7 @@ time_t GetLastDaySec(const char *day)
     }
     return StrTime2Sec(strSec);
 }
-time_t GetLastCurDaySec()
+time_t GetLastCurDaySec(void)
 {
     const char *pDay = NULL;
     char strCurTm[MAX_STD_TIME] = {0};

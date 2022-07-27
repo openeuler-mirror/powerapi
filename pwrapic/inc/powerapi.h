@@ -29,8 +29,8 @@ extern "C" {
 
 // common
 PWR_API int PWR_SetLogCallback(void(LogCallback)(int level, const char *fmt, va_list vl));
-PWR_API int PWR_Register();
-PWR_API int PWR_UnRegister();
+PWR_API int PWR_Register(void);
+PWR_API int PWR_UnRegister(void);
 
 // CPU
 PWR_API int PWR_CPU_GetInfo(PWR_CPU_Info *cpuInfo);
