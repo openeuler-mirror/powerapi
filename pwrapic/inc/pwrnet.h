@@ -10,25 +10,16 @@
  * See the Mulan PSL v2 for more details.
  * Author: queyanwen
  * Create: 2022-06-23
- * Description: The return code difinition of PowerAPI
+ * Description: Provide service for PowerAPI refer to NET.
  * **************************************************************************** */
-#ifndef __POWERAPI_ERR_H__
-#define __POWERAPI_ERR_H__
+#ifndef __POWERAPI_NET_H__
+#define __POWERAPI_NET_H__
 
-#define TRUE 1
-#define FALSE 0
+#include "powerapi.h"
 
-enum RtnCode {
-    SUCCESS = 0,
-    ERR_COMMON = 1,
-    ERR_TIMEOUT,
-    ERR_SYS_EXCEPTION,
-    ERR_NULL_POINTER,
-    ERR_INVALIDE_PARAM,
-    ERR_NOT_REGISTED = 100,
-    ERR_OVER_MAX_CONNECTION,
-    ERR_DISCONNECTED = 300,
-    ERR_WRONG_RESPONSE_FROM_SERVER,
-    ERR_ANSWER_LONGER_THAN_SIZE,
-};
+int GetNetInfo(PWR_NET_Info *netInfo, uint32_t bufferSize);
+int GetNetThrough(char ethName[], PWR_NET_Through *ethThrough);
+int GetNetSpeedMod(char ethName[], uint32_t *speedMod);
+int SetNetSpeedMod(char ethName[], uint32_t speedMod);
+
 #endif

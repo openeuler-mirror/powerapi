@@ -62,20 +62,24 @@ int GetCpuUsage(PWR_CPU_Usage *usage, uint32_t bufferSize)
     return SUCCESS;
 }
 
-int GetCpuFreqAbility(PWR_CPU_FreqAbility *freqAbi)
+int GetCpuFreqAbility(PWR_CPU_FreqAbility *freqAbi, uint32_t bufferSize)
 {
     ReqInputParam input;
     input.optType = CPU_GET_FREQ_ABILITY;
     input.dataLen = 0;
     input.data = NULL;
     RspOutputParam output;
-    uint32_t size = sizeof(PWR_CPU_FreqAbility);
+    uint32_t size = bufferSize;
     output.rspBuffSize = &size;
     output.rspData = (void *)freqAbi;
 
     int ret = SendReqAndWaitForRsp(input, output);
     if (ret != SUCCESS) {
         PwrLog(ERROR, "GetCpuFreqAbility failed. ret:%d", ret);
+        if (freqAbi->freqDomainStep != 0) {
+            // Remediate the data to avoid error happens in buffersize is smaller then real data length.
+            freqAbi->freqDomainNum = (size - sizeof(PWR_CPU_FreqAbility)) / freqAbi->freqDomainStep;
+        }
     } else {
         PwrLog(DEBUG, "GetCpuFreqAbility Succeed.");
     }
@@ -122,6 +126,52 @@ int SetCpuFreqGovernor(char gov[], uint32_t size)
         PwrLog(ERROR, "SetCpuFreqGovernor failed. ret:%d", ret);
     } else {
         PwrLog(DEBUG, "SetCpuFreqGovernor Succeed.");
+    }
+    return ret;
+}
+
+int GetCpuCurFreq(PWR_CPU_CurFreq curFreq[], uint32_t *len, int spec)
+{
+    uint32_t size = sizeof(PWR_CPU_CurFreq) * (*len);
+    ReqInputParam input;
+    input.optType = CPU_GET_CUR_FREQ;
+    if (spec) {
+        input.dataLen = size;
+        input.data = (char *)curFreq;
+    } else {
+        input.dataLen = 0;
+        input.data = NULL;
+    }
+
+    RspOutputParam output;
+    output.rspBuffSize = &size;
+    output.rspData = (void *)curFreq;
+
+    int ret = SendReqAndWaitForRsp(input, output);
+    if (ret != SUCCESS) {
+        PwrLog(ERROR, "SetCpuCurFreq failed. ret:%d", ret);
+        *len = size / sizeof(PWR_CPU_CurFreq);
+    } else {
+        PwrLog(DEBUG, "SetCpuCurFreq Succeed.");
+    }
+    return ret;
+}
+
+int SetCpuCurFreq(PWR_CPU_CurFreq curFreq[], uint32_t len)
+{
+    ReqInputParam input;
+    input.optType = CPU_SET_CUR_FREQ;
+    input.dataLen = sizeof(PWR_CPU_CurFreq) * len;
+    input.data = (char *)curFreq;
+    RspOutputParam output;
+    output.rspBuffSize = NULL;
+    output.rspData = NULL;
+
+    int ret = SendReqAndWaitForRsp(input, output);
+    if (ret != SUCCESS) {
+        PwrLog(ERROR, "SetCpuCurFreq failed. ret:%d", ret);
+    } else {
+        PwrLog(DEBUG, "SetCpuCurFreq Succeed.");
     }
     return ret;
 }

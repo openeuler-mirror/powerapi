@@ -343,7 +343,7 @@ int SendReqAndWaitForRsp(ReqInputParam input, RspOutputParam output)
 
     char *inputData = NULL;
     if (input.data && input.dataLen != 0) {
-        inputData = (char*) malloc(input.dataLen);
+        inputData = (char *)malloc(input.dataLen);
         bzero(inputData, input.dataLen);
         memcpy(inputData, input.data, input.dataLen);
     }

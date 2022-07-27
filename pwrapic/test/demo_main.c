@@ -101,29 +101,28 @@ static void TEST_PWR_CPU_GetUsage()
 }
 
 // PWR_CPU_GetFreqAbility
-static void TEST_PWR_CPU_GetFreqAbility()
+static void TEST_PWR_CPU_GetFreqAbility(void)
 {
     int ret = 0;
-    PWR_CPU_FreqAbility freqAbi;
-    bzero(&freqAbi, sizeof(PWR_CPU_FreqAbility));
-    ret = PWR_CPU_GetFreqAbility(&freqAbi);
-    printf("PWR_CPU_GetFreqAbility ret: %d, freqDrv:%s, govNum: %d \n", ret, freqAbi.curDriver, freqAbi.avGovNum);
-    for (int i = 0; i < freqAbi.avGovNum; i++) {
-        printf("index: %d, gov: %s\n", i, freqAbi.avGovList[i]);
+    int len = sizeof(PWR_CPU_FreqAbility) + 5 * 128;
+    PWR_CPU_FreqAbility *freqAbi = (PWR_CPU_FreqAbility *)malloc(len);
+    if(!freqAbi) {
+        return -1;
     }
-}
-
-static void TEST_PWR_CPU_DmaSetAndGetLatency()
-{
-    int ret = 0;
-    int la = -1;
-    ret = PWR_CPU_DmaGetLatency(&la);
-    printf("PWR_CPU_DmaGetLatency ret: %d, Latency:%d\n", ret, la);
-    ret = PWR_CPU_DmaSetLatency(2000);
-    printf("PWR_CPU_DmaSetLatency ret: %d\n", ret);
-    la = -1;
-    ret = PWR_CPU_DmaGetLatency(&la);
-    printf("PWR_CPU_DmaGetLatency ret: %d, Latency:%d\n", ret, la);
+    bzero(freqAbi, len);
+    ret = PWR_CPU_GetFreqAbility(freqAbi, len);
+    printf("PWR_CPU_GetFreqAbility ret: %d, freqDrv:%s, govNum: %d, freqDomainNum:%d \n", ret, freqAbi->curDriver,
+        freqAbi->avGovNum, freqAbi->freqDomainNum);
+    for (int i = 0; i < freqAbi->avGovNum; i++) {
+        printf("gov index: %d, gov: %s\n", i, freqAbi->avGovList[i]);
+    }
+    for (int i = 0; i < freqAbi->freqDomainNum; i++) {
+        char *freqDomainInfo = freqAbi->freqDomain + i * freqAbi->freqDomainStep;
+        int policyId = *((int *)freqDomainInfo);
+        char *affectCpuList = freqDomainInfo + sizeof(int);
+        printf("FreqDomain %d, affectCpuList：%s\n", policyId, affectCpuList);
+    }
+    free(freqAbi);
 }
 
 static void TEST_PWR_CPU_SetAndGetFreqGov()
@@ -138,6 +137,46 @@ static void TEST_PWR_CPU_SetAndGetFreqGov()
     bzero(gov, MAX_ELEMENT_NAME_LEN);
     ret = PWR_CPU_GetFreqGovernor(gov, MAX_ELEMENT_NAME_LEN);
     printf("PWR_CPU_GetFreqGovernor ret: %d, gov:%s\n", ret, gov);
+}
+
+// PWR_CPU_GetFreq PWR_CPU_SetFreq
+#define TEST_FREQ 2400;
+static void TEST_PWR_CPU_SetAndGetCurFreq()
+{
+    int ret = 0;
+    uint32_t len = 128;
+    PWR_CPU_CurFreq curFreq[len];
+    bzero(curFreq, len * sizeof(PWR_CPU_CurFreq));
+    int spec = 0;
+    ret = PWR_CPU_GetFreq(curFreq, &len, spec);
+    printf("PWR_CPU_GetFreq ret: %d, len:%d\n", ret, len);
+    for (int i = 0; i < len; i++) {
+        printf("Freq Policy %d curFreq:%d\n", curFreq[i].policyId, curFreq[i].curFreq);
+    }
+    len = 128;
+    bzero(curFreq, len * sizeof(PWR_CPU_CurFreq));
+    curFreq[0].policyId = 0;
+    curFreq[0].curFreq = TEST_FREQ;
+    ret = PWR_CPU_SetFreq(curFreq, 1);
+    printf("PWR_CPU_SetFreq ret: %d\n", ret);
+    len = 1;
+    spec = 1;
+    curFreq[0].curFreq = 0;
+    ret = PWR_CPU_GetFreq(curFreq, &len, spec);
+    printf("Freq Policy %d curFreq:%d\n", curFreq[0].policyId, curFreq[0].curFreq);
+}
+
+static void TEST_PWR_CPU_DmaSetAndGetLatency()
+{
+    int ret = 0;
+    int la = -1;
+    ret = PWR_CPU_DmaGetLatency(&la);
+    printf("PWR_CPU_DmaGetLatency ret: %d, Latency:%d\n", ret, la);
+    ret = PWR_CPU_DmaSetLatency(2000);
+    printf("PWR_CPU_DmaSetLatency ret: %d\n", ret);
+    la = -1;
+    ret = PWR_CPU_DmaGetLatency(&la);
+    printf("PWR_CPU_DmaGetLatency ret: %d, Latency:%d\n", ret, la);
 }
 
 int main(int argc, const char *args[])
@@ -156,11 +195,15 @@ int main(int argc, const char *args[])
     // PWR_CPU_GetFreqAbility
     TEST_PWR_CPU_GetFreqAbility();
 
+    // PWR_CPU_GetFreqGovernor PWR_CPU_SetFreqGovernor
+    TEST_PWR_CPU_SetAndGetFreqGov();
+
+    // PWR_CPU_GetCurFreq PWR_CPU_SetCurFreq
+    TEST_PWR_CPU_SetAndGetCurFreq();
+
     // PWR_CPU_DmaSetLatency PWR_CPU_DmaGetLatency
     TEST_PWR_CPU_DmaSetAndGetLatency();
 
-    // PWR_CPU_GetFreqGovernor
-    TEST_PWR_CPU_SetAndGetFreqGov();
     // todo: 其他接口测试
 
     while (g_run) {

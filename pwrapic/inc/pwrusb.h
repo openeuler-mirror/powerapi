@@ -10,25 +10,13 @@
  * See the Mulan PSL v2 for more details.
  * Author: queyanwen
  * Create: 2022-06-23
- * Description: The return code difinition of PowerAPI
+ * Description: Provide service for PowerAPI refer to USB.
  * **************************************************************************** */
-#ifndef __POWERAPI_ERR_H__
-#define __POWERAPI_ERR_H__
+#ifndef __POWERAPI_USB_H__
+#define __POWERAPI_USB_H__
 
-#define TRUE 1
-#define FALSE 0
+#include "powerapi.h"
 
-enum RtnCode {
-    SUCCESS = 0,
-    ERR_COMMON = 1,
-    ERR_TIMEOUT,
-    ERR_SYS_EXCEPTION,
-    ERR_NULL_POINTER,
-    ERR_INVALIDE_PARAM,
-    ERR_NOT_REGISTED = 100,
-    ERR_OVER_MAX_CONNECTION,
-    ERR_DISCONNECTED = 300,
-    ERR_WRONG_RESPONSE_FROM_SERVER,
-    ERR_ANSWER_LONGER_THAN_SIZE,
-};
+int GetUsbAutoSuspend(PWR_USB_AutoSuspend usbAts[], uint32_t *len);
+int SetUsbAutoSuspend(PWR_USB_AutoSuspend usbAts[], uint32_t len);
 #endif

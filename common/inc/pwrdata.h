@@ -1,5 +1,5 @@
 /* *****************************************************************************
- * Copyright (c) Huawei Technologies Co., Ltd. 2021-2023. All rights reserved.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2022-2022. All rights reserved.
  * PowerAPI licensed under the Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
@@ -68,12 +68,66 @@ typedef enum PWR_CPU_FREQ_GOV {
     PWR_CPU_FREQ_GOV_PERFORMANCE = 5,       // performance governor
     PWR_CPU_FREQ_GOV_SCHEDUTIL,             // schedutil governor
     PWR_CPU_FREQ_GOV_SEEP,                  // seep governor
-} PWR_CPU_FREQ_GOV;*/
+} PWR_CPU_FREQ_GOV; */
+
 
 typedef struct PWR_CPU_FreqAbility {
     char curDriver[MAX_ELEMENT_NAME_LEN];
-    int avGovNum; 
+    int avGovNum;
     int avGovList[MAX_GOV_NUM][MAX_ELEMENT_NAME_LEN];
+    int freqDomainNum;
+    int freqDomainStep;
+    char freqDomain[0];
 } PWR_CPU_FreqAbility;
+
+
+typedef struct PWR_CPU_CurFreq {
+    int policyId;
+    int curFreq;
+} PWR_CPU_CurFreq;
+
+typedef struct PWR_NET_Eth {
+    char ethName[MAX_ELEMENT_NAME_LEN];
+    int ethMaxSpeed;
+    int ethCurSpeed;
+} PWR_NET_Eth;
+
+typedef struct PWR_NET_Info {
+    int ethNum;
+    PWR_NET_Eth eth[];
+} PWR_NET_Info;
+
+typedef struct PWR_NET_Through {
+    double rx;
+    double tx;
+} PWR_NET_Through;
+
+// DISK
+
+typedef struct PWR_DISK_Load {
+    char diskId[MAX_ELEMENT_NAME_LEN];
+    uint32_t rLoad;
+    uint32_t wLoad;
+} PWR_DISK_Load;
+
+typedef struct PWR_DISK_PwrLevel {
+    char diskId[MAX_ELEMENT_NAME_LEN];
+    uint16_t powerLevel;
+    uint16_t spindownLevel;
+} PWR_DISK_PwrLevel;
+
+
+typedef struct PWR_DISK_ScsiPolicy {
+    char scsiId[MAX_ELEMENT_NAME_LEN];
+    int alpm;
+} PWR_DISK_ScsiPolicy;
+
+// USB
+typedef struct PWR_USB_AutoSuspend {
+    char usbId[MAX_ELEMENT_NAME_LEN];
+    int control;
+    int autoSuspendDelay;
+    int wakeup;
+} PWR_USB_AutoSuspend;
 
 #endif
