@@ -20,7 +20,18 @@
 #include "powerapi.h"
 
 #define MAIN_LOOP_INTERVAL 5
+#define TEST_FREQ 2400
+#define TEST_CORE_NUM 128
+#define AVG_LEN_PER_CORE 5
+#define TEST_CPU_DMA_LATENCY 2000
 static int g_run = 1;
+
+enum {
+    DEBUG = 0,
+    INFO,
+    WARNING,
+    ERROR
+};
 
 static const char *GetLevelName(int level)
 {
@@ -29,13 +40,13 @@ static const char *GetLevelName(int level)
     static char warning[] = "WARNING";
     static char error[] = "ERROR";
     switch (level) {
-        case 0:
+        case DEBUG:
             return debug;
-        case 1:
+        case INFO:
             return info;
-        case 2:
+        case WARNING:
             return warning;
-        case 3:
+        case ERROR:
             return error;
         default:
             return info;
@@ -62,11 +73,11 @@ static void SignalHandler(int none)
 static void SetupSignal(void)
 {
     // regist signal handler
-    signal(SIGINT, SignalHandler);
-    signal(SIGUSR1, SignalHandler);
-    signal(SIGUSR2, SignalHandler);
-    signal(SIGTERM, SignalHandler);
-    signal(SIGKILL, SignalHandler);
+    (void)signal(SIGINT, SignalHandler);
+    (void)signal(SIGUSR1, SignalHandler);
+    (void)signal(SIGUSR2, SignalHandler);
+    (void)signal(SIGTERM, SignalHandler);
+    (void)signal(SIGKILL, SignalHandler);
 }
 
 // PWR_CPU_GetUsage
@@ -93,7 +104,7 @@ static void TEST_PWR_CPU_GetInfo(void)
 static void TEST_PWR_CPU_GetUsage(void)
 {
     int ret;
-    int buffSize = sizeof(PWR_CPU_Usage) + 128 * sizeof(PWR_CPU_CoreUsage);
+    int buffSize = sizeof(PWR_CPU_Usage) + TEST_CORE_NUM * sizeof(PWR_CPU_CoreUsage);
     PWR_CPU_Usage *u = (PWR_CPU_Usage *)malloc(buffSize);
     if (!u) {
         return;
@@ -107,13 +118,22 @@ static void TEST_PWR_CPU_GetUsage(void)
     free(u);
 }
 
+// PWR_CPU_GetLlcMissPerIns
+static void TEST_PWR_CPU_GetLlcMissPerIns(void)
+{
+    int ret;
+    double miss = 0;
+    ret = PWR_CPU_GetLlcMissPerIns(&miss);
+    printf("PWR_CPU_GetLlcMissPerIns ret: %d, LLC misses:%.8f \n", ret, miss);
+}
+
 // PWR_CPU_GetFreqAbility
 static void TEST_PWR_CPU_GetFreqAbility(void)
 {
     int ret = 0;
-    int len = sizeof(PWR_CPU_FreqAbility) + 5 * 128;
+    int len = sizeof(PWR_CPU_FreqAbility) + AVG_LEN_PER_CORE * TEST_CORE_NUM;
     PWR_CPU_FreqAbility *freqAbi = (PWR_CPU_FreqAbility *)malloc(len);
-    if(!freqAbi) {
+    if (!freqAbi) {
         return;
     }
     bzero(freqAbi, len);
@@ -147,11 +167,11 @@ static void TEST_PWR_CPU_SetAndGetFreqGov(void)
 }
 
 // PWR_CPU_GetFreq PWR_CPU_SetFreq
-#define TEST_FREQ 2400;
+
 static void TEST_PWR_CPU_SetAndGetCurFreq(void)
 {
     int ret = 0;
-    uint32_t len = 128;
+    uint32_t len = TEST_CORE_NUM;
     PWR_CPU_CurFreq curFreq[len];
     bzero(curFreq, len * sizeof(PWR_CPU_CurFreq));
     int spec = 0;
@@ -160,7 +180,7 @@ static void TEST_PWR_CPU_SetAndGetCurFreq(void)
     for (int i = 0; i < len; i++) {
         printf("Freq Policy %d curFreq:%d\n", curFreq[i].policyId, curFreq[i].curFreq);
     }
-    len = 128;
+    len = TEST_CORE_NUM;
     bzero(curFreq, len * sizeof(PWR_CPU_CurFreq));
     curFreq[0].policyId = 0;
     curFreq[0].curFreq = TEST_FREQ;
@@ -179,7 +199,7 @@ static void TEST_PWR_CPU_DmaSetAndGetLatency(void)
     int la = -1;
     ret = PWR_CPU_DmaGetLatency(&la);
     printf("PWR_CPU_DmaGetLatency ret: %d, Latency:%d\n", ret, la);
-    ret = PWR_CPU_DmaSetLatency(2000);
+    ret = PWR_CPU_DmaSetLatency(TEST_CPU_DMA_LATENCY);
     printf("PWR_CPU_DmaSetLatency ret: %d\n", ret);
     la = -1;
     ret = PWR_CPU_DmaGetLatency(&la);
@@ -198,6 +218,9 @@ int main(int argc, const char *args[])
 
     // PWR_CPU_GetUsage
     TEST_PWR_CPU_GetUsage();
+
+    // PWR_CPU_GetUsage
+    TEST_PWR_CPU_GetLlcMissPerIns();
 
     // PWR_CPU_GetFreqAbility
     TEST_PWR_CPU_GetFreqAbility();

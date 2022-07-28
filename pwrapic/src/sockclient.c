@@ -32,6 +32,9 @@
 #define SERVER_ADDR "pwrserver.sock"
 #define INVALID_FD (-1)
 #define SOCK_THREAD_LOOP_INTERVAL 2000 // us
+#define RECONNECTE_INTERVAL 3          // s
+#define MAX_PID_LEN 12
+#define MAX_PROC_NUM_IN_ONE_LOOP 5
 
 static int g_sockFd = INVALID_FD;
 static ThreadInfo g_sockThread;
@@ -139,7 +142,7 @@ static void SendMsgToSocket(void)
 {
     int count = 0;
     static char data[MAX_DATA_SIZE];
-    while (!IsEmptyBuffer(&g_sendBuff) && count < 5) {
+    while (!IsEmptyBuffer(&g_sendBuff) && count < MAX_PROC_NUM_IN_ONE_LOOP) {
         PwrMsg *msg = PopFromBufferHead(&g_sendBuff);
         count++;
         if (!msg) {
@@ -183,9 +186,12 @@ static int CreateConnection(void)
     struct sockaddr_un clientAddr;
     bzero(&clientAddr, sizeof(clientAddr));
     clientAddr.sun_family = AF_UNIX;
-    char pidStr[6];
+    char pidStr[MAX_PID_LEN];
     pid_t pid = getpid();
-    sprintf(pidStr, "%d", pid);
+    if (sprintf(pidStr, "%d", pid) < 0) {
+        close(clientFd);
+        return ERR_SYS_EXCEPTION;
+    }
     strncpy(clientAddr.sun_path, CLIENT_ADDR, sizeof(clientAddr.sun_path) - 1);
     // socket file "pwrclient.sock.{$pid}"
     strncat(clientAddr.sun_path, pidStr, sizeof(clientAddr.sun_path) - strlen(CLIENT_ADDR) - 1);
@@ -213,13 +219,13 @@ static int CreateConnection(void)
     return SUCCESS;
 }
 
-static void *RunSocketProcess(void* none)
+static void *RunSocketProcess(void *none)
 {
     fd_set recvFdSet;
     struct timeval tv;
     while (g_sockThread.keepRunning) {
         if (g_sockFd == INVALID_FD) {
-            sleep(3);
+            sleep(RECONNECTE_INTERVAL);
             CreateConnection(); // resume the connection
             continue;
         }

@@ -15,7 +15,6 @@
 #ifndef __PAPIS_CONFIG_H__
 #define __PAPIS_CONFIG_H__
 #include <stdint.h>
-#include <stdio.h>
 #include "common.h"
 
 #define DEFAULT_SERVER_ADDR "pwrserver.sock"

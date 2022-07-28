@@ -9,7 +9,7 @@
  * PURPOSE.
  * See the Mulan PSL v2 for more details.
  * Author: luocaimin
- * Create: 2021-03-29
+ * Create: 2022-06-23
  * Description: provide common methods
  * **************************************************************************** */
 #ifndef LCM_UTILS_H

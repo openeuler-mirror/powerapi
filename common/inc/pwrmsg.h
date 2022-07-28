@@ -16,7 +16,6 @@
 #ifndef __POWERAPI_PROTOCOL_H__
 #define __POWERAPI_PROTOCOL_H__
 
-#include "pwrerr.h"
 #include <stdint.h>
 #include <stddef.h>
 #include <stdlib.h>
