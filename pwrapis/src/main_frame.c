@@ -15,10 +15,10 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <signal.h>
-
 #include "server.h"
 #include "config.h"
 #include "log.h"
+#include "pwrerr.h"
 
 #define ARGS_NUM 2
 #define MAIN_LOOP_INTERVAL 5
@@ -60,11 +60,11 @@ static void SignalHandler(int none)
 static void SetupSignal(void)
 {
     // regist signal handler
-    signal(SIGINT, SignalHandler);
-    signal(SIGUSR1, SignalHandler);
-    signal(SIGUSR2, SignalHandler);
-    signal(SIGTERM, SignalHandler);
-    signal(SIGKILL, SignalHandler);
+    (void)signal(SIGINT, SignalHandler);
+    (void)signal(SIGUSR1, SignalHandler);
+    (void)signal(SIGUSR2, SignalHandler);
+    (void)signal(SIGTERM, SignalHandler);
+    (void)signal(SIGKILL, SignalHandler);
 }
 
 int main(int argc, const char *args[])

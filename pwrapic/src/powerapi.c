@@ -51,9 +51,9 @@ int PWR_SetLogCallback(void(LogCallback)(int, const char *, va_list))
 {
     if (LogCallback) {
         g_pwrlog_callback = LogCallback;
-        return 0;
+        return SUCCESS;
     }
-    return -1;
+    return ERR_NULL_POINTER;
 }
 
 int PWR_Register(void)
@@ -91,7 +91,14 @@ int PWR_CPU_GetUsage(PWR_CPU_Usage *usage, uint32_t bufferSize)
     }
 
     return GetCpuUsage(usage, bufferSize);
-    ;
+}
+
+PWR_API int PWR_CPU_GetLlcMissPerIns(double *cacheMiss)
+{
+    CHECK_STATUS();
+    CHECK_NULL_POINTER(cacheMiss);
+
+    return GetCpuLlcMissPerIns(cacheMiss);
 }
 
 int PWR_CPU_GetFreqAbility(PWR_CPU_FreqAbility *freqAbi, uint32_t bufferSize)
@@ -279,7 +286,6 @@ int PWR_NET_SetSpeedMod(char ethName[], uint32_t speedMod)
     // todo 限制speedMod取值 100 1000 10000
     return SetNetSpeedMod(ethName, speedMod);
 }
-
 
 // USB
 int PWR_USB_GetAutoSuspend(PWR_USB_AutoSuspend usbAts[], uint32_t *len)

@@ -29,6 +29,7 @@
 #include "config.h"
 #include "pwrbuffer.h"
 #include "cpuservice.h"
+#include "pwrerr.h"
 
 static int g_listenFd = -1;
 static pthread_mutex_t g_listenFdLock = PTHREAD_MUTEX_INITIALIZER;

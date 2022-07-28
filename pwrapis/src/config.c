@@ -12,8 +12,9 @@
  * Create: 2022-06-23
  * Description: loading config file and manager all config items for the PowerAPI service
  * **************************************************************************** */
-
+ 
 #include "config.h"
+#include <stdio.h>
 #include "string.h"
 #include "pwrerr.h"
 #include "log.h"

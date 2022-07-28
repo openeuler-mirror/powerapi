@@ -18,6 +18,7 @@
 #include "powerapi.h"
 int GetCpuInfo(PWR_CPU_Info *cpuInfo);
 int GetCpuUsage(PWR_CPU_Usage *usage, uint32_t bufferSize);
+int GetCpuLlcMissPerIns(double *cacheMiss);
 int GetCpuFreqAbility(PWR_CPU_FreqAbility *freqAbi, uint32_t bufferSize);
 int GetCpuFreqGovernor(char gov[], uint32_t size);
 int SetCpuFreqGovernor(char gov[], uint32_t size);

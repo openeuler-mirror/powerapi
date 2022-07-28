@@ -16,8 +16,10 @@
 #include <string.h>
 #include <sys/time.h>
 #include <errno.h>
+#include "pwrerr.h"
 
 #define WAITING_RESULT_TIME_OUT 1 // second
+#define USEC_TO_NSEC 1000
 // queue private
 static void DeleteFromHead(PwrMsgBuffer *smb)
 {
@@ -234,7 +236,7 @@ int WaitingForResponse(const ResultWaitingMsgNode *node)
     pthread_mutex_lock((pthread_mutex_t *)&(node->waitMutex));
     gettimeofday(&now, NULL);
     outTime.tv_sec = now.tv_sec + WAITING_RESULT_TIME_OUT;
-    outTime.tv_nsec = now.tv_usec * 1000;
+    outTime.tv_nsec = now.tv_usec * USEC_TO_NSEC;
     int ret =
         pthread_cond_timedwait((pthread_cond_t *)&(node->waitCond), (pthread_mutex_t *)&(node->waitMutex), &outTime);
     pthread_mutex_unlock((pthread_mutex_t *)&(node->waitMutex));
