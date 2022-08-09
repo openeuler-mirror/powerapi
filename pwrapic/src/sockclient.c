@@ -19,6 +19,7 @@
 #include <stdio.h>
 #include <stddef.h>
 #include <pthread.h>
+#include <unistd.h>
 #include <sys/time.h>
 #include <sys/socket.h>
 #include <sys/un.h>
@@ -124,12 +125,16 @@ static void RecvMsgFromSocket(void)
         return;
     }
 
-    char *msgcontent = malloc(msg->head.dataLen);
-    if (!msgcontent || ReadMsg(msgcontent, msg->head.dataLen) != SUCCESS) {
-        ReleasePwrMsg(&msg);
-        return;
+    if (msg->head.dataLen != 0) {
+        char *msgcontent = malloc(msg->head.dataLen);
+        if (!msgcontent || ReadMsg(msgcontent, msg->head.dataLen) != SUCCESS) {
+            ReleasePwrMsg(&msg);
+            return;
+        }
+        msg->data = msgcontent;
+    } else {
+        msg->data=NULL;
     }
-    msg->data = msgcontent;
 
     if (msg->head.msgType == MT_RSP) {
         ProcessRspMsg(msg);
@@ -370,9 +375,9 @@ int SendReqAndWaitForRsp(ReqInputParam input, RspOutputParam output)
         ReleasePwrMsg(&rsp);
         return ret;
     }
-
-    uint32_t srcSize = *output.rspBuffSize;
+    
     if (output.rspData) {
+        uint32_t srcSize = *output.rspBuffSize;
         if (rsp->data) {
             int dlen = srcSize < rsp->head.dataLen ? srcSize : rsp->head.dataLen;
             memcpy(output.rspData, rsp->data, dlen);

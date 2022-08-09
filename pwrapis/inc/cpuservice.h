@@ -16,5 +16,9 @@
 #define __PAPIS_CPU_SERVICE_H__
 #include "pwrmsg.h"
 
+void GetCpuinfo(PwrMsg *req);
 void GetCpuUsage(PwrMsg *req);
+void GetLLCMiss(PwrMsg *req);
+void GetCpuFreqGovernor(PwrMsg *req);
+void SetCpuFreqGovernor(PwrMsg *req);
 #endif
