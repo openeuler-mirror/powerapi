@@ -68,7 +68,7 @@ PwrMsg *CreateReqMsg(enum OperationType optType, uint32_t taskNo, uint32_t dataL
 
     bzero(req, sizeof(PwrMsg));
     req->data = data;
-    GenerateReqMsgHead(&req->head, optType, dataLen, taskNo);
+    GenerateReqMsgHead(&req->head, optType, taskNo, dataLen);
     return req;
 }
 
