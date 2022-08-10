@@ -8,7 +8,7 @@
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR
  * PURPOSE.
  * See the Mulan PSL v2 for more details.
- * Author: queyanwen
+ * Author: queyanwen,wuhaotian
  * Create: 2022-06-23
  * Description: provide server methods. socket and threads managerment, send/receive msg.
  * **************************************************************************** */
@@ -30,15 +30,17 @@
 #include "pwrbuffer.h"
 #include "cpuservice.h"
 #include "pwrerr.h"
+#define COUNT_MAX 5
+#define THOUSAND 1000
 
 static int g_listenFd = -1;
 static pthread_mutex_t g_listenFdLock = PTHREAD_MUTEX_INITIALIZER;
 static ThreadInfo g_sockProcThread;
 static ThreadInfo g_serviceThread;
 
-static PwrClient g_pwrClients[MAX_LICENT_NUM]; // 对该结构的读和写都在一个线程完成，因而不需要加锁
-static PwrMsgBuffer g_sendBuff;                // 发送队列
-static PwrMsgBuffer g_recvBuff;                // 接收队列
+static PwrClient g_pwrClients[MAX_LICENT_NUM];  // 对该结构的读和写都在一个线程完成，因而不需要加锁
+static PwrMsgBuffer g_sendBuff;                 // 发送队列
+static PwrMsgBuffer g_recvBuff;                 // 接收队列
 static pthread_mutex_t g_waitMsgMutex;
 static pthread_cond_t g_waitMsgCond;
 
@@ -110,7 +112,11 @@ static void AcceptConnection(void)
     newClientFd = accept(g_listenFd, (struct sockaddr *)&clientAddr, &socklen);
     pthread_mutex_unlock(&g_listenFdLock);
     if (newClientFd < 0) {
-        Logger(ERROR, MD_NM_SVR, "accpet socket error: %s errno :%d, addr:%s", strerror(errno), errno,
+        Logger(ERROR,
+            MD_NM_SVR,
+            "accpet socket error: %s errno :%d, addr:%s",
+            strerror(errno),
+            errno,
             clientAddr.sun_path);
         return;
     }
@@ -165,12 +171,12 @@ static void ProcessRecvMsgFromClient(int clientIdx)
     Logger(DEBUG, MD_NM_SVR, "receivd msg. opt:%d,sysId:%d", msg->head.optType, msg->head.sysId);
 
     if (msg->head.msgType != MT_REQ) {
-        ReleasePwrMsg(&msg); // the server accept request msg only.
+        ReleasePwrMsg(&msg);  // the server accept request msg only.
     }
 
     if (msg->head.dataLen > 0) {
-        char *msgcontent = malloc(sizeof(msg->head.dataLen));
-        if (!msgcontent || ReadMsg(msgcontent, sizeof(msg->head.dataLen), dstFd, clientIdx) != SUCCESS) {
+        char *msgcontent = malloc(msg->head.dataLen);
+        if (!msgcontent || ReadMsg(msgcontent, msg->head.dataLen, dstFd, clientIdx) != SUCCESS) {
             ReleasePwrMsg(&msg);
             return;
         }
@@ -214,7 +220,7 @@ static void ProcessSendMsgToClient(void)
     // 从缓存中读取待发送消息，并发送出去
     int count = 0;
     static char data[MAX_DATA_SIZE];
-    while (!IsEmptyBuffer(&g_sendBuff) && count < MAX_PROC_NUM_ONE_LOOP) {
+    while (!IsEmptyBuffer(&g_sendBuff) && count < COUNT_MAX) {
         PwrMsg *msg = PopFromBufferHead(&g_sendBuff);
         count++;
         if (!msg) {
@@ -257,7 +263,7 @@ static void ProcessSendMsgToClient(void)
  * 1. Accepting connection request
  * 2. Receiving msg from or send msg to client FDs
  */
-static void *RunServerSocketProcess(void *none)
+static void *RunServerSocketProcess(void)
 {
     fd_set recvFdSet;
     int maxFd = INVALID_FD;
@@ -286,16 +292,16 @@ static void *RunServerSocketProcess(void *none)
             continue;
         }
 
-        if (FD_ISSET(g_listenFd, &recvFdSet)) { // new connection
+        if (FD_ISSET(g_listenFd, &recvFdSet)) {  // new connection
             AcceptConnection();
         }
 
         for (int i = 0; i < MAX_LICENT_NUM; i++) {
-            if (FD_ISSET(g_pwrClients[i].fd, &recvFdSet)) { // new msg in
+            if (FD_ISSET(g_pwrClients[i].fd, &recvFdSet)) {  // new msg in
                 ProcessRecvMsgFromClient(i);
             }
         }
-    } // while
+    }  // while
 
     CloseAllConnections(g_pwrClients);
 }
@@ -307,7 +313,7 @@ static void WaitForMsg(void)
     pthread_mutex_lock((pthread_mutex_t *)&g_waitMsgMutex);
     gettimeofday(&now, NULL);
     outTime.tv_sec = now.tv_sec;
-    outTime.tv_nsec = (now.tv_usec + THREAD_LOOP_INTERVAL) * ONE_THOUSAND;
+    outTime.tv_nsec = (now.tv_usec + THREAD_LOOP_INTERVAL) * THOUSAND;
     pthread_cond_timedwait((pthread_cond_t *)&g_waitMsgCond, (pthread_mutex_t *)&g_waitMsgMutex, &outTime);
     pthread_mutex_unlock((pthread_mutex_t *)&g_waitMsgMutex);
 }
@@ -319,10 +325,16 @@ static void ProcessReqMsg(PwrMsg *req)
             GetCpuUsage(req);
             break;
         case CPU_GET_CACHE_MISS:
-            // todo
+            GetLLCMiss(req);
             break;
         case CPU_GET_INFO:
-            // todo
+            GetCpuinfo(req);
+            break;
+        case CPU_GET_FREQ_GOVERNOR:
+            GetCpuFreqGovernor(req);
+            break;
+        case CPU_SET_FREQ_GOVERNOR:
+            SetCpuFreqGovernor(req);
             break;
         case DISK_GET_IO_RATE:
             // todo
@@ -333,12 +345,11 @@ static void ProcessReqMsg(PwrMsg *req)
     ReleasePwrMsg(&req);
 }
 
-
 /**
  * RunServiceProcess - Run RunServiceProcess
  * Process the request msg in receiving buffer g_recvBuff
  */
-static void *RunServiceProcess(void *none)
+static void *RunServiceProcess(void)
 {
     while (g_serviceThread.keepRunning) {
         if (IsEmptyBuffer(&g_recvBuff)) {
@@ -349,7 +360,7 @@ static void *RunServiceProcess(void *none)
             continue;
         }
         ProcessReqMsg(msg);
-    } // while
+    }  // while
 }
 // public======================================================================================
 // Init Socket. Start listening & accepting

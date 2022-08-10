@@ -90,7 +90,7 @@ static void TEST_PWR_CPU_GetInfo(void)
     }
     bzero(info, sizeof(PWR_CPU_Info));
     ret = PWR_CPU_GetInfo(info);
-    printf("PWR_CPU_GetInfo ret: %d\n arch:%s\n coreNum: %d\n maxFreq:%f\n minFreq:%d\n modelName: %s\n numaNum: %d\n "
+    printf("PWR_CPU_GetInfo ret: %d\n arch:%s\n coreNum: %d\n maxFreq:%f\n minFreq:%f\n modelName: %s\n numaNum: %d\n "
         "threadsPerCore:%d\n",
         ret, info->arch, info->coreNum, info->maxFreq, info->minFreq, info->modelName, info->numaNum,
         info->threadsPerCore);
@@ -216,6 +216,7 @@ int main(int argc, const char *args[])
     }
     printf("main regist succeed.\n");
 
+    TEST_PWR_CPU_GetInfo();
     // PWR_CPU_GetUsage
     TEST_PWR_CPU_GetUsage();
 
@@ -223,16 +224,16 @@ int main(int argc, const char *args[])
     TEST_PWR_CPU_GetLlcMissPerIns();
 
     // PWR_CPU_GetFreqAbility
-    TEST_PWR_CPU_GetFreqAbility();
+    // TEST_PWR_CPU_GetFreqAbility();
 
     // PWR_CPU_GetFreqGovernor PWR_CPU_SetFreqGovernor
     TEST_PWR_CPU_SetAndGetFreqGov();
 
     // PWR_CPU_GetCurFreq PWR_CPU_SetCurFreq
-    TEST_PWR_CPU_SetAndGetCurFreq();
+    // TEST_PWR_CPU_SetAndGetCurFreq();
 
     // PWR_CPU_DmaSetLatency PWR_CPU_DmaGetLatency
-    TEST_PWR_CPU_DmaSetAndGetLatency();
+    // TEST_PWR_CPU_DmaSetAndGetLatency();
 
     // todo: 其他接口测试
     while (g_run) {
