@@ -25,6 +25,7 @@
 #define LATENCY 100000
 #define IDLE_COLUMN 3
 #define DECIMAL 10
+#define CONVERSION 1000
 
 void UsageToLong(char *buf, unsigned long paras[])
 {
@@ -244,9 +245,9 @@ int LLCMissRead(double *lm)
 {
     int m = GetArch();
     char *missStr;
-    if (m == 0) {
+    if (m == AARCH_64) {
         missStr = "perf stat -e r0033 -e instructions -a sleep 0.1 &>perf.txt";
-    } else if (m == 1) {
+    } else if (m == X86_64) {
         missStr = "perf stat -e LLC-load-misses -e LLC-store-misses -e instructions -a sleep 0.1 &>perf.txt";
     } else {  // Add other arch
         return 1;
@@ -268,7 +269,6 @@ int LLCMissRead(double *lm)
         DeleteChar(buf, '\n');
         DeleteChar(buf, ' ');
         DeleteChar(buf, ',');
-        // printf("%s\n",buf);
         if ((strstr(buf, "r0033") != NULL) || (strstr(buf, "LLC-load-misses") != NULL) ||
             (strstr(buf, "LLC-load-misses") != NULL)) {
             DeleteSubstr(buf, "r0033");
@@ -302,7 +302,6 @@ int GetPolicys(char (*policys)[MAX_ELEMENT_NAME_LEN], int *poNum)
         policys[*poNum][strlen(buf)] = '\0';
         (*poNum)++;
     }
-    (*poNum)++;
     pclose(fp);
     return 0;
 }
@@ -335,9 +334,9 @@ int GovernorSet(char *gov, char (*policys)[MAX_ELEMENT_NAME_LEN], int *poNum)
         Logger(ERROR, MD_NM_SVR_CPU, "Malloc failed.");
         return 1;
     }
-    const char s1[] = "echo ";
-    const char s2[] = "> /sys/devices/system/cpu/cpufreq/";
-    const char s3[] = "/scaling_governor";
+    static const char s1[] = "echo ";
+    static const char s2[] = "> /sys/devices/system/cpu/cpufreq/";
+    static const char s3[] = "/scaling_governor";
     int i;
     for (i = 0; i < (*poNum) - 1; i++) {
         strncpy(govInfo, s1, strlen(s1));
@@ -352,6 +351,52 @@ int GovernorSet(char *gov, char (*policys)[MAX_ELEMENT_NAME_LEN], int *poNum)
         }
     }
     pclose(fp);
+    return SUCCESS;
+}
+
+int FreqRead(PWR_CPU_CurFreq *rstData, char (*policys)[MAX_ELEMENT_NAME_LEN], int *poNum)
+{
+    FILE *fp = NULL;
+    int m = GetArch();
+    char *freqInfo = malloc(MAX_NAME_LEN);
+    if (freqInfo == NULL) {
+        Logger(ERROR, MD_NM_SVR_CPU, "Malloc failed.");
+        return ERR_COMMON;
+    }
+    static const char s1[] = "cat /sys/devices/system/cpu/cpufreq/";
+    static const char s2Arm[] = "/cpuinfo_cur_freq";
+    static const char s2X86[] = "/scaling_cur_freq";
+    char s2[MAX_ELEMENT_NAME_LEN];
+    bzero(s2, sizeof(s2));
+    if (m == AARCH_64) {
+        strncpy(s2, s2Arm, strlen(s2Arm));
+    } else if (m == X86_64) {
+        strncpy(s2, s2X86, strlen(s2X86));
+    }
+    char buf[MAX_STRING_LEN];
+    int i;
+    for (i = 0; i < (*poNum); i++) {
+        strncpy(freqInfo, s1, strlen(s1));
+        freqInfo[strlen(s1)] = '\0';
+        strncat(freqInfo, policys[i], strlen(policys[i]));
+        strncat(freqInfo, s2, strlen(s2));
+        fp = popen(freqInfo, "r");
+        if (fp == NULL) {
+            return 1;
+        }
+        if (fgets(buf, sizeof(buf) - 1, fp) == NULL) {
+            return ERR_COMMON;
+        }
+        DeleteChar(buf, '\n');
+        DeleteChar(buf, ' ');
+        DeleteSubstr(policys[i], "policy");
+        rstData[i].policyId = atoi(policys[i]);
+        rstData[i].curFreq = (double)strtoul(buf, NULL, DECIMAL) / CONVERSION;
+    }
+    pclose(fp);
+    if (i < (*poNum)) {
+        return ERR_COMMON;
+    }
     return SUCCESS;
 }
 
@@ -477,6 +522,34 @@ void SetCpuFreqGovernor(PwrMsg *req)
     }
     bzero(rsp, sizeof(PwrMsg));
     GenerateRspMsg(req, rsp, rspCode, NULL, 0);
+    if (SendRspMsg(rsp) != SUCCESS) {
+        ReleasePwrMsg(&rsp);
+    }
+}
+
+void GetCpuFreq(PwrMsg *req)
+{
+    if (!req) {
+        return;
+    }
+    Logger(DEBUG, MD_NM_SVR_CPU, "Get Get Freq Req. seqId:%u, sysId:%d", req->head.seqId, req->head.sysId);
+    char policys[MAX_CPU_LIST_LEN][MAX_ELEMENT_NAME_LEN];
+    bzero(policys, sizeof(policys));
+    int poNum;
+    GetPolicys(policys, &poNum);
+    PWR_CPU_CurFreq *rstData = malloc(sizeof(PWR_CPU_CurFreq) * poNum);
+    if (!rstData) {
+        return;
+    }
+    int rspCode = FreqRead(rstData, policys, &poNum);
+    PwrMsg *rsp = (PwrMsg *)malloc(sizeof(PwrMsg));
+    if (!rsp) {
+        Logger(ERROR, MD_NM_SVR_CPU, "Malloc failed.");
+        free(rstData);
+        return;
+    }
+    bzero(rsp, sizeof(PwrMsg));
+    GenerateRspMsg(req, rsp, rspCode, (char *)rstData, sizeof(PWR_CPU_CurFreq) * poNum);
     if (SendRspMsg(rsp) != SUCCESS) {
         ReleasePwrMsg(&rsp);
     }

@@ -178,7 +178,7 @@ static void TEST_PWR_CPU_SetAndGetCurFreq(void)
     ret = PWR_CPU_GetFreq(curFreq, &len, spec);
     printf("PWR_CPU_GetFreq ret: %d, len:%d\n", ret, len);
     for (int i = 0; i < len; i++) {
-        printf("Freq Policy %d curFreq:%d\n", curFreq[i].policyId, curFreq[i].curFreq);
+        printf("Freq Policy %d curFreq:%lf\n", curFreq[i].policyId, curFreq[i].curFreq);
     }
     len = TEST_CORE_NUM;
     bzero(curFreq, len * sizeof(PWR_CPU_CurFreq));
@@ -190,7 +190,7 @@ static void TEST_PWR_CPU_SetAndGetCurFreq(void)
     spec = 1;
     curFreq[0].curFreq = 0;
     ret = PWR_CPU_GetFreq(curFreq, &len, spec);
-    printf("Freq Policy %d curFreq:%d\n", curFreq[0].policyId, curFreq[0].curFreq);
+    printf("Freq Policy %d curFreq:%lf\n", curFreq[0].policyId, curFreq[0].curFreq);
 }
 
 static void TEST_PWR_CPU_DmaSetAndGetLatency(void)

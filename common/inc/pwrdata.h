@@ -8,7 +8,7 @@
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR
  * PURPOSE.
  * See the Mulan PSL v2 for more details.
- * Author: queyanwen
+ * Author: queyanwen, wuhaotian
  * Create: 2022-06-23
  * Description: The structures definition of powerAPI.
  * **************************************************************************** */
@@ -21,8 +21,12 @@
 #define MAX_NUMA_NODE_NUM 16
 #define MAX_GOV_NUM 16
 #define MAX_STRING_LEN 1000
-
 #define MAX_CPU_DMA_LATENCY 2000000000
+
+enum Arch {
+    AARCH_64 = 0,
+    X86_64 = 1,
+};
 
 typedef struct PWR_CPU_NumaInfo {
     int nodeNo;
@@ -84,7 +88,7 @@ typedef struct PWR_CPU_FreqAbility {
 
 typedef struct PWR_CPU_CurFreq {
     int policyId;
-    int curFreq;
+    double curFreq;
 } PWR_CPU_CurFreq;
 
 typedef struct PWR_NET_Eth {
