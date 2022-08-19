@@ -168,10 +168,10 @@ int GetCpuCurFreq(PWR_CPU_CurFreq curFreq[], uint32_t *len, int spec)
 
     int ret = SendReqAndWaitForRsp(input, output);
     if (ret != SUCCESS) {
-        PwrLog(ERROR, "SetCpuCurFreq failed. ret:%d", ret);
+        PwrLog(ERROR, "GetCpuCurFreq failed. ret:%d", ret);
         *len = size / sizeof(PWR_CPU_CurFreq);
     } else {
-        PwrLog(DEBUG, "SetCpuCurFreq Succeed.");
+        PwrLog(DEBUG, "GetCpuCurFreq Succeed.");
     }
     return ret;
 }

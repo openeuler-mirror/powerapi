@@ -133,7 +133,7 @@ static void RecvMsgFromSocket(void)
         }
         msg->data = msgcontent;
     } else {
-        msg->data=NULL;
+        msg->data = NULL;
     }
 
     if (msg->head.msgType == MT_RSP) {

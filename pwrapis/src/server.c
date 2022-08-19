@@ -336,6 +336,9 @@ static void ProcessReqMsg(PwrMsg *req)
         case CPU_SET_FREQ_GOVERNOR:
             SetCpuFreqGovernor(req);
             break;
+        case CPU_GET_CUR_FREQ:
+            GetCpuFreq(req);
+            break;
         case DISK_GET_IO_RATE:
             // todo
             break;
