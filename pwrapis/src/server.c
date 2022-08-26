@@ -340,7 +340,18 @@ static void ProcessReqMsg(PwrMsg *req)
             GetCpuFreq(req);
             break;
         case DISK_GET_IO_RATE:
-            // todo
+            break;
+        case DISK_GET_LIST:
+            break;
+        case DISK_GET_LOAD:
+            break;
+        case DISK_GET_POWER_LEVEL:
+            break;
+        case DISK_SET_POWER_LEVEL:
+            break;
+        case DISK_GET_SCSI_POLICY:
+            break;
+        case DISK_SET_SCSI_POLICY:
             break;
         default:
             break;

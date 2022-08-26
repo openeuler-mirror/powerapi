@@ -13,6 +13,7 @@
  * Description: provide common methods
  * **************************************************************************** */
 #include "utils.h"
+#include "pwrerr.h"
 
 #include <regex.h>
 #include <stdio.h>
@@ -156,7 +157,37 @@ size_t GetFileSize(const char *fileName)
     return fileStat.st_size;
 }
 
-static int LcmStrptime(const char *strTime, struct tm *pTm)
+int GetFileLines(const char *file, int *num)
+{
+    FILE *fp;
+    char *line = NULL;
+    size_t len = 0;
+    ssize_t read;
+    int *p = num;
+
+    if (file == NULL) {
+        return ERR_INVALIDE_PARAM;
+    }
+    fp = fopen(file, "r");
+    if (fp == NULL) {
+        return ERR_NULL_POINTER;
+    }
+
+    *p = 0;
+    while ((read = getline(&line, &len, fp)) != -1) {
+        *p++;
+    }
+
+    if (line) {
+        free(line);
+    }
+    if (fclose(fp) < 0) {
+        return ERR_COMMON;
+    }
+    return SUCCESS;
+}
+
+static int Strptime(const char *strTime, struct tm *pTm)
 {
     int inNum;
     if (pTm == NULL || strTime == NULL || strlen(strTime) < MIN_TM_LEN || !IsNumStr(strTime)) {
@@ -182,7 +213,7 @@ time_t StrTime2Sec(const char *strTime)
         return 0;
     }
     bzero(&tmpTm, sizeof(struct tm));
-    if (LcmStrptime(strTime, &tmpTm) != SUCCESS) {
+    if (Strptime(strTime, &tmpTm) != SUCCESS) {
         return 0;
     }
     return mktime(&tmpTm);
@@ -206,7 +237,7 @@ time_t GetLastCurDaySec(void)
     return GetLastDaySec(pDay);
 }
 /**
- * LcmGetNthField - Find the @nth field separated by @sep in the string
+ * GetNthField - Find the @nth field separated by @sep in the string
  *
  * @src : Source string
  * @sep : Separating substrings, where each character
@@ -216,7 +247,7 @@ time_t GetLastCurDaySec(void)
  * Note : return the start position in the @src if success
  * return NULL if others
  */
-const char *LcmGetNthField(const char *src, const char *sep, int nth, char *pField, size_t bufLen)
+const char *GetNthField(const char *src, const char *sep, int nth, char *pField, size_t bufLen)
 {
     size_t tmpLen = 0;
     const char *ps = src;
@@ -250,11 +281,11 @@ const char *LcmGetNthField(const char *src, const char *sep, int nth, char *pFie
 }
 
 /**
- * LcmGetNthLine - Get the @nth line string of the file
+ * GetNthLine - Get the @nth line string of the file
  *
  * Note : return line if success; NULL if failed;
  */
-const char *LcmGetNthLine(const char *fileName, int nth, char *lineBuf, size_t bufLen)
+const char *GetNthLine(const char *fileName, int nth, char *lineBuf, size_t bufLen)
 {
     const char *pRes = NULL;
     char line[MAX_LINE_NUM] = {0};
@@ -294,11 +325,11 @@ const char *GetVal(struct FieldLocation fdLt, char *valBuf, size_t bufLen)
     if (bufLen < 0) {
         return NULL;
     }
-    pRes = LcmGetNthLine(fdLt.fileName, fdLt.lineNum, lineBuf, sizeof(lineBuf) - 1);
+    pRes = GetNthLine(fdLt.fileName, fdLt.lineNum, lineBuf, sizeof(lineBuf) - 1);
     if (pRes == NULL) {
         return NULL;
     }
-    pRes = LcmGetNthField(lineBuf, fdLt.sep, fdLt.fieldNum, valBuf, bufLen);
+    pRes = GetNthField(lineBuf, fdLt.sep, fdLt.fieldNum, valBuf, bufLen);
     return pRes;
 }
 

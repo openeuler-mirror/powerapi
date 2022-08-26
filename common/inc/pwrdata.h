@@ -22,6 +22,7 @@
 #define MAX_GOV_NUM 16
 #define MAX_STRING_LEN 1000
 #define MAX_CPU_DMA_LATENCY 2000000000
+#define MAX_DISK_LIST_LEN 128
 
 enum Arch {
     AARCH_64 = 0,
@@ -108,6 +109,10 @@ typedef struct PWR_NET_Through {
 } PWR_NET_Through;
 
 // DISK
+
+typedef struct PWR_DISK_Info {
+    char diskId[MAX_ELEMENT_NAME_LEN];
+} PWR_DISK_Info;
 
 typedef struct PWR_DISK_Load {
     char diskId[MAX_ELEMENT_NAME_LEN];

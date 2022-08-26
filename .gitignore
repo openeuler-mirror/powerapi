@@ -3,3 +3,5 @@ install
 build
 release
 debug
+cscope.*
+tags
