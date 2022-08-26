@@ -56,6 +56,7 @@
 #define MD_NM_NET "NET"
 #define MD_NM_MAN "MAIN"
 #define MD_NM_SVR_CPU "CPU_SERVICE"
+#define MD_NM_SVR_DISK "DISK_SERVICE"
 
 // Define configuration section name
 #define CFG_NM_PST "persist"

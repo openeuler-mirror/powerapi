@@ -16,6 +16,7 @@
 #define __PAPIS_CONFIG_H__
 #include <stdint.h>
 #include "common.h"
+#include "list.h"
 
 #define DEFAULT_SERVER_ADDR "pwrserver.sock"
 #define DEFAULT_LOG_PATH "/opt/os_data/log"
@@ -42,6 +43,12 @@ typedef struct LogCfg {
     char logPfx[MAX_PATH_NAME];
 } LogCfg;
 
+// Config Item
+struct CnfItem {
+    char name[MAX_NAME];
+    char value[MAX_VALUE];
+    struct ListHead node;
+};
 
 // ServCfg
 typedef struct ServCfg {

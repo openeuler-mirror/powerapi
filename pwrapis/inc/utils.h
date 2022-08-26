@@ -12,8 +12,8 @@
  * Create: 2022-06-23
  * Description: provide common methods
  * **************************************************************************** */
-#ifndef LCM_UTILS_H
-#define LCM_UTILS_H
+#ifndef __UTILS_H__
+#define __UTILS_H__
 #include <time.h>
 #include <dirent.h>
 #include <regex.h>
@@ -57,6 +57,13 @@ const char *GetCurFullTime(char *fullTime, int bufLen);
 size_t GetFileSize(const char *fileName);
 
 /**
+ * Return file lines
+ *
+ * Note: Return zero if it successes
+ */
+int GetFileLines(const char *file, int *num);
+
+/**
  * StrTime2Sec - Convert strTime with format(20201206134723) to seconds
  */
 time_t StrTime2Sec(const char *strTime);
@@ -71,7 +78,7 @@ time_t GetLastDaySec(const char *day);
  */
 time_t GetLastCurDaySec(void);
 /**
- * LcmGetNthField - Find the @nth field separated by @sep in the string
+ * GetNthField - Find the @nth field separated by @sep in the string
  *
  * @src : Source string
  * @sep : Separating substrings, where each character
@@ -81,14 +88,14 @@ time_t GetLastCurDaySec(void);
  * Note : return the start position in the @src if success
  * return NULL if others
  */
-const char *LcmGetNthField(const char *src, const char *sep, int nth, char *pField, size_t bufLen);
+const char *GetNthField(const char *src, const char *sep, int nth, char *pField, size_t bufLen);
 
 /**
- * LcmGetNthLine - Get the @nth line string of the file
+ * GetNthLine - Get the @nth line string of the file
  *
  * Note : return line if success; NULL if failed;
  */
-const char *LcmGetNthLine(const char *fileName, int nth, char *lineBuf, size_t bufLen);
+const char *GetNthLine(const char *fileName, int nth, char *lineBuf, size_t bufLen);
 /**
  * GetVal - Get the value of the @fieldNum'th field in the @lineNum'th line of the file
  */
