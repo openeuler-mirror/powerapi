@@ -15,6 +15,7 @@
 #ifndef __POWERAPI_CONNECTION_H__
 #define __POWERAPI_CONNECTION_H__
 #include "pwrmsg.h"
+#include "pwrdata.h"
 
 typedef struct ReqInputParam {
     enum OperationType optType;
@@ -30,6 +31,7 @@ typedef struct RspOutputParam {
 
 int InitSockClient(void);
 int FiniSockClient(void);
-
+int SetMetaDataCallback(void(MetaDataCallback)(int, const PWR_COM_CallbackData *));
+int HasSetDataCallback(void);
 int SendReqAndWaitForRsp(ReqInputParam input, RspOutputParam output);
 #endif

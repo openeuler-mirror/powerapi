@@ -46,6 +46,9 @@ typedef struct PwrMsg {
 } PwrMsg;
 
 enum OperationType {
+    COM_CREATE_DC_TASK = 10,
+    COM_DELETE_DC_TASK,
+    COM_CALLBACK_DATA,
     CPU_GET_INFO = 100,
     CPU_GET_USAGE,
     CPU_GET_CACHE_MISS,

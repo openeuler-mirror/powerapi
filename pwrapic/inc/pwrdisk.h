@@ -14,8 +14,8 @@
  * **************************************************************************** */
 #ifndef __POWERAPI_DISK_H__
 #define __POWERAPI_DISK_H__
-
-#include "powerapi.h"
+#include <stdint.h>
+#include "pwrdata.h"
 
 int GetDiskList(char diskList[][MAX_ELEMENT_NAME_LEN], uint32_t *len);
 int GetDiskLoad(PWR_DISK_Load load[], uint32_t *len, int spec);

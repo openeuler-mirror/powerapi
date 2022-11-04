@@ -18,6 +18,7 @@
 #include <string.h>
 #include "pwrlog.h"
 #include "sockclient.h"
+#include "pwrtask.h"
 #include "pwrcpu.h"
 #include "pwrdisk.h"
 #include "pwrnet.h"
@@ -72,6 +73,39 @@ int PWR_UnRegister(void)
     // todo: 增加必要的其他去初始化动作
     g_registed = 0;
     return ret;
+}
+
+
+int PWR_SetMetaDataCallback(void(MetaDataCallback)(int, const PWR_COM_CallbackData *))
+{
+    if (MetaDataCallback) {
+        return SetMetaDataCallback(MetaDataCallback);
+    }
+    return ERR_NULL_POINTER;
+}
+
+int PWR_CreateDcTask(PWR_COM_BasicDcTaskInfo *basicDcTaskInfo, int *taskId)
+{
+    CHECK_STATUS();
+    CHECK_NULL_POINTER(basicDcTaskInfo);
+    CHECK_NULL_POINTER(taskId);
+
+    if (basicDcTaskInfo->interval < MIN_DC_INTERVAL || basicDcTaskInfo->interval > MAX_DC_INTERVAL) {
+        return ERR_INVALIDE_PARAM;
+    }
+
+    if (!HasSetDataCallback()) {
+        return ERR_CALLBACK_FUNCTION_SHOULD_BE_SET_FIRST;
+    }
+
+    return CreateDcTask(basicDcTaskInfo, taskId);
+}
+
+int PWR_DeleteDcTask(int taskId)
+{
+    CHECK_STATUS();
+
+    return DeleteDcTask(taskId);
 }
 
 int PWR_CPU_GetInfo(PWR_CPU_Info *cpuInfo)

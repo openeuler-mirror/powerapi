@@ -9,14 +9,15 @@
  * PURPOSE.
  * See the Mulan PSL v2 for more details.
  * Author: queyanwen
- * Create: 2022-06-23
- * Description: Provide service for PowerAPI refer to USB.
+ * Create: 2022-11-01
+ * Description: Provide service for PowerAPI refer to TASK.
  * **************************************************************************** */
-#ifndef __POWERAPI_USB_H__
-#define __POWERAPI_USB_H__
-#include <stdint.h>
+#ifndef POWERAPI_COMM_H__
+#define POWERAPI_COMM_H__
+
 #include "pwrdata.h"
 
-int GetUsbAutoSuspend(PWR_USB_AutoSuspend usbAts[], uint32_t *len);
-int SetUsbAutoSuspend(PWR_USB_AutoSuspend usbAts[], uint32_t len);
+int CreateDcTask(PWR_COM_BasicDcTaskInfo *basicDcTaskInfo, int *taskId);
+int DeleteDcTask(int taskId);
+
 #endif
