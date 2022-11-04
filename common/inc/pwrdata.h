@@ -14,13 +14,17 @@
  * **************************************************************************** */
 #ifndef __POWERAPI_DATA_H__
 #define __POWERAPI_DATA_H__
-
+#include <stdint.h>
 #define MAX_ELEMENT_NAME_LEN 32
 #define MAX_NAME_LEN 128
 #define MAX_CPU_LIST_LEN 248
 #define MAX_NUMA_NODE_NUM 16
 #define MAX_GOV_NUM 16
 #define MAX_STRING_LEN 1000
+#define MAX_TIME_LEN 24
+#define MAX_DC_INTERVAL 100000000
+#define MIN_DC_INTERVAL 500
+
 #define MAX_CPU_DMA_LATENCY 2000000000
 #define MAX_DISK_LIST_LEN 128
 
@@ -28,6 +32,26 @@ enum Arch {
     AARCH_64 = 0,
     X86_64 = 1,
 };
+
+typedef enum PWR_COM_COL_DATATYPE {
+    PWR_COM_DATATYPE_LLC_MISS = 1,
+    PWR_COM_DATATYPE_CPU_USAGE,
+    PWR_COM_DATATYPE_CPU_IPC,
+
+    PWR_COM_DATATYPE_INVALIDE,
+} PWR_COM_COL_DATATYPE;
+
+typedef struct PWR_COM_CallbackData {
+    char ctime[MAX_TIME_LEN];
+    int dataType;
+    int dataLen;
+    void *data;
+} PWR_COM_CallbackData;
+
+typedef struct PWR_COM_BasicDcTaskInfo {
+    PWR_COM_COL_DATATYPE dataType;
+    int interval;
+} PWR_COM_BasicDcTaskInfo;
 
 typedef struct PWR_CPU_NumaInfo {
     int nodeNo;

@@ -15,7 +15,8 @@
 #ifndef __POWERAPI_CPU_H__
 #define __POWERAPI_CPU_H__
 
-#include "powerapi.h"
+#include <stdint.h>
+#include "pwrdata.h"
 int GetCpuInfo(PWR_CPU_Info *cpuInfo);
 int GetCpuUsage(PWR_CPU_Usage *usage, uint32_t bufferSize);
 int GetCpuLlcMissPerIns(double *cacheMiss);

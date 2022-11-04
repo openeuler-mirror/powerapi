@@ -96,6 +96,13 @@ static int WriteMsg(const void *pData, int len)
     return SUCCESS;
 }
 
+static void (*g_metadata_callback)(int, const PWR_COM_CallbackData *) = NULL;
+static void DoDataCallback(PwrMsg *msg)
+{
+    g_metadata_callback(msg->head.taskNo, (PWR_COM_CallbackData *)(msg->data));
+    ReleasePwrMsg(&msg);
+}
+
 static void ProcessRspMsg(PwrMsg *rsp)
 {
     ResultWaitingMsgNode *rwm = FindAndMoveWaitingMsg(&g_waitList, rsp->head.seqId);
@@ -112,8 +119,16 @@ static void ProcessRspMsg(PwrMsg *rsp)
 
 static void ProcessOtherMsg(PwrMsg *msg)
 {
-    if (AddToBufferTail(&g_recvBuff, msg) != SUCCESS) {
+    /* if (AddToBufferTail(&g_recvBuff, msg) != SUCCESS) {
         ReleasePwrMsg(&msg);
+    } */
+    switch (msg->head.optType) {
+        case COM_CALLBACK_DATA:
+            DoDataCallback(msg);
+            break;
+        default:
+            ReleasePwrMsg(&msg);
+            break;
     }
 }
 
@@ -347,6 +362,20 @@ int FiniSockClient(void)
     return SUCCESS;
 }
 
+int SetMetaDataCallback(void(MetaDataCallback)(int, const PWR_COM_CallbackData *))
+{
+    if (MetaDataCallback) {
+        g_metadata_callback = MetaDataCallback;
+        return SUCCESS;
+    }
+    return ERR_NULL_POINTER;
+}
+
+int HasSetDataCallback(void)
+{
+    return g_metadata_callback != NULL;
+}
+
 int SendReqAndWaitForRsp(ReqInputParam input, RspOutputParam output)
 {
     if ((output.rspData && (!output.rspBuffSize || *output.rspBuffSize == 0))) {
@@ -375,7 +404,7 @@ int SendReqAndWaitForRsp(ReqInputParam input, RspOutputParam output)
         ReleasePwrMsg(&rsp);
         return ret;
     }
-    
+
     if (output.rspData) {
         uint32_t srcSize = *output.rspBuffSize;
         if (rsp->data) {

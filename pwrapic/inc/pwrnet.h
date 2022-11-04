@@ -14,8 +14,8 @@
  * **************************************************************************** */
 #ifndef __POWERAPI_NET_H__
 #define __POWERAPI_NET_H__
-
-#include "powerapi.h"
+#include <stdint.h>
+#include "pwrdata.h"
 
 int GetNetInfo(PWR_NET_Info *netInfo, uint32_t bufferSize);
 int GetNetThrough(char ethName[], PWR_NET_Through *ethThrough);
