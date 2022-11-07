@@ -249,7 +249,7 @@ int LLCMissRead(double *lm)
         missStr = "perf stat -e r0033 -e instructions -a sleep 0.1 &>perf.txt";
     } else if (m == X86_64) {
         missStr = "perf stat -e LLC-load-misses -e LLC-store-misses -e instructions -a sleep 0.1 &>perf.txt";
-    } else {  // Add other arch
+    } else { // Add other arch
         return 1;
     }
     FILE *fp = NULL;

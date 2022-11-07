@@ -9,23 +9,16 @@
  * PURPOSE.
  * See the Mulan PSL v2 for more details.
  * Author: queyanwen
- * Create: 2022-06-23
- * Description: provide server methods
+ * Create: 2022-11-05
+ * Description: provide task service
  * **************************************************************************** */
-#ifndef __PAPIS_SERVER_H__
-#define __PAPIS_SERVER_H__
-#include <stdint.h>
-#include <stdio.h>
+#ifndef PAPIS_TASK_SERVICE_H__
+#define PAPIS_TASK_SERVICE_H__
 #include "pwrmsg.h"
 
-/**
- * Init and start the server
- * Note: return connected socket fd if success;
- * return < 1 if failed
- */
-int StartServer(void);
-void StopServer(void);
-int SendRspToClient(const PwrMsg *req, int rspCode, char *data, uint32_t len);
-int SendRspMsg(PwrMsg *rsp);
+int InitTaskService(void);
+void FiniTaskService(void);
+void CreateDataCollTask(const PwrMsg *req);
+void DeleteDataCollTask(const PwrMsg *req);
 
 #endif

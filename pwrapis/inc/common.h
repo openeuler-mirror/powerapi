@@ -57,6 +57,7 @@
 #define MD_NM_MAN "MAIN"
 #define MD_NM_SVR_CPU "CPU_SERVICE"
 #define MD_NM_SVR_DISK "DISK_SERVICE"
+#define MD_NM_SVR_TASK "TASK_SERVICE"
 
 // Define configuration section name
 #define CFG_NM_PST "persist"
@@ -264,11 +265,12 @@ enum RunStatus {
 #define INVALID_FD (-1)
 #define INVALID_INDEX (-1)
 
-#define MAX_LICENT_NUM 3
+#define MAX_CLIENT_NUM 3
 #define THREAD_LOOP_INTERVAL 2000 // us
 #define SERVER_ADDR "pwrserver.sock"
 #define CLIENT_ADDR "pwrclient.sock."
 #define MAX_SYSID_LEN 20
 #define MAX_PROC_NUM_ONE_LOOP 5
+#define THOUSAND 1000
 
 #endif

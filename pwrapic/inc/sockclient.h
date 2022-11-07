@@ -31,7 +31,7 @@ typedef struct RspOutputParam {
 
 int InitSockClient(void);
 int FiniSockClient(void);
-int SetMetaDataCallback(void(MetaDataCallback)(int, const PWR_COM_CallbackData *));
+int SetMetaDataCallback(void(MetaDataCallback)(const PWR_COM_CallbackData *));
 int HasSetDataCallback(void);
 int SendReqAndWaitForRsp(ReqInputParam input, RspOutputParam output);
 #endif

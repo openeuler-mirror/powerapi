@@ -96,10 +96,21 @@ static int WriteMsg(const void *pData, int len)
     return SUCCESS;
 }
 
-static void (*g_metadata_callback)(int, const PWR_COM_CallbackData *) = NULL;
+static void (*g_metadata_callback)(const PWR_COM_CallbackData *) = NULL;
 static void DoDataCallback(PwrMsg *msg)
 {
-    g_metadata_callback(msg->head.taskNo, (PWR_COM_CallbackData *)(msg->data));
+    if (msg->head.dataLen < sizeof(PWR_COM_CallbackData)) {
+        PwrLog(DEBUG, "DoDataCallback. msg data len error. len:%d", msg->head.dataLen);
+        ReleasePwrMsg(&msg);
+        return;
+    }
+    PWR_COM_CallbackData *callBackData = (PWR_COM_CallbackData *)msg->data;
+    if (callBackData->dataLen <= 0) {
+        PwrLog(DEBUG, "DoDataCallback. data empty. len:%d", callBackData->dataLen);
+        ReleasePwrMsg(&msg);
+        return;
+    }
+    g_metadata_callback(callBackData);
     ReleasePwrMsg(&msg);
 }
 
@@ -337,7 +348,7 @@ int InitSockClient(void)
             ret = ERR_COMMON;
             break;
         }
-        int r = CreateThread(&g_sockThread, RunSocketProcess);
+        int r = CreateThread(&g_sockThread, RunSocketProcess, NULL);
         if (r != SUCCESS) {
             PwrLog(ERROR, "Create recv thread failed. ret[%d]", r);
             ret = ERR_COMMON;
@@ -362,7 +373,7 @@ int FiniSockClient(void)
     return SUCCESS;
 }
 
-int SetMetaDataCallback(void(MetaDataCallback)(int, const PWR_COM_CallbackData *))
+int SetMetaDataCallback(void(MetaDataCallback)(const PWR_COM_CallbackData *))
 {
     if (MetaDataCallback) {
         g_metadata_callback = MetaDataCallback;
@@ -384,7 +395,7 @@ int SendReqAndWaitForRsp(ReqInputParam input, RspOutputParam output)
 
     char *inputData = NULL;
     if (input.data && input.dataLen != 0) {
-        inputData = (char *)malloc(input.dataLen);
+        inputData = (char *)malloc(input.dataLen); // Be released when PwrMsg released
         bzero(inputData, input.dataLen);
         memcpy(inputData, input.data, input.dataLen);
     }
