@@ -5,3 +5,5 @@ release
 debug
 cscope.*
 tags
+pwrapic/gtest/lib
+pwrapic/gtest/include/gtest
