@@ -33,6 +33,10 @@ mkdir ./release/pwrapi_demo
 cp ./build/pwrapic/test/pwrapic_demo  ./release/pwrapi_demo/
 cp -r ./release/pwrapic ./release/pwrapi_demo/
 
+mkdir ./release/gtest
+cp ./build/pwrapic/gtest/gtest_test  ./release/gtest/
+
+
 mkdir ./release/pwrapis
 cp ./build/pwrapis/src/pwrapis ./release/pwrapis/
 cp -r ./pwrapis/conf  ./release/pwrapis/

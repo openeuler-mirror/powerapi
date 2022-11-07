@@ -4,4 +4,5 @@ set(CMAKE_VERBOSE_MAKEFILE on)
 
 add_subdirectory(pwrapic/src)
 add_subdirectory(pwrapic/test)
+add_subdirectory(pwrapic/gtest)
 add_subdirectory(pwrapis/src)
