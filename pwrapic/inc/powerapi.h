@@ -31,9 +31,9 @@ extern "C" {
 PWR_API int PWR_SetLogCallback(void(LogCallback)(int level, const char *fmt, va_list vl));
 PWR_API int PWR_Register(void);
 PWR_API int PWR_UnRegister(void);
-PWR_API int PWR_SetMetaDataCallback(void(MetaDataCallback)(int taskId, const PWR_COM_CallbackData *callbackData));
-PWR_API int PWR_CreateDcTask(PWR_COM_BasicDcTaskInfo *basicDcTaskInfo, int *taskId);
-PWR_API int PWR_DeleteDcTask(int taskId);
+PWR_API int PWR_SetMetaDataCallback(void(MetaDataCallback)(const PWR_COM_CallbackData *callbackData));
+PWR_API int PWR_CreateDcTask(const PWR_COM_BasicDcTaskInfo *basicDcTaskInfo);
+PWR_API int PWR_DeleteDcTask(PWR_COM_COL_DATATYPE dataType);
 
 // CPU
 PWR_API int PWR_CPU_GetInfo(PWR_CPU_Info *cpuInfo);

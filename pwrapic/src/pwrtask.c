@@ -19,7 +19,7 @@
 #include "pwrerr.h"
 #include "sockclient.h"
 
-int CreateDcTask(PWR_COM_BasicDcTaskInfo *basicDcTaskInfo, int *taskId)
+int CreateDcTask(const PWR_COM_BasicDcTaskInfo *basicDcTaskInfo)
 {
     ReqInputParam input;
     input.optType = COM_CREATE_DC_TASK;
@@ -28,8 +28,8 @@ int CreateDcTask(PWR_COM_BasicDcTaskInfo *basicDcTaskInfo, int *taskId)
 
     RspOutputParam output;
     uint32_t size = sizeof(int);
-    output.rspBuffSize = &size;
-    output.rspData = (void *)taskId;
+    output.rspBuffSize = NULL;
+    output.rspData = NULL;
 
     int ret = SendReqAndWaitForRsp(input, output);
     if (ret != SUCCESS) {
@@ -40,12 +40,12 @@ int CreateDcTask(PWR_COM_BasicDcTaskInfo *basicDcTaskInfo, int *taskId)
     return ret;
 }
 
-int DeleteDcTask(int taskId)
+int DeleteDcTask(PWR_COM_COL_DATATYPE dataType)
 {
     ReqInputParam input;
     input.optType = COM_DELETE_DC_TASK;
-    input.dataLen = sizeof(taskId);
-    input.data = (char *)&taskId;
+    input.dataLen = sizeof(dataType);
+    input.data = (char *)&dataType;
     RspOutputParam output;
     output.rspBuffSize = NULL;
     output.rspData = NULL;

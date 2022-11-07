@@ -19,6 +19,7 @@
 void GetCpuinfo(PwrMsg *req);
 void GetCpuUsage(PwrMsg *req);
 void GetLLCMiss(PwrMsg *req);
+void GetCpuFreq(PwrMsg *req);
 void GetCpuFreqGovernor(PwrMsg *req);
 void SetCpuFreqGovernor(PwrMsg *req);
 #endif

@@ -107,7 +107,7 @@ void DestroyMsgFactory(void)
 }
 
 
-int GenerateRspMsg(PwrMsg *req, PwrMsg *rsp, int rspCode, char *data, int dataLen)
+int GenerateRspMsg(const PwrMsg *req, PwrMsg *rsp, int rspCode, char *data, int dataLen)
 {
     if (!req || !rsp) {
         return ERR_NULL_POINTER;
@@ -139,13 +139,13 @@ void InitThreadInfo(ThreadInfo *threadInfo)
     threadInfo->tid = 0;
 }
 
-int CreateThread(ThreadInfo *threadInfo, void *(*thread_proc)(void *))
+int CreateThread(ThreadInfo *threadInfo, void *(*thread_proc)(void *), void *arg)
 {
     if (!threadInfo || !thread_proc) {
         return ERR_NULL_POINTER;
     }
     threadInfo->keepRunning = TRUE;
-    if (pthread_create(&threadInfo->tid, NULL, thread_proc, NULL) != SUCCESS) {
+    if (pthread_create(&threadInfo->tid, NULL, thread_proc, arg) != SUCCESS) {
         return ERR_SYS_EXCEPTION;
     }
     threadInfo->created = TRUE;

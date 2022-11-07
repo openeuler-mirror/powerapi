@@ -17,7 +17,7 @@
 
 #include "pwrdata.h"
 
-int CreateDcTask(PWR_COM_BasicDcTaskInfo *basicDcTaskInfo, int *taskId);
-int DeleteDcTask(int taskId);
+int CreateDcTask(const PWR_COM_BasicDcTaskInfo *basicDcTaskInfo);
+int DeleteDcTask(PWR_COM_COL_DATATYPE dataType);
 
 #endif

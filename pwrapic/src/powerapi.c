@@ -76,7 +76,7 @@ int PWR_UnRegister(void)
 }
 
 
-int PWR_SetMetaDataCallback(void(MetaDataCallback)(int, const PWR_COM_CallbackData *))
+int PWR_SetMetaDataCallback(void(MetaDataCallback)(const PWR_COM_CallbackData *))
 {
     if (MetaDataCallback) {
         return SetMetaDataCallback(MetaDataCallback);
@@ -84,11 +84,10 @@ int PWR_SetMetaDataCallback(void(MetaDataCallback)(int, const PWR_COM_CallbackDa
     return ERR_NULL_POINTER;
 }
 
-int PWR_CreateDcTask(PWR_COM_BasicDcTaskInfo *basicDcTaskInfo, int *taskId)
+int PWR_CreateDcTask(const PWR_COM_BasicDcTaskInfo *basicDcTaskInfo)
 {
     CHECK_STATUS();
     CHECK_NULL_POINTER(basicDcTaskInfo);
-    CHECK_NULL_POINTER(taskId);
 
     if (basicDcTaskInfo->interval < MIN_DC_INTERVAL || basicDcTaskInfo->interval > MAX_DC_INTERVAL) {
         return ERR_INVALIDE_PARAM;
@@ -98,14 +97,14 @@ int PWR_CreateDcTask(PWR_COM_BasicDcTaskInfo *basicDcTaskInfo, int *taskId)
         return ERR_CALLBACK_FUNCTION_SHOULD_BE_SET_FIRST;
     }
 
-    return CreateDcTask(basicDcTaskInfo, taskId);
+    return CreateDcTask(basicDcTaskInfo);
 }
 
-int PWR_DeleteDcTask(int taskId)
+int PWR_DeleteDcTask(PWR_COM_COL_DATATYPE dataType)
 {
     CHECK_STATUS();
 
-    return DeleteDcTask(taskId);
+    return DeleteDcTask(dataType);
 }
 
 int PWR_CPU_GetInfo(PWR_CPU_Info *cpuInfo)

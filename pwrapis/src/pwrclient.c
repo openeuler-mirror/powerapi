@@ -22,7 +22,7 @@
 
 static int FindAvailableSlot(PwrClient clients[])
 {
-    for (int i = 0; i < MAX_LICENT_NUM; i++) {
+    for (int i = 0; i < MAX_CLIENT_NUM; i++) {
         if (clients[i].fd == INVALID_FD) {
             return i;
         }
@@ -32,7 +32,7 @@ static int FindAvailableSlot(PwrClient clients[])
 
 static int GetClientIdx(PwrClient clients[], PwrClient newClient)
 {
-    for (int i = 0; i < MAX_LICENT_NUM; i++) {
+    for (int i = 0; i < MAX_CLIENT_NUM; i++) {
         if (clients[i].sysId == newClient.sysId) {
             return i;
         }
@@ -42,7 +42,7 @@ static int GetClientIdx(PwrClient clients[], PwrClient newClient)
 
 void InitPwrClient(PwrClient clients[])
 {
-    for (int i = 0; i < MAX_LICENT_NUM; i++) {
+    for (int i = 0; i < MAX_CLIENT_NUM; i++) {
         clients[i].fd = INVALID_FD;
         clients[i].sysId = INVALID_INDEX;
     }
@@ -63,7 +63,7 @@ int AddToClientList(PwrClient clients[], PwrClient newClient)
     // new client
     int index = FindAvailableSlot(clients);
     if (index == INVALID_INDEX) {
-        Logger(ERROR, MD_NM_SVR, "Maximum client num : %d errno :%d\n", MAX_LICENT_NUM, errno);
+        Logger(ERROR, MD_NM_SVR, "Maximum client num : %d errno :%d\n", MAX_CLIENT_NUM, errno);
         return ERR_OVER_MAX_CONNECTION;
     } else {
         clients[index] = newClient;
@@ -74,7 +74,7 @@ int AddToClientList(PwrClient clients[], PwrClient newClient)
 
 int DeleteFromClientList(PwrClient clients[], int idx)
 {
-    if (idx < 0 || idx >= MAX_LICENT_NUM) {
+    if (idx < 0 || idx >= MAX_CLIENT_NUM) {
         return ERR_INVALIDE_PARAM;
     }
     close(clients[idx].fd);
@@ -85,7 +85,7 @@ int DeleteFromClientList(PwrClient clients[], int idx)
 
 void CloseAllConnections(PwrClient clients[])
 {
-    for (int i = 0; i < MAX_LICENT_NUM; i++) {
+    for (int i = 0; i < MAX_CLIENT_NUM; i++) {
         if (clients[i].fd == INVALID_FD) {
             continue;
         }
@@ -97,7 +97,7 @@ void CloseAllConnections(PwrClient clients[])
 
 int GetFdBySysId(const PwrClient clients[], uint32_t sysId)
 {
-    for (int i = 0; i < MAX_LICENT_NUM; i++) {
+    for (int i = 0; i < MAX_CLIENT_NUM; i++) {
         if (clients[i].sysId == sysId) {
             return clients[i].fd;
         }
@@ -107,7 +107,7 @@ int GetFdBySysId(const PwrClient clients[], uint32_t sysId)
 
 int GetIdxByFd(const PwrClient clients[], int fd)
 {
-    for (int i = 0; i < MAX_LICENT_NUM; i++) {
+    for (int i = 0; i < MAX_CLIENT_NUM; i++) {
         if (clients[i].fd == fd) {
             return i;
         }

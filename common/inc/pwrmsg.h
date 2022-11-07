@@ -99,7 +99,7 @@ PwrMsg *ClonePwrMsg(PwrMsg *msg);
 PwrMsg *CreateReqMsg(enum OperationType optType, uint32_t taskNo, uint32_t dataLen, char *data);
 int InitMsgFactory(void);
 void DestroyMsgFactory(void);
-int GenerateRspMsg(PwrMsg *req, PwrMsg *rsp, int rspCode, char *data, int dataLen);
+int GenerateRspMsg(const PwrMsg *req, PwrMsg *rsp, int rspCode, char *data, int dataLen);
 
 
 typedef struct ThreadInfo {
@@ -109,7 +109,7 @@ typedef struct ThreadInfo {
 } ThreadInfo;
 
 void InitThreadInfo(ThreadInfo *threadInfo);
-int CreateThread(ThreadInfo *threadInfo, void *(*thread_proc)(void *));
+int CreateThread(ThreadInfo *threadInfo, void *(*thread_proc)(void *), void *arg);
 void FiniThreadInfo(ThreadInfo *threadInfo);
 
 #endif

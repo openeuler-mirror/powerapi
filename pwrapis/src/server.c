@@ -29,18 +29,18 @@
 #include "config.h"
 #include "pwrbuffer.h"
 #include "cpuservice.h"
+#include "taskservice.h"
 #include "pwrerr.h"
 #define COUNT_MAX 5
-#define THOUSAND 1000
 
 static int g_listenFd = -1;
 static pthread_mutex_t g_listenFdLock = PTHREAD_MUTEX_INITIALIZER;
 static ThreadInfo g_sockProcThread;
 static ThreadInfo g_serviceThread;
 
-static PwrClient g_pwrClients[MAX_LICENT_NUM];  // 对该结构的读和写都在一个线程完成，因而不需要加锁
-static PwrMsgBuffer g_sendBuff;                 // 发送队列
-static PwrMsgBuffer g_recvBuff;                 // 接收队列
+static PwrClient g_pwrClients[MAX_CLIENT_NUM]; // 对该结构的读和写都在一个线程完成，因而不需要加锁
+static PwrMsgBuffer g_sendBuff;                // 发送队列
+static PwrMsgBuffer g_recvBuff;                // 接收队列
 static pthread_mutex_t g_waitMsgMutex;
 static pthread_cond_t g_waitMsgCond;
 
@@ -112,11 +112,7 @@ static void AcceptConnection(void)
     newClientFd = accept(g_listenFd, (struct sockaddr *)&clientAddr, &socklen);
     pthread_mutex_unlock(&g_listenFdLock);
     if (newClientFd < 0) {
-        Logger(ERROR,
-            MD_NM_SVR,
-            "accpet socket error: %s errno :%d, addr:%s",
-            strerror(errno),
-            errno,
+        Logger(ERROR, MD_NM_SVR, "accpet socket error: %s errno :%d, addr:%s", strerror(errno), errno,
             clientAddr.sun_path);
         return;
     }
@@ -128,7 +124,7 @@ static void AcceptConnection(void)
     strncpy(strSysId, clientAddr.sun_path + strlen(CLIENT_ADDR), MAX_SYSID_LEN - 1);
     client.sysId = atoi(strSysId);
     if (AddToClientList(g_pwrClients, client) != SUCCESS) {
-        Logger(ERROR, MD_NM_SVR, "Reach maximum connections or client existed : %d ", MAX_LICENT_NUM);
+        Logger(ERROR, MD_NM_SVR, "Reach maximum connections or client existed : %d ", MAX_CLIENT_NUM);
         close(newClientFd);
     }
     Logger(INFO, MD_NM_SVR, "Create new connection succeed. fd:%d, sysId:%d", client.fd, client.sysId);
@@ -171,7 +167,7 @@ static void ProcessRecvMsgFromClient(int clientIdx)
     Logger(DEBUG, MD_NM_SVR, "receivd msg. opt:%d,sysId:%d", msg->head.optType, msg->head.sysId);
 
     if (msg->head.msgType != MT_REQ) {
-        ReleasePwrMsg(&msg);  // the server accept request msg only.
+        ReleasePwrMsg(&msg); // the server accept request msg only.
     }
 
     if (msg->head.dataLen > 0) {
@@ -263,7 +259,7 @@ static void ProcessSendMsgToClient(void)
  * 1. Accepting connection request
  * 2. Receiving msg from or send msg to client FDs
  */
-static void *RunServerSocketProcess(void)
+static void *RunServerSocketProcess(void *none)
 {
     fd_set recvFdSet;
     int maxFd = INVALID_FD;
@@ -276,7 +272,7 @@ static void *RunServerSocketProcess(void)
         maxFd = g_listenFd;
         FD_SET(g_listenFd, &recvFdSet);
 
-        for (int i = 0; i < MAX_LICENT_NUM; i++) {
+        for (int i = 0; i < MAX_CLIENT_NUM; i++) {
             if (g_pwrClients[i].fd != INVALID_FD) {
                 FD_SET(g_pwrClients[i].fd, &recvFdSet);
                 maxFd = maxFd < g_pwrClients[i].fd ? g_pwrClients[i].fd : maxFd;
@@ -292,16 +288,16 @@ static void *RunServerSocketProcess(void)
             continue;
         }
 
-        if (FD_ISSET(g_listenFd, &recvFdSet)) {  // new connection
+        if (FD_ISSET(g_listenFd, &recvFdSet)) { // new connection
             AcceptConnection();
         }
 
-        for (int i = 0; i < MAX_LICENT_NUM; i++) {
-            if (FD_ISSET(g_pwrClients[i].fd, &recvFdSet)) {  // new msg in
+        for (int i = 0; i < MAX_CLIENT_NUM; i++) {
+            if (FD_ISSET(g_pwrClients[i].fd, &recvFdSet)) { // new msg in
                 ProcessRecvMsgFromClient(i);
             }
         }
-    }  // while
+    } // while
 
     CloseAllConnections(g_pwrClients);
 }
@@ -321,6 +317,12 @@ static void WaitForMsg(void)
 static void ProcessReqMsg(PwrMsg *req)
 {
     switch (req->head.optType) {
+        case COM_CREATE_DC_TASK:
+            CreateDataCollTask(req);
+            break;
+        case COM_DELETE_DC_TASK:
+            DeleteDataCollTask(req);
+            break;
         case CPU_GET_USAGE:
             GetCpuUsage(req);
             break;
@@ -363,7 +365,7 @@ static void ProcessReqMsg(PwrMsg *req)
  * RunServiceProcess - Run RunServiceProcess
  * Process the request msg in receiving buffer g_recvBuff
  */
-static void *RunServiceProcess(void)
+static void *RunServiceProcess(void *none)
 {
     while (g_serviceThread.keepRunning) {
         if (IsEmptyBuffer(&g_recvBuff)) {
@@ -374,7 +376,7 @@ static void *RunServiceProcess(void)
             continue;
         }
         ProcessReqMsg(msg);
-    }  // while
+    } // while
 }
 // public======================================================================================
 // Init Socket. Start listening & accepting
@@ -394,22 +396,24 @@ int StartServer(void)
         return ERR_SYS_EXCEPTION;
     }
 
-    ret = CreateThread(&g_serviceThread, RunServiceProcess);
+    ret = CreateThread(&g_serviceThread, RunServiceProcess, NULL);
     if (ret != SUCCESS) {
         Logger(ERROR, MD_NM_SVR, "Create service thread failed! ret[%d]", ret);
         return ERR_SYS_EXCEPTION;
     }
 
-    ret = CreateThread(&g_sockProcThread, RunServerSocketProcess);
+    ret = CreateThread(&g_sockProcThread, RunServerSocketProcess, NULL);
     if (ret != SUCCESS) {
         Logger(ERROR, MD_NM_SVR, "Create ServerSocketProcess thread failed! ret[%d]", ret);
         return ERR_SYS_EXCEPTION;
     }
+    InitTaskService();
     return SUCCESS;
 }
 
 void StopServer(void)
 {
+    FiniTaskService();
     FiniThreadInfo(&g_sockProcThread);
     FiniThreadInfo(&g_serviceThread);
     StopListen();
@@ -418,6 +422,29 @@ void StopServer(void)
     DestroyMsgFactory();
     pthread_cond_destroy((pthread_cond_t *)&g_waitMsgCond);
     pthread_mutex_destroy((pthread_mutex_t *)&g_waitMsgMutex);
+}
+
+// 本函数会将data指针所指向数据迁移走，调用方勿对data进行释放操作。
+int SendRspToClient(const PwrMsg *req, int rspCode, char *data, uint32_t len)
+{
+    if (!req) {
+        return ERR_NULL_POINTER;
+    }
+    if (!data && len != 0) {
+        return ERR_INVALIDE_PARAM;
+    }
+
+    PwrMsg *rsp = (PwrMsg *)malloc(sizeof(PwrMsg));
+    if (!rsp) {
+        Logger(ERROR, MD_NM_SVR, "Malloc failed.");
+        free(data);
+        return ERR_SYS_EXCEPTION;
+    }
+    bzero(rsp, sizeof(PwrMsg));
+    GenerateRspMsg(req, rsp, rspCode, data, len);
+    if (SendRspMsg(rsp) != SUCCESS) {
+        ReleasePwrMsg(&rsp);
+    }
 }
 
 int SendRspMsg(PwrMsg *rsp)
