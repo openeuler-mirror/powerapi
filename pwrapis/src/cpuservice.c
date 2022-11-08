@@ -17,7 +17,6 @@
 #include "string.h"
 #include "pwrerr.h"
 #include "server.h"
-#include "pwrdata.h"
 #include "log.h"
 #include "unistd.h"
 #define USAGE_COLUMN 8
@@ -283,6 +282,13 @@ int LLCMissRead(double *lm)
     *lm = (double)cacheMiss / ins;
     pclose(fp);
     return 0;
+}
+
+int CpuIpcRead(double *ipc)
+{
+    *ipc = 1.0;
+    // todo: impl get ipc
+    return SUCCESS;
 }
 
 int GetPolicys(char (*policys)[MAX_ELEMENT_NAME_LEN], int *poNum)
@@ -553,4 +559,10 @@ void GetCpuFreq(PwrMsg *req)
     if (SendRspMsg(rsp) != SUCCESS) {
         ReleasePwrMsg(&rsp);
     }
+}
+
+// 总CPU核数
+int GetCpuCoreNumber(void)
+{
+    return sysconf(_SC_NPROCESSORS_CONF);
 }

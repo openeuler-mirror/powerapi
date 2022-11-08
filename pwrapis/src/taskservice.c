@@ -15,15 +15,17 @@
 // todo: socket断链时，需要考虑task的释放
 
 #include "taskservice.h"
-#include <sys/time.h>
 #include <pthread.h>
 #include <unistd.h>
 #include <string.h>
+#include <sys/time.h>
 #include "common.h"
 #include "pwrerr.h"
 #include "log.h"
 #include "pwrdata.h"
 #include "server.h"
+#include "cpuservice.h"
+#include "utils.h"
 
 #define INVALIDE_TASK_ID (-1)
 #define MAX_TASK_NUM 10
@@ -31,6 +33,7 @@
 typedef struct CollDataSubscriber {
     uint32_t sysId;
     int interval;
+    struct timeval lastSent;
 } CollDataSubscriber;
 
 
@@ -123,6 +126,7 @@ static int AddSubscriber(int index, const PWR_COM_BasicDcTaskInfo *taskInfo, uin
             if (g_collTaskList[index]->subscriberList[i].sysId == 0) { // find available subscriber sslot
                 g_collTaskList[index]->subscriberList[i].sysId = subscriber;
                 g_collTaskList[index]->subscriberList[i].interval = taskInfo->interval;
+                gettimeofday(&(g_collTaskList[index]->subscriberList[i].lastSent), NULL);
                 g_collTaskList[index]->subNum++;
                 UpdataTaskInterval(index, i);
                 break;
@@ -142,8 +146,7 @@ static int DeleteSubscriber(int index, uint32_t subscriber)
     }
     for (int i = 0; i < MAX_CLIENT_NUM; i++) {
         if (g_collTaskList[index]->subscriberList[i].sysId == subscriber) {
-            g_collTaskList[index]->subscriberList[i].sysId = 0;
-            g_collTaskList[index]->subscriberList[i].interval = 0;
+            bzero(&(g_collTaskList[index]->subscriberList[i]), sizeof(CollDataSubscriber));
             g_collTaskList[index]->subNum--;
             break;
         }
@@ -157,19 +160,80 @@ static int DeleteSubscriber(int index, uint32_t subscriber)
     return SUCCESS;
 }
 
-typedef void (*ActionFunc)(CollTask *);
+static void SendMetadataToSubscribers(CollTask *task, const char *data, int len, const struct timeval *startTime)
+{
+    for (int i = 0; i < MAX_CLIENT_NUM; i++) {
+        if (task->subscriberList[i].sysId != 0 &&
+            GetTimeDistance(*startTime, task->subscriberList[i].lastSent) >= task->subscriberList[i].interval) {
+            char *dataCpy = (char *)malloc(len);
+            if (!dataCpy) {
+                continue;
+            }
+            memcpy(dataCpy, data, len);
+            SendMetadataToClient(task->subscriberList[i].sysId, dataCpy, len); // 该函数内部会释放dataCpy
+            task->subscriberList[i].lastSent = *startTime;
+        }
+    }
+}
 
-static void TaskProcessLlcMiss(CollTask *task)
+static PWR_COM_CallbackData *CreateMedataObject(int dataLen, PWR_COM_COL_DATATYPE dataType)
 {
-    // todo: 采集LLC MISS 并发送
+    PWR_COM_CallbackData *callbackData = (PWR_COM_CallbackData *)malloc(dataLen);
+    if (!callbackData) {
+        return NULL;
+    }
+    bzero(callbackData, dataLen);
+    GetCurFullTime(callbackData->ctime, MAX_TIME_LEN);
+    callbackData->dataType = dataType;
+    callbackData->dataLen = dataLen - sizeof(PWR_COM_CallbackData);
+    return callbackData;
 }
-static void TaskProcessCpuUsage(CollTask *task)
+
+typedef void (*ActionFunc)(CollTask *, const struct timeval *);
+static void TaskProcessLlcMiss(CollTask *task, const struct timeval *startTime)
 {
-    // todo: 采集CPU USAGE 并发送
+    int callbackDataLen = sizeof(PWR_COM_CallbackData) + sizeof(double);
+    PWR_COM_CallbackData *callbackData = CreateMedataObject(callbackDataLen, task->dataType);
+    if (!callbackData) {
+        return;
+    }
+    if (LLCMissRead((double *)callbackData->data) != SUCCESS) {
+        free(callbackData);
+        return;
+    }
+    SendMetadataToSubscribers(task, (char *)callbackData, callbackDataLen, startTime);
+    free(callbackData);
 }
-static void TaskProcessCpuIpc(CollTask *task)
+
+static void TaskProcessCpuUsage(CollTask *task, const struct timeval *startTime)
 {
-    // todo: 采集CPU IPC 并发送
+    int coreNum = GetCpuCoreNumber();
+    int callbackDataLen = sizeof(PWR_COM_CallbackData) + sizeof(PWR_CPU_Usage) + coreNum * sizeof(PWR_CPU_CoreUsage);
+    PWR_COM_CallbackData *callbackData = CreateMedataObject(callbackDataLen, task->dataType);
+    if (!callbackData) {
+        return;
+    }
+    if (CPUUsageRead((PWR_CPU_Usage *)callbackData->data, coreNum) != SUCCESS) {
+        free(callbackData);
+        return;
+    }
+    SendMetadataToSubscribers(task, (char *)callbackData, callbackDataLen, startTime);
+    free(callbackData);
+}
+
+static void TaskProcessCpuIpc(CollTask *task, const struct timeval *startTime)
+{
+    int callbackDataLen = sizeof(PWR_COM_CallbackData) + sizeof(double);
+    PWR_COM_CallbackData *callbackData = CreateMedataObject(callbackDataLen, task->dataType);
+    if (!callbackData) {
+        return;
+    }
+    if (CpuIpcRead((double *)callbackData->data) != SUCCESS) {
+        free(callbackData);
+        return;
+    }
+    SendMetadataToSubscribers(task, (char *)callbackData, callbackDataLen, startTime);
+    free(callbackData);
 }
 
 static ActionFunc GetActionByDataType(PWR_COM_COL_DATATYPE dataType)
@@ -193,10 +257,18 @@ static void *RunDcTaskProcess(void *arg)
     if (!actionFunc) {
         return NULL;
     }
-
+    struct timeval after;
+    gettimeofday(&after, NULL);
+    struct timeval before = after;
+    int sleepTime = 0;
     while (task->collThread.keepRunning) {
-        usleep(THOUSAND * (task->interval));
-        actionFunc(task);
+        gettimeofday(&after, NULL);
+        sleepTime = task->interval - GetTimeDistance(after, before); // 任务周期 - 上次执行花费时间
+        if (sleepTime > 0) {
+            usleep(THOUSAND * sleepTime);
+        }
+        gettimeofday(&before, NULL);
+        actionFunc(task, &before);
     }
 }
 
@@ -217,6 +289,7 @@ static int CreateNewTask(const PWR_COM_BasicDcTaskInfo *taskInfo, uint32_t subsc
     task->subNum = 1;
     task->subscriberList[0].sysId = subscriber;
     task->subscriberList[0].interval = taskInfo->interval;
+    gettimeofday(&(task->subscriberList[0].lastSent), NULL);
     InitThreadInfo(&(task->collThread));
     int rspCode = CreateThread(&(task->collThread), RunDcTaskProcess, (void *)task);
     if (rspCode != SUCCESS) {
@@ -225,7 +298,9 @@ static int CreateNewTask(const PWR_COM_BasicDcTaskInfo *taskInfo, uint32_t subsc
             subscriber);
     } else {
         g_collTaskList[slot] = task;
-        Logger(INFO, MD_NM_SVR_TASK, "CreateNewTask succeed. type:%d, sysId:%d", taskInfo->dataType, subscriber);
+        g_taskNum++;
+        Logger(INFO, MD_NM_SVR_TASK, "CreateNewTask succeed. type:%d, sysId:%d, taskNum:%d", taskInfo->dataType,
+            subscriber, g_taskNum);
     }
     return rspCode;
 }
@@ -244,6 +319,8 @@ static int CreateTask(const PWR_COM_BasicDcTaskInfo *taskInfo, uint32_t subscrib
         rspCode = CreateNewTask(taskInfo, subscriber);
     }
     pthread_mutex_unlock(&g_taskListMutex);
+    Logger(INFO, MD_NM_SVR_TASK, "CreateTask. sysId:%d dataType:%d result: %d", subscriber, taskInfo->dataType,
+        rspCode);
     return rspCode;
 }
 
@@ -255,6 +332,7 @@ static int DeleteTask(PWR_COM_COL_DATATYPE dataType, uint32_t subscriber)
         DeleteSubscriber(index, subscriber);
     }
     pthread_mutex_unlock(&g_taskListMutex);
+    Logger(INFO, MD_NM_SVR_TASK, "DeleteTask. sysId:%d dataType:%d taskNum:%d", subscriber, dataType, g_taskNum);
     return SUCCESS;
 }
 
@@ -305,7 +383,7 @@ void CreateDataCollTask(const PwrMsg *req)
 
 void DeleteDataCollTask(const PwrMsg *req)
 {
-    if (!req || req->head.dataLen != sizeof(int)) {
+    if (!req || req->head.dataLen != sizeof(PWR_COM_COL_DATATYPE)) {
         return;
     }
     Logger(DEBUG, MD_NM_SVR_TASK, "Get DeleteDataCollTask Req. seqId:%u, sysId:%d", req->head.seqId, req->head.sysId);
