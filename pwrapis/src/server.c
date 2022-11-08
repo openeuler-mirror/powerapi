@@ -378,6 +378,12 @@ static void *RunServiceProcess(void *none)
         ProcessReqMsg(msg);
     } // while
 }
+
+static inline int SendMsg(PwrMsg *msg)
+{
+    return AddToBufferTail(&g_sendBuff, msg);
+}
+
 // public======================================================================================
 // Init Socket. Start listening & accepting
 int StartServer(void)
@@ -444,6 +450,24 @@ int SendRspToClient(const PwrMsg *req, int rspCode, char *data, uint32_t len)
     GenerateRspMsg(req, rsp, rspCode, data, len);
     if (SendRspMsg(rsp) != SUCCESS) {
         ReleasePwrMsg(&rsp);
+    }
+}
+// 本函数会将data指针所指向数据迁移走，调用方勿对data进行释放操作。
+int SendMetadataToClient(uint32_t sysId,  char *data, uint32_t len)
+{
+    if (!data && len != 0) {
+        return ERR_INVALIDE_PARAM;
+    }
+    PwrMsg *metadata = (PwrMsg *)malloc(sizeof(PwrMsg));
+    if (!metadata) {
+        Logger(ERROR, MD_NM_SVR, "Malloc failed.");
+        free(data);
+        return ERR_SYS_EXCEPTION;
+    }
+    bzero(metadata, sizeof(PwrMsg));
+    GenerateMetadataMsg(metadata, sysId, data, len);
+    if (SendMsg(metadata)) {
+        ReleasePwrMsg(&metadata);
     }
 }
 

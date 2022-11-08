@@ -24,6 +24,8 @@
 #define TEST_CORE_NUM 128
 #define AVG_LEN_PER_CORE 5
 #define TEST_CPU_DMA_LATENCY 2000
+#define TASK_INTERNAL 500
+#define TASK_RUN_TIME 10
 static int g_run = 1;
 
 enum {
@@ -63,6 +65,31 @@ void LogCallback(int level, const char *fmt, va_list vl)
     }
 
     printf("%s: %s\n", GetLevelName(level), message);
+}
+
+void MetaDataCallback(const PWR_COM_CallbackData *callbackData)
+{
+    PWR_CPU_Usage *usage = NULL;
+    switch (callbackData->dataType) {
+        case PWR_COM_DATATYPE_LLC_MISS:
+            printf("[TASK]Get cache miss data. miss: %f, ctime:%s\n", *(double *)callbackData->data,
+                callbackData->ctime);
+            break;
+        case PWR_COM_DATATYPE_CPU_USAGE:
+            usage = (PWR_CPU_Usage *)(callbackData->data);
+            printf("[TASK]Get Cpu Usage. avgUsage: %f, coreNum:%d, ctime:%s\n", usage->avgUsage, usage->coreNum,
+                callbackData->ctime);
+            /* for (int i = 0; i < usage->coreNum; i++) {
+                printf("      core%d usage: %f\n", usage->coreNum[i].coreNo, usage->coreNum[i].usage);
+            } */
+            break;
+        case PWR_COM_DATATYPE_CPU_IPC:
+            printf("[TASK]Get Ipc. ipc: %f, ctime:%s\n", *(double *)callbackData->data, callbackData->ctime);
+            break;
+        default:
+            printf("[TASK]Get INVALIDE data.\n");
+            break;
+    }
 }
 
 static void SignalHandler(int none)
@@ -206,6 +233,34 @@ static void TEST_PWR_CPU_DmaSetAndGetLatency(void)
     printf("PWR_CPU_DmaGetLatency ret: %d, Latency:%d\n", ret, la);
 }
 
+
+static void TEST_PWR_COM_DcTaskMgr(void)
+{
+    int ret = SUCCESS;
+    ret = PWR_SetMetaDataCallback(MetaDataCallback);
+    printf("PWR_SetMetaDataCallback ret: %d\n", ret);
+
+    PWR_COM_BasicDcTaskInfo task = { 0 };
+    task.dataType = PWR_COM_DATATYPE_LLC_MISS;
+    task.interval = TASK_INTERNAL;
+    ret = PWR_CreateDcTask(&task);
+    printf("PWR_CreateDcTask. dataType:%d ret: %d\n", task.dataType, ret);
+    task.dataType = PWR_COM_DATATYPE_CPU_USAGE;
+    ret = PWR_CreateDcTask(&task);
+    printf("PWR_CreateDcTask. dataType:%d ret: %d\n", task.dataType, ret);
+    task.dataType = PWR_COM_DATATYPE_CPU_IPC;
+    ret = PWR_CreateDcTask(&task);
+    printf("PWR_CreateDcTask. dataType:%d ret: %d\n", task.dataType, ret);
+
+    sleep(TASK_RUN_TIME);
+    ret = PWR_DeleteDcTask(PWR_COM_DATATYPE_LLC_MISS);
+    printf("PWR_DeleteDcTask. dataType:%d ret: %d\n", PWR_COM_DATATYPE_LLC_MISS, ret);
+    ret = PWR_DeleteDcTask(PWR_COM_DATATYPE_CPU_USAGE);
+    printf("PWR_DeleteDcTask. dataType:%d ret: %d\n", PWR_COM_DATATYPE_CPU_USAGE, ret);
+    ret = PWR_DeleteDcTask(PWR_COM_DATATYPE_CPU_IPC);
+    printf("PWR_DeleteDcTask. dataType:%d ret: %d\n", PWR_COM_DATATYPE_CPU_IPC, ret);
+}
+
 int main(int argc, const char *args[])
 {
     PWR_SetLogCallback(LogCallback);
@@ -234,7 +289,7 @@ int main(int argc, const char *args[])
 
     // PWR_CPU_DmaSetLatency PWR_CPU_DmaGetLatency
     // TEST_PWR_CPU_DmaSetAndGetLatency();
-
+    TEST_PWR_COM_DcTaskMgr();
     // todo: 其他接口测试
     while (g_run) {
         sleep(MAIN_LOOP_INTERVAL);

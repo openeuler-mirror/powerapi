@@ -21,7 +21,7 @@
 #define MAX_NUMA_NODE_NUM 16
 #define MAX_GOV_NUM 16
 #define MAX_STRING_LEN 1000
-#define MAX_TIME_LEN 24
+#define MAX_TIME_LEN 25
 #define MAX_DC_INTERVAL 100000000
 #define MIN_DC_INTERVAL 500
 
@@ -45,7 +45,7 @@ typedef struct PWR_COM_CallbackData {
     char ctime[MAX_TIME_LEN];
     int dataType;
     int dataLen;
-    void *data;
+    char data[0];
 } PWR_COM_CallbackData;
 
 typedef struct PWR_COM_BasicDcTaskInfo {

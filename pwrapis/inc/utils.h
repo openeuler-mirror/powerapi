@@ -49,6 +49,9 @@ const char *GetCurFmtTmStr(const char *fmt, char *strTime, int bufLen);
  */
 const char *GetCurFullTime(char *fullTime, int bufLen);
 
+long GetTimeDistance(struct timeval v1, struct timeval v2);
+
+
 /**
  * Return file size
  *

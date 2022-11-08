@@ -15,11 +15,16 @@
 #ifndef __PAPIS_CPU_SERVICE_H__
 #define __PAPIS_CPU_SERVICE_H__
 #include "pwrmsg.h"
+#include "pwrdata.h"
 
 void GetCpuinfo(PwrMsg *req);
 void GetCpuUsage(PwrMsg *req);
 void GetLLCMiss(PwrMsg *req);
 void GetCpuFreq(PwrMsg *req);
+int LLCMissRead(double *lm);
+int CPUUsageRead(PWR_CPU_Usage *rstData, int coreNum);
+int CpuIpcRead(double *ipc);
 void GetCpuFreqGovernor(PwrMsg *req);
 void SetCpuFreqGovernor(PwrMsg *req);
+int GetCpuCoreNumber(void);
 #endif

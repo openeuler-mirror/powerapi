@@ -106,6 +106,25 @@ void DestroyMsgFactory(void)
     pthread_mutex_destroy((pthread_mutex_t *)&g_seqLock);
 }
 
+int GenerateMetadataMsg(PwrMsg *metadata, uint32_t sysId, char *data, uint32_t len)
+{
+    if (!metadata || !data) {
+        return ERR_NULL_POINTER;
+    }
+    bzero(metadata, sizeof(PwrMsg));
+    metadata->head.majorVer = MAJOR_VERSION;
+    metadata->head.minorVer = MINOR_VERSION;
+    metadata->head.optType = COM_CALLBACK_DATA;
+    metadata->head.dataFormat = FMT_BIN;
+    metadata->head.msgType = MT_MDT;
+    metadata->head.rspCode = 0;
+    metadata->head.seqId = GenerateSeqId();
+    metadata->head.taskNo = 0;  // 暂时无作用
+    metadata->head.crcMagic = GenerateCrcMagic();
+    metadata->head.dataLen = len;
+    metadata->head.sysId = sysId;
+    metadata->data = data;
+}
 
 int GenerateRspMsg(const PwrMsg *req, PwrMsg *rsp, int rspCode, char *data, int dataLen)
 {

@@ -141,6 +141,12 @@ const char *GetCurFullTime(char *fullTime, int bufLen)
     return fullTime;
 }
 
+// return ms time
+long GetTimeDistance(struct timeval v1, struct timeval v2)
+{
+    return (v1.tv_sec - v2.tv_sec) * THOUSAND + (v1.tv_usec - v2.tv_usec) / THOUSAND;
+}
+
 size_t GetFileSize(const char *fileName)
 {
     int res = 0;
