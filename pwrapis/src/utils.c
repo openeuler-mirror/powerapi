@@ -14,6 +14,7 @@
  * **************************************************************************** */
 #include "utils.h"
 #include "pwrerr.h"
+#include "pwrdata.h"
 
 #include <regex.h>
 #include <stdio.h>
@@ -740,7 +741,22 @@ const char *ReadNums(const char *pSrc, const char *sep, int maxCnt, uint64_t dts
     *pArrLen = readCnt;
     return readPos;
 }
-// Find the last nonspace postion, return pointer
+
+// Find the front nonspace postion, return char pointer
+char *Ltrim(char *s)
+{
+    if (s == NULL) {
+        return NULL;
+    }
+    char *t = s;
+    char *p = s + strlen(s);
+    while (p - t > 0 && isspace((unsigned char)(*t))) {
+        t++;
+    }
+    return t;
+}
+
+// Find the last nonspace postion, return char pointer
 char *Rtrim(char *s)
 {
     if (s == NULL) {
@@ -825,4 +841,81 @@ const char *StrReplace(const char *src, const char *old, const char *new, char *
     free(buf);
     free(res);
     return pStrRes;
+}
+
+void UsageToLong(char *buf, unsigned long paras[])
+{
+    int i = 0;
+    int j = 0;
+    int k;
+    char temp[MAX_STRING_LEN];
+    while (i < CPU_USAGE_COLUMN) {
+        bzero(temp, sizeof(temp));
+        k = 0;
+        while (buf[j] != ' ') {
+            temp[k++] = buf[j++];
+        }
+        while (buf[j] == ' ') {
+            j++;
+        }
+        if (i != 0) {
+            paras[i - 1] = strtoul(temp, NULL, 0);
+        }
+        i++;
+    }
+    return;
+}
+
+void DeleteChar(char str[], char a)
+{
+    int strLength = strlen(str);
+    int point = 0;
+    for (int i = 0; i < strLength; i++) {
+        if ((str[i] == a)) {
+            continue;
+        } else {
+            str[point] = str[i];
+            point++;
+        }
+    }
+    str[point] = '\0';
+}
+
+char *StrMatch(char *str, char *want)
+{
+    char *a = str;
+    char *b = want;
+    while (*b != '\0') {
+        if (*a++ != *b++) {
+            return NULL;
+        }
+    }
+    return a;
+}
+
+int DeleteSubstr(char *str, char *substr)
+{
+    char *a = str;
+    char *next;
+    while (*a != '\0') {
+        next = StrMatch(a, substr);
+        if (next != NULL) {
+            break;
+        }
+        a++;
+    }
+    if (*a == '\0') {
+        return 0;
+    }
+    while (*a != '\0') {
+        *a++ = *next++;
+    }
+    return 1;
+}
+
+void StrCopy(char *dest, const char *src, int destSize)
+{
+    unsigned int len = strlen(src) < destSize ? strlen(src) : destSize - 1;
+    strncpy(dest, src, len);
+    dest[len] = '\0';
 }

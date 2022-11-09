@@ -181,6 +181,7 @@ int IsPathOk(const char *path);
 
 const char *ReadNums(const char *pSrc, const char *sep, int maxCnt, uint64_t dts[], int *pArrLen);
 
+char *Ltrim(char *str);
 char *Rtrim(char *str);
 
 /*
@@ -225,4 +226,12 @@ const char *StrJoin(char **strArr, int itemNum, const char *joinStr, char *buf, 
  * RETURNS: Pointer point to dest on success; NULL on errors
  */
 const char *StrReplace(const char *src, const char *old, const char *new, char *dest, int destLen);
+
+void UsageToLong(char *buf, unsigned long paras[]);
+void DeleteChar(char str[], char a);
+char *StrMatch(char *str, char *want);
+int DeleteSubstr(char *str, char *substr);
+char *StrMatch(char *str, char *want);
+void StrCopy(char *dest, const char *src, int destSize);
+
 #endif

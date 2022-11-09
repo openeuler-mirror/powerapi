@@ -19,129 +19,77 @@
 #include "server.h"
 #include "log.h"
 #include "unistd.h"
-#define USAGE_COLUMN 8
-#define CPUS_WIDTH 6
-#define LATENCY 100000
-#define IDLE_COLUMN 3
-#define DECIMAL 10
-#define CONVERSION 1000
+#include "utils.h"
 
-void UsageToLong(char *buf, unsigned long paras[])
+const char cpuAttributes[MAX_ARRRIBUTES][MAX_NAME_LEN] = {
+    "Architecture", "Model name", "Byte Order", "NUMA node(s)", "NUMA node", "CPU(s)",
+    "On-line CPU", "Thread(s) per core", "Core(s) per socket", "max MHz", "min MHz"
+};
+
+int GetCpuArrId(char *att)
 {
-    int i = 0;
-    int j = 0;
-    int k;
-    char temp[MAX_STRING_LEN];
-    while (i < USAGE_COLUMN) {
-        bzero(temp, sizeof(temp));
-        k = 0;
-        while (buf[j] != ' ') {
-            temp[k] = buf[j];
-            j++;
-            k++;
-        }
-        while (buf[j] == ' ') {
-            j++;
-        }
-        if (i == 0) {
-            i++;
-        } else {
-            paras[i - 1] = strtoul(temp, NULL, 0);
-            i++;
+    int i;
+    for (i = 0; i < MAX_ARRRIBUTES; i++) {
+        if (strstr(att, cpuAttributes[i]) != NULL) {
+            return i;
         }
     }
-    return;
+    return i;
 }
 
-void DeleteFrontChar(char str[], char a)
+int CpuInfoCopy(char *att, char *value, PWR_CPU_Info *rstData)
 {
-    int strLength = strlen(str);
-    int point = 0;
-    int front = 1;
-    for (int i = 0; i < strLength; i++) {
-        if ((str[i] == a) && (front == 1)) {
-            continue;
-        } else {
-            front = 0;
-            str[point] = str[i];
-            point++;
-        }
-    }
-    str[point] = '\0';
-}
-
-void DeleteChar(char str[], char a)
-{
-    int strLength = strlen(str);
-    int point = 0;
-    for (int i = 0; i < strLength; i++) {
-        if ((str[i] == a)) {
-            continue;
-        } else {
-            str[point] = str[i];
-            point++;
-        }
-    }
-    str[point] = '\0';
-}
-
-char *Match(char *str, char *want)
-{
-    char *a = str;
-    char *b = want;
-    while (*b != '\0') {
-        if (*a++ != *b++) {
-            return NULL;
-        }
-    }
-    return a;
-}
-
-int DeleteSubstr(char *str, char *substr)
-{
-    char *a = str;
-    char *next;
-    while (*a != '\0') {
-        next = Match(a, substr);
-        if (next != NULL) {
+    int attId = GetCpuArrId(att);
+    switch (attId) {
+        case ARCH:
+            StrCopy(rstData->arch, value, MAX_ELEMENT_NAME_LEN);
             break;
-        }
-        a++;
+        case MODEL_NAME:
+            StrCopy(rstData->modelName, value, MAX_NAME_LEN);
+            break;
+        case BYTE_OR:
+            if (strstr(value, "Little") != NULL) {
+                rstData->byteOrder = 0;
+            } else {
+                rstData->byteOrder = 1;
+            }
+            break;
+        case NUMA_NUMBER:
+            rstData->numaNum = atoi(value);
+            break;
+        case NUMA_NODE:
+            DeleteSubstr(att, "NUMA node");
+            DeleteSubstr(att, " CPU(s)");
+            int j = atoi(att);
+            rstData->numa[j].nodeNo = j;
+            StrCopy(rstData->numa[j].cpuList, value, MAX_CPU_LIST_LEN);
+            break;
+        case CPU_NUMBER:
+            if (strlen(att) == CPUS_WIDTH) {
+                rstData->coreNum = atoi(value);
+            }
+            break;
+        case ONLINE_CPU:
+            StrCopy(rstData->onlineList, value, MAX_CPU_LIST_LEN);
+            break;
+        case THREADS_PER_CORE:
+            rstData->threadsPerCore = atoi(value);
+            break;
+        case CORES_PER_SOCKET:
+            rstData->coresperSocket = atoi(value);
+            break;
+        case MAX_MHZ:
+            rstData->maxFreq = atof(value);
+            break;
+        case MIN_MHZ:
+            rstData->minFreq = atof(value);
+            break;
+        default:
+            break;
     }
-    if (*a == '\0') {
-        return 0;
-    }
-    while (*a != '\0') {
-        *a++ = *next++;
-    }
-    return 1;
 }
 
-int GetArch(void)
-{
-    PWR_CPU_Info *r = malloc(sizeof(PWR_CPU_Info));
-    if (r == NULL) {
-        Logger(ERROR, MD_NM_SVR_CPU, "Malloc failed.");
-        return -1;
-    }
-    int m = CpuinfoRead(r);
-    int re = -1;
-    if (m != 0) {
-        free(r);
-        r = NULL;
-        return re;
-    }
-    if (strstr(r->arch, "aarch64") != NULL) {
-        re = 0;
-    } else if (strstr(r->arch, "x86_64") != NULL) {
-        re = 1;
-    }
-    free(r);
-    r = NULL;
-    return re;
-}
-
-int CpuinfoRead(PWR_CPU_Info *rstData)
+int CpuInfoRead(PWR_CPU_Info *rstData)
 {
     char cpuInfo[] =
         "lscpu|grep -E \"Architecture|Byte|Thread|On-line|CPU|Core|Model name|NUMA node\"|grep -v \"BIOS\"";
@@ -156,43 +104,37 @@ int CpuinfoRead(PWR_CPU_Info *rstData)
             continue;
         }
         char *value = buf + strlen(att) + 1;
-        DeleteFrontChar(att, ' ');
-        DeleteFrontChar(value, ' ');
+        att = Ltrim(att);
+        value = Ltrim(value);
         value[strlen(value) - 1] = '\0';
-        if (strstr(att, "Architecture") != NULL) {
-            strncpy(rstData->arch, value, strlen(value));
-        } else if (strstr(att, "Model name") != NULL) {
-            strncpy(rstData->modelName, value, strlen(value));
-        } else if (strstr(att, "Byte Order") != NULL) {
-            if (strstr(value, "Little") != NULL) {
-                rstData->byteOrder = 0;
-            } else {
-                rstData->byteOrder = 1;
-            }
-        } else if ((strlen(att) == CPUS_WIDTH) && (strstr(att, "CPU(s)") != NULL)) {
-            rstData->coreNum = atoi(value);
-        } else if (strstr(att, "On-line CPU") != NULL) {
-            strncpy(rstData->onlineList, value, strlen(value));
-        } else if (strstr(att, "Thread(s) per core") != NULL) {
-            rstData->threadsPerCore = atoi(value);
-        } else if (strstr(att, "Core(s) per socket") != NULL) {
-            rstData->coresperSocket = atoi(value);
-        } else if (strstr(att, "max MHz") != NULL) {
-            rstData->maxFreq = atof(value);
-        } else if (strstr(att, "min MHz") != NULL) {
-            rstData->minFreq = atof(value);
-        } else if (strstr(att, "NUMA node(s)") != NULL) {
-            rstData->numaNum = atoi(value);
-        } else if (strstr(att, "NUMA node") != NULL) {
-            DeleteSubstr(att, "NUMA node");
-            DeleteSubstr(att, " CPU(s)");
-            int j = atoi(att);
-            rstData->numa[j].nodeNo = j;
-            strncpy(rstData->numa[j].cpuList, value, strlen(value));
-        }
+        CpuInfoCopy(att, value, rstData);
     }
     pclose(fp);
     return SUCCESS;
+}
+
+int GetArch(void)
+{
+    PWR_CPU_Info *cpuInfo = malloc(sizeof(PWR_CPU_Info));
+    if (cpuInfo == NULL) {
+        Logger(ERROR, MD_NM_SVR_CPU, "Malloc failed.");
+        return -1;
+    }
+    int m = CpuInfoRead(cpuInfo);
+    int re = -1;
+    if (m != 0) {
+        free(cpuInfo);
+        cpuInfo = NULL;
+        return re;
+    }
+    if (strstr(cpuInfo->arch, "aarch64") != NULL) {
+        re = 0;
+    } else if (strstr(cpuInfo->arch, "x86_64") != NULL) {
+        re = 1;
+    }
+    free(cpuInfo);
+    cpuInfo = NULL;
+    return re;
 }
 
 int CPUUsageRead(PWR_CPU_Usage *rstData, int coreNum)
@@ -221,17 +163,18 @@ int CPUUsageRead(PWR_CPU_Usage *rstData, int coreNum)
         unsigned long parasSum1 = 0;
         unsigned long parasSum2 = 0;
         int j;
-        for (j = 0; j < USAGE_COLUMN - 1; j++) {
+        for (j = 0; j < CPU_USAGE_COLUMN - 1; j++) {
             parasSum1 += paras[0][j];
             parasSum2 += paras[1][j];
         }
         if (i == 0) {
-            rstData->avgUsage = 1 - ((double)(paras[1][IDLE_COLUMN] - paras[0][IDLE_COLUMN])) / (parasSum2 - parasSum1);
+            rstData->avgUsage =
+                1 - ((double)(paras[1][CPU_IDLE_COLUMN] - paras[0][CPU_IDLE_COLUMN])) / (parasSum2 - parasSum1);
             rstData->coreNum = coreNum;
         } else {
             rstData->coreUsage[i - 1].coreNo = i - 1;
             rstData->coreUsage[i - 1].usage =
-                1 - ((double)(paras[1][IDLE_COLUMN] - paras[0][IDLE_COLUMN])) / (parasSum2 - parasSum1);
+                1 - ((double)(paras[1][CPU_IDLE_COLUMN] - paras[0][CPU_IDLE_COLUMN])) / (parasSum2 - parasSum1);
         }
         i++;
     }
@@ -304,8 +247,7 @@ int GetPolicys(char (*policys)[MAX_ELEMENT_NAME_LEN], int *poNum)
     *poNum = 0;
     while (fgets(buf, sizeof(buf) - 1, fp) != NULL) {
         DeleteChar(buf, '\n');
-        strncpy(policys[*poNum], buf, strlen(buf));
-        policys[*poNum][strlen(buf)] = '\0';
+        StrCopy(policys[*poNum], buf, MAX_ELEMENT_NAME_LEN);
         (*poNum)++;
     }
     pclose(fp);
@@ -326,8 +268,7 @@ int GovernorRead(char *rstData)
     }
     DeleteChar(buf, '\n');
     DeleteChar(buf, ' ');
-    strncpy(rstData, buf, strlen(buf));
-    rstData[strlen(buf)] = '\0';
+    StrCopy(rstData, buf, MAX_ELEMENT_NAME_LEN);
     pclose(fp);
     return SUCCESS;
 }
@@ -345,8 +286,7 @@ int GovernorSet(char *gov, char (*policys)[MAX_ELEMENT_NAME_LEN], int *poNum)
     static const char s3[] = "/scaling_governor";
     int i;
     for (i = 0; i < (*poNum) - 1; i++) {
-        strncpy(govInfo, s1, strlen(s1));
-        govInfo[strlen(s1)] = '\0';
+        StrCopy(govInfo, s1, strlen(gov) + MAX_NAME_LEN);
         strncat(govInfo, gov, strlen(gov));
         strncat(govInfo, s2, strlen(s2));
         strncat(govInfo, policys[i], strlen(policys[i]));
@@ -375,15 +315,14 @@ int FreqRead(PWR_CPU_CurFreq *rstData, char (*policys)[MAX_ELEMENT_NAME_LEN], in
     char s2[MAX_ELEMENT_NAME_LEN];
     bzero(s2, sizeof(s2));
     if (m == AARCH_64) {
-        strncpy(s2, s2Arm, strlen(s2Arm));
+        StrCopy(s2, s2Arm, MAX_ELEMENT_NAME_LEN);
     } else if (m == X86_64) {
-        strncpy(s2, s2X86, strlen(s2X86));
+        StrCopy(s2, s2X86, MAX_ELEMENT_NAME_LEN);
     }
     char buf[MAX_STRING_LEN];
     int i;
     for (i = 0; i < (*poNum); i++) {
-        strncpy(freqInfo, s1, strlen(s1));
-        freqInfo[strlen(s1)] = '\0';
+        StrCopy(freqInfo, s1, MAX_NAME_LEN);
         strncat(freqInfo, policys[i], strlen(policys[i]));
         strncat(freqInfo, s2, strlen(s2));
         fp = popen(freqInfo, "r");
@@ -417,7 +356,7 @@ void GetCpuinfo(PwrMsg *req)
         return;
     }
     bzero(rstData, sizeof(rstData));
-    int rspCode = CpuinfoRead(rstData);
+    int rspCode = CpuInfoRead(rstData);
     PwrMsg *rsp = (PwrMsg *)malloc(sizeof(PwrMsg));
     if (!rsp) {
         Logger(ERROR, MD_NM_SVR_CPU, "Malloc failed.");
@@ -441,7 +380,7 @@ void GetCpuUsage(PwrMsg *req)
         Logger(ERROR, MD_NM_SVR_CPU, "Malloc failed.");
         return;
     }
-    CpuinfoRead(info);
+    CpuInfoRead(info);
     int coreNum = info->coreNum;
     free(info);
     PWR_CPU_Usage *rstData = malloc(sizeof(PWR_CPU_Usage) + sizeof(PWR_CPU_CoreUsage) * coreNum);
