@@ -190,14 +190,14 @@ static PWR_COM_CallbackData *CreateMedataObject(int dataLen, PWR_COM_COL_DATATYP
 }
 
 typedef void (*ActionFunc)(CollTask *, const struct timeval *);
-static void TaskProcessLlcMiss(CollTask *task, const struct timeval *startTime)
+static void TaskProcessCpuPerf(CollTask *task, const struct timeval *startTime)
 {
-    int callbackDataLen = sizeof(PWR_COM_CallbackData) + sizeof(double);
+    int callbackDataLen = sizeof(PWR_COM_CallbackData) + sizeof(PWR_CPU_PerfData);
     PWR_COM_CallbackData *callbackData = CreateMedataObject(callbackDataLen, task->dataType);
     if (!callbackData) {
         return;
     }
-    if (LLCMissRead((double *)callbackData->data) != SUCCESS) {
+    if (PerfDataRead((PWR_CPU_PerfData *)callbackData->data) != SUCCESS) {
         free(callbackData);
         return;
     }
@@ -221,30 +221,13 @@ static void TaskProcessCpuUsage(CollTask *task, const struct timeval *startTime)
     free(callbackData);
 }
 
-static void TaskProcessCpuIpc(CollTask *task, const struct timeval *startTime)
-{
-    int callbackDataLen = sizeof(PWR_COM_CallbackData) + sizeof(double);
-    PWR_COM_CallbackData *callbackData = CreateMedataObject(callbackDataLen, task->dataType);
-    if (!callbackData) {
-        return;
-    }
-    if (CpuIpcRead((double *)callbackData->data) != SUCCESS) {
-        free(callbackData);
-        return;
-    }
-    SendMetadataToSubscribers(task, (char *)callbackData, callbackDataLen, startTime);
-    free(callbackData);
-}
-
 static ActionFunc GetActionByDataType(PWR_COM_COL_DATATYPE dataType)
 {
     switch (dataType) {
-        case PWR_COM_DATATYPE_LLC_MISS:
-            return TaskProcessLlcMiss;
+        case PWR_COM_DATATYPE_CPU_PERF:
+            return TaskProcessCpuPerf;
         case PWR_COM_DATATYPE_CPU_USAGE:
             return TaskProcessCpuUsage;
-        case PWR_COM_DATATYPE_CPU_IPC:
-            return TaskProcessCpuIpc;
         default:
             return NULL;
     }

@@ -62,21 +62,21 @@ int GetCpuUsage(PWR_CPU_Usage *usage, uint32_t bufferSize)
     return SUCCESS;
 }
 
-int GetCpuLlcMissPerIns(double *cacheMiss)
+int GetCpuPerfData(PWR_CPU_PerfData *perfData)
 {
     ReqInputParam input;
-    input.optType = CPU_GET_CACHE_MISS;
+    input.optType = CPU_GET_PERF_DATA;
     input.dataLen = 0;
     input.data = NULL;
     RspOutputParam output;
-    uint32_t size = sizeof(double);
+    uint32_t size = sizeof(PWR_CPU_PerfData);
     output.rspBuffSize = &size;
-    output.rspData = (void *)cacheMiss;
+    output.rspData = (void *)perfData;
     int ret = SendReqAndWaitForRsp(input, output);
     if (ret != SUCCESS) {
-        PwrLog(ERROR, "GetCpuLlcMissPerIns failed. ret:%d", ret);
+        PwrLog(ERROR, "GetCpuPerfData failed. ret:%d", ret);
     } else {
-        PwrLog(DEBUG, "GetCpuLlcMissPerIns Succeed.");
+        PwrLog(DEBUG, "GetCpuPerfData Succeed.");
     }
     return ret;
 }

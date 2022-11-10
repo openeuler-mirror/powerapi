@@ -19,11 +19,10 @@
 
 void GetCpuinfo(PwrMsg *req);
 void GetCpuUsage(PwrMsg *req);
-void GetLLCMiss(PwrMsg *req);
+void GetCpuPerfData(PwrMsg *req);
 void GetCpuFreq(PwrMsg *req);
-int LLCMissRead(double *lm);
+int PerfDataRead(PWR_CPU_PerfData *perfData);
 int CPUUsageRead(PWR_CPU_Usage *rstData, int coreNum);
-int CpuIpcRead(double *ipc);
 void GetCpuFreqGovernor(PwrMsg *req);
 void SetCpuFreqGovernor(PwrMsg *req);
 int GetCpuCoreNumber(void);

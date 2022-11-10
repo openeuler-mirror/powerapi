@@ -69,10 +69,12 @@ void LogCallback(int level, const char *fmt, va_list vl)
 
 void MetaDataCallback(const PWR_COM_CallbackData *callbackData)
 {
+    PWR_CPU_PerfData *perfData = NULL;
     PWR_CPU_Usage *usage = NULL;
     switch (callbackData->dataType) {
-        case PWR_COM_DATATYPE_LLC_MISS:
-            printf("[TASK]Get cache miss data. miss: %f, ctime:%s\n", *(double *)callbackData->data,
+        case PWR_COM_DATATYPE_CPU_PERF:
+            perfData = (PWR_CPU_PerfData *)(callbackData->data);
+            printf("[TASK]Get PERF data. ipc: %f  miss: %f, ctime:%s\n", perfData->ipc, perfData->llcMiss,
                 callbackData->ctime);
             break;
         case PWR_COM_DATATYPE_CPU_USAGE:
@@ -82,9 +84,6 @@ void MetaDataCallback(const PWR_COM_CallbackData *callbackData)
             /* for (int i = 0; i < usage->coreNum; i++) {
                 printf("      core%d usage: %f\n", usage->coreNum[i].coreNo, usage->coreNum[i].usage);
             } */
-            break;
-        case PWR_COM_DATATYPE_CPU_IPC:
-            printf("[TASK]Get Ipc. ipc: %f, ctime:%s\n", *(double *)callbackData->data, callbackData->ctime);
             break;
         default:
             printf("[TASK]Get INVALIDE data.\n");
@@ -145,13 +144,13 @@ static void TEST_PWR_CPU_GetUsage(void)
     free(u);
 }
 
-// PWR_CPU_GetLlcMissPerIns
-static void TEST_PWR_CPU_GetLlcMissPerIns(void)
+// PWR_CPU_GetPerfData
+static void TEST_PWR_CPU_GetPerfData(void)
 {
     int ret;
-    double miss = 0;
-    ret = PWR_CPU_GetLlcMissPerIns(&miss);
-    printf("PWR_CPU_GetLlcMissPerIns ret: %d, LLC misses:%.8f \n", ret, miss);
+    PWR_CPU_PerfData perfData = {0};
+    ret = PWR_CPU_GetPerfData(&perfData);
+    printf("PWR_CPU_GetPerfData ret: %d, IPC: %.8f  LLC misses: %.8f \n", ret, perfData.ipc, perfData.llcMiss);
 }
 
 // PWR_CPU_GetFreqAbility
@@ -241,24 +240,19 @@ static void TEST_PWR_COM_DcTaskMgr(void)
     printf("PWR_SetMetaDataCallback ret: %d\n", ret);
 
     PWR_COM_BasicDcTaskInfo task = { 0 };
-    task.dataType = PWR_COM_DATATYPE_LLC_MISS;
+    task.dataType = PWR_COM_DATATYPE_CPU_PERF;
     task.interval = TASK_INTERNAL;
     ret = PWR_CreateDcTask(&task);
     printf("PWR_CreateDcTask. dataType:%d ret: %d\n", task.dataType, ret);
     task.dataType = PWR_COM_DATATYPE_CPU_USAGE;
     ret = PWR_CreateDcTask(&task);
     printf("PWR_CreateDcTask. dataType:%d ret: %d\n", task.dataType, ret);
-    task.dataType = PWR_COM_DATATYPE_CPU_IPC;
-    ret = PWR_CreateDcTask(&task);
-    printf("PWR_CreateDcTask. dataType:%d ret: %d\n", task.dataType, ret);
 
     sleep(TASK_RUN_TIME);
-    ret = PWR_DeleteDcTask(PWR_COM_DATATYPE_LLC_MISS);
-    printf("PWR_DeleteDcTask. dataType:%d ret: %d\n", PWR_COM_DATATYPE_LLC_MISS, ret);
+    ret = PWR_DeleteDcTask(PWR_COM_DATATYPE_CPU_PERF);
+    printf("PWR_DeleteDcTask. dataType:%d ret: %d\n", PWR_COM_DATATYPE_CPU_PERF, ret);
     ret = PWR_DeleteDcTask(PWR_COM_DATATYPE_CPU_USAGE);
     printf("PWR_DeleteDcTask. dataType:%d ret: %d\n", PWR_COM_DATATYPE_CPU_USAGE, ret);
-    ret = PWR_DeleteDcTask(PWR_COM_DATATYPE_CPU_IPC);
-    printf("PWR_DeleteDcTask. dataType:%d ret: %d\n", PWR_COM_DATATYPE_CPU_IPC, ret);
 }
 
 int main(int argc, const char *args[])
@@ -276,7 +270,7 @@ int main(int argc, const char *args[])
     TEST_PWR_CPU_GetUsage();
 
     // PWR_CPU_GetUsage
-    TEST_PWR_CPU_GetLlcMissPerIns();
+    TEST_PWR_CPU_GetPerfData();
 
     // PWR_CPU_GetFreqAbility
     // TEST_PWR_CPU_GetFreqAbility();
