@@ -326,8 +326,8 @@ static void ProcessReqMsg(PwrMsg *req)
         case CPU_GET_USAGE:
             GetCpuUsage(req);
             break;
-        case CPU_GET_CACHE_MISS:
-            GetLLCMiss(req);
+        case CPU_GET_PERF_DATA:
+            GetCpuPerfData(req);
             break;
         case CPU_GET_INFO:
             GetCpuinfo(req);

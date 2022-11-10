@@ -126,12 +126,12 @@ int PWR_CPU_GetUsage(PWR_CPU_Usage *usage, uint32_t bufferSize)
     return GetCpuUsage(usage, bufferSize);
 }
 
-PWR_API int PWR_CPU_GetLlcMissPerIns(double *cacheMiss)
+PWR_API int PWR_CPU_GetPerfData(PWR_CPU_PerfData *perfData)
 {
     CHECK_STATUS();
-    CHECK_NULL_POINTER(cacheMiss);
+    CHECK_NULL_POINTER(perfData);
 
-    return GetCpuLlcMissPerIns(cacheMiss);
+    return GetCpuPerfData(perfData);
 }
 
 int PWR_CPU_GetFreqAbility(PWR_CPU_FreqAbility *freqAbi, uint32_t bufferSize)

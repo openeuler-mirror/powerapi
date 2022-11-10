@@ -38,7 +38,7 @@ PWR_API int PWR_DeleteDcTask(PWR_COM_COL_DATATYPE dataType);
 // CPU
 PWR_API int PWR_CPU_GetInfo(PWR_CPU_Info *cpuInfo);
 PWR_API int PWR_CPU_GetUsage(PWR_CPU_Usage *usage, uint32_t bufferSize);
-PWR_API int PWR_CPU_GetLlcMissPerIns(double *cacheMiss);
+PWR_API int PWR_CPU_GetPerfData(PWR_CPU_PerfData *perfData);
 PWR_API int PWR_CPU_GetFreqAbility(PWR_CPU_FreqAbility *freqAbi, uint32_t bufferSize);
 PWR_API int PWR_CPU_GetFreqGovernor(char gov[], uint32_t size); // len: MAX_ELEMENT_NAME_LEN
 PWR_API int PWR_CPU_SetFreqGovernor(char gov[]);

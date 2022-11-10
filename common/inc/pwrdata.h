@@ -55,9 +55,8 @@ enum CpuAttType {
 };
 
 typedef enum PWR_COM_COL_DATATYPE {
-    PWR_COM_DATATYPE_LLC_MISS = 1,
+    PWR_COM_DATATYPE_CPU_PERF = 1,
     PWR_COM_DATATYPE_CPU_USAGE,
-    PWR_COM_DATATYPE_CPU_IPC,
     PWR_COM_DATATYPE_INVALIDE,
 } PWR_COM_COL_DATATYPE;
 
@@ -102,6 +101,11 @@ typedef struct PWR_CPU_Usage {
     int coreNum;
     PWR_CPU_CoreUsage coreUsage[0];
 } PWR_CPU_Usage;
+
+typedef struct PWR_CPU_PerfData {
+    double ipc;
+    double llcMiss;
+} PWR_CPU_PerfData;
 
 /*
 typedef enum PWR_CPU_FREQ_DRIVER {

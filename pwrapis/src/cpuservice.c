@@ -183,14 +183,14 @@ int CPUUsageRead(PWR_CPU_Usage *rstData, int coreNum)
     return SUCCESS;
 }
 
-int LLCMissRead(double *lm)
+int PerfDataRead(PWR_CPU_PerfData *perfData)
 {
     int m = GetArch();
     char *missStr;
     if (m == AARCH_64) {
-        missStr = "perf stat -e r0033 -e instructions -a sleep 0.1 &>perf.txt";
+        missStr = "perf stat -e r0033 -e instructions -e cycles -a sleep 0.1 &>perf.txt";
     } else if (m == X86_64) {
-        missStr = "perf stat -e LLC-load-misses -e LLC-store-misses -e instructions -a sleep 0.1 &>perf.txt";
+        missStr = "perf stat -e LLC-load-misses -e instructions -e cycles -a sleep 0.1 &>perf.txt";
     } else { // Add other arch
         return 1;
     }
@@ -204,6 +204,7 @@ int LLCMissRead(double *lm)
     int i = 0;
     unsigned long cacheMiss = 0;
     unsigned long ins = 0;
+    unsigned long cycles = 0;
     while (fgets(buf, sizeof(buf) - 1, fp) != NULL) {
         if (buf == NULL) {
             return 1;
@@ -211,26 +212,21 @@ int LLCMissRead(double *lm)
         DeleteChar(buf, '\n');
         DeleteChar(buf, ' ');
         DeleteChar(buf, ',');
-        if ((strstr(buf, "r0033") != NULL) || (strstr(buf, "LLC-load-misses") != NULL) ||
-            (strstr(buf, "LLC-load-misses") != NULL)) {
+        if ((strstr(buf, "r0033") != NULL) || (strstr(buf, "LLC-load-misses") != NULL)) {
             DeleteSubstr(buf, "r0033");
             DeleteSubstr(buf, "LLC-load-misses");
-            DeleteSubstr(buf, "LLC-store-misses");
             cacheMiss += strtoul(buf, NULL, DECIMAL);
         } else if (strstr(buf, "instructions") != NULL) {
             DeleteSubstr(buf, "instructions");
             ins += strtoul(buf, NULL, DECIMAL);
+        } else if (strstr(buf, "cycles") != NULL) {
+            DeleteSubstr(buf, "cycles");
+            cycles += strtoul(buf, NULL, DECIMAL);
         }
     }
-    *lm = (double)cacheMiss / ins;
+    perfData->llcMiss = (double)cacheMiss / ins;
+    perfData->ipc = (double)ins / cycles;
     pclose(fp);
-    return 0;
-}
-
-int CpuIpcRead(double *ipc)
-{
-    *ipc = 1.0;
-    // todo: impl get ipc
     return SUCCESS;
 }
 
@@ -375,14 +371,7 @@ void GetCpuUsage(PwrMsg *req)
         return;
     }
     Logger(DEBUG, MD_NM_SVR_CPU, "Get GetCpuUsage Req. seqId:%u, sysId:%d", req->head.seqId, req->head.sysId);
-    PWR_CPU_Info *info = (PWR_CPU_Info *)malloc(sizeof(PWR_CPU_Info));
-    if (info == NULL) {
-        Logger(ERROR, MD_NM_SVR_CPU, "Malloc failed.");
-        return;
-    }
-    CpuInfoRead(info);
-    int coreNum = info->coreNum;
-    free(info);
+    int coreNum = GetCpuCoreNumber();
     PWR_CPU_Usage *rstData = malloc(sizeof(PWR_CPU_Usage) + sizeof(PWR_CPU_CoreUsage) * coreNum);
     if (!rstData) {
         return;
@@ -401,17 +390,17 @@ void GetCpuUsage(PwrMsg *req)
     }
 }
 
-void GetLLCMiss(PwrMsg *req)
+void GetCpuPerfData(PwrMsg *req)
 {
     if (!req) {
         return;
     }
-    Logger(DEBUG, MD_NM_SVR_CPU, "Get Get Cache Miss Req. seqId:%u, sysId:%d", req->head.seqId, req->head.sysId);
-    double *rstData = malloc(sizeof(double));
+    Logger(DEBUG, MD_NM_SVR_CPU, "Get Get Perf Data Req. seqId:%u, sysId:%d", req->head.seqId, req->head.sysId);
+    PWR_CPU_PerfData *rstData = malloc(sizeof(PWR_CPU_PerfData));
     if (!rstData) {
         return;
     }
-    int rspCode = LLCMissRead(rstData);
+    int rspCode = PerfDataRead(rstData);
     PwrMsg *rsp = (PwrMsg *)malloc(sizeof(PwrMsg));
     if (!rsp) {
         Logger(ERROR, MD_NM_SVR_CPU, "Malloc failed.");
@@ -419,7 +408,7 @@ void GetLLCMiss(PwrMsg *req)
         return;
     }
     bzero(rsp, sizeof(PwrMsg));
-    GenerateRspMsg(req, rsp, rspCode, (char *)rstData, sizeof(double));
+    GenerateRspMsg(req, rsp, rspCode, (char *)rstData, sizeof(PWR_CPU_PerfData));
     if (SendRspMsg(rsp) != SUCCESS) {
         ReleasePwrMsg(&rsp);
     }
