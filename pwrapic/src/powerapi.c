@@ -17,8 +17,10 @@
 #include <stdio.h>
 #include <string.h>
 #include "pwrlog.h"
+#include "pwrdata.h"
 #include "sockclient.h"
 #include "pwrtask.h"
+#include "pwrsys.h"
 #include "pwrcpu.h"
 #include "pwrdisk.h"
 #include "pwrnet.h"
@@ -105,6 +107,15 @@ int PWR_DeleteDcTask(PWR_COM_COL_DATATYPE dataType)
     CHECK_STATUS();
 
     return DeleteDcTask(dataType);
+}
+
+int PWR_SYS_SetPowerState(int powerState)
+{
+    CHECK_STATUS();
+    if (powerState != MEM && powerState != DISK) {
+        return ERR_INVALIDE_PARAM;
+    }
+    return SetSysPowerState(powerState);
 }
 
 int PWR_CPU_GetInfo(PWR_CPU_Info *cpuInfo)

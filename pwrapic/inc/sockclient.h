@@ -12,8 +12,8 @@
  * Create: 2022-06-23
  * Description: Provide IPC ability. Socket initialization, send/receive msg, send/recieve buffer
  * **************************************************************************** */
-#ifndef __POWERAPI_CONNECTION_H__
-#define __POWERAPI_CONNECTION_H__
+#ifndef POWERAPI_CONNECTION_H__
+#define POWERAPI_CONNECTION_H__
 #include "pwrmsg.h"
 #include "pwrdata.h"
 

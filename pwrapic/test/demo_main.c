@@ -106,6 +106,13 @@ static void SetupSignal(void)
     (void)signal(SIGKILL, SignalHandler);
 }
 
+static void TEST_SYS_SetPowerState(void)
+{
+    int ret = 0;
+    ret = PWR_SYS_SetPowerState(1);
+    printf("PWR_SYS_SetPowerState ret: %d\n", ret);
+}
+
 // PWR_CPU_GetUsage
 static void TEST_PWR_CPU_GetInfo(void)
 {
@@ -278,6 +285,7 @@ int main(int argc, const char *args[])
     // PWR_CPU_GetFreqGovernor PWR_CPU_SetFreqGovernor
     TEST_PWR_CPU_SetAndGetFreqGov();
 
+    TEST_SYS_SetPowerState();
     // PWR_CPU_GetCurFreq PWR_CPU_SetCurFreq
     // TEST_PWR_CPU_SetAndGetCurFreq();
 

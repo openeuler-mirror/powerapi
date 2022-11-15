@@ -8,15 +8,15 @@
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR
  * PURPOSE.
  * See the Mulan PSL v2 for more details.
- * Author: queyanwen
- * Create: 2022-06-23
- * Description: Provide service for PowerAPI refer to USB.
+ * Author: wuhaotian
+ * Create: 2022-11-10
+ * Description: provide sys service
  * **************************************************************************** */
-#ifndef POWERAPI_USB_H__
-#define POWERAPI_USB_H__
-#include <stdint.h>
+#ifndef __PAPIS_SYS_SERVICE_H__
+#define __PAPIS_SYS_SERVICE_H__
+#include "pwrmsg.h"
 #include "pwrdata.h"
 
-int GetUsbAutoSuspend(PWR_USB_AutoSuspend usbAts[], uint32_t *len);
-int SetUsbAutoSuspend(PWR_USB_AutoSuspend usbAts[], uint32_t len);
+int PowerSet(char *state);
+void SetSysPowerState(PwrMsg *req);
 #endif

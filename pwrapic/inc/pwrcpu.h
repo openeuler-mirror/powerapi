@@ -12,8 +12,8 @@
  * Create: 2022-06-23
  * Description: Provide service for PowerAPI refer to CPU.
  * **************************************************************************** */
-#ifndef __POWERAPI_CPU_H__
-#define __POWERAPI_CPU_H__
+#ifndef POWERAPI_CPU_H__
+#define POWERAPI_CPU_H__
 
 #include <stdint.h>
 #include "pwrdata.h"

@@ -12,8 +12,8 @@
  * Create: 2022-06-23
  * Description: The return code difinition of PowerAPI
  * **************************************************************************** */
-#ifndef __POWERAPI_ERR_H__
-#define __POWERAPI_ERR_H__
+#ifndef POWERAPI_ERR_H__
+#define POWERAPI_ERR_H__
 
 #define TRUE 1
 #define FALSE 0
