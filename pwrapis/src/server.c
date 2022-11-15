@@ -435,20 +435,20 @@ void StopServer(void)
 }
 
 // 本函数会将data指针所指向数据迁移走，调用方勿对data进行释放操作。
-int SendRspToClient(const PwrMsg *req, int rspCode, char *data, uint32_t len)
+void SendRspToClient(const PwrMsg *req, int rspCode, char *data, uint32_t len)
 {
     if (!req) {
-        return ERR_NULL_POINTER;
+        return;
     }
     if (!data && len != 0) {
-        return ERR_INVALIDE_PARAM;
+        return;
     }
 
     PwrMsg *rsp = (PwrMsg *)malloc(sizeof(PwrMsg));
     if (!rsp) {
         Logger(ERROR, MD_NM_SVR, "Malloc failed.");
         free(data);
-        return ERR_SYS_EXCEPTION;
+        return;
     }
     bzero(rsp, sizeof(PwrMsg));
     GenerateRspMsg(req, rsp, rspCode, data, len);
