@@ -13,8 +13,8 @@
  * Description: Message struct and operations definition. These messages used for communication between
  * PowerAPI.so and PowerAPI service.
  * **************************************************************************** */
-#ifndef __POWERAPI_PROTOCOL_H__
-#define __POWERAPI_PROTOCOL_H__
+#ifndef POWERAPI_PROTOCOL_H__
+#define POWERAPI_PROTOCOL_H__
 
 #include <stdint.h>
 #include <stddef.h>
@@ -49,7 +49,8 @@ enum OperationType {
     COM_CREATE_DC_TASK = 10,
     COM_DELETE_DC_TASK,
     COM_CALLBACK_DATA,
-    CPU_GET_INFO = 100,
+    SYS_SET_POWER_STATE = 100,
+    CPU_GET_INFO = 200,
     CPU_GET_USAGE,
     CPU_GET_PERF_DATA,
     CPU_GET_FREQ_ABILITY,
@@ -59,18 +60,18 @@ enum OperationType {
     CPU_SET_CUR_FREQ,
     CPU_GET_DMA_LATENCY,
     CPU_SET_DMA_LATENCY,
-    DISK_GET_IO_RATE = 200,
+    DISK_GET_IO_RATE = 300,
     DISK_GET_LIST,
     DISK_GET_LOAD,
     DISK_GET_POWER_LEVEL,
     DISK_SET_POWER_LEVEL,
     DISK_GET_SCSI_POLICY,
     DISK_SET_SCSI_POLICY,
-    NET_GET_INFO = 300,
+    NET_GET_INFO = 400,
     NET_GET_THROUGH,
     NET_GET_SPEED_MOD,
     NET_SET_SPEED_MOD,
-    USB_GET_AUTO_SUSPEND = 400,
+    USB_GET_AUTO_SUSPEND = 500,
     USB_SET_AUTO_SUSPEND,
     // todo
 };

@@ -12,8 +12,8 @@
  * Create: 2022-06-23
  * Description: Provide service for PowerAPI refer to disk.
  * **************************************************************************** */
-#ifndef __POWERAPI_DISK_H__
-#define __POWERAPI_DISK_H__
+#ifndef POWERAPI_DISK_H__
+#define POWERAPI_DISK_H__
 #include <stdint.h>
 #include "pwrdata.h"
 

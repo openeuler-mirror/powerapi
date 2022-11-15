@@ -12,8 +12,8 @@
  * Create: 2022-06-23
  * Description: Provide buffer struct and operations
  * **************************************************************************** */
-#ifndef __POWERAPI_UTILS_H__
-#define __POWERAPI_UTILS_H__
+#ifndef POWERAPI_UTILS_H__
+#define POWERAPI_UTILS_H__
 #include <pthread.h>
 #include <stdlib.h>
 #include "pwrmsg.h"

@@ -28,6 +28,7 @@
 #include "pwrclient.h"
 #include "config.h"
 #include "pwrbuffer.h"
+#include "sysservice.h"
 #include "cpuservice.h"
 #include "taskservice.h"
 #include "pwrerr.h"
@@ -322,6 +323,9 @@ static void ProcessReqMsg(PwrMsg *req)
             break;
         case COM_DELETE_DC_TASK:
             DeleteDataCollTask(req);
+            break;
+        case SYS_SET_POWER_STATE:
+            SetSysPowerState(req);
             break;
         case CPU_GET_USAGE:
             GetCpuUsage(req);

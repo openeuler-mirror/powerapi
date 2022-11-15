@@ -55,6 +55,7 @@
 #define MD_NM_SVR "SERVER"
 #define MD_NM_NET "NET"
 #define MD_NM_MAN "MAIN"
+#define MD_NM_SVR_SYS "SYS_SERVICE"
 #define MD_NM_SVR_CPU "CPU_SERVICE"
 #define MD_NM_SVR_DISK "DISK_SERVICE"
 #define MD_NM_SVR_TASK "TASK_SERVICE"

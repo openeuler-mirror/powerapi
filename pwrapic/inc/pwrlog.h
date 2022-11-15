@@ -12,8 +12,8 @@
  * Create: 2022-06-23
  * Description: Log service
  * **************************************************************************** */
-#ifndef __POWERAPI_LOG_H__
-#define __POWERAPI_LOG_H__
+#ifndef POWERAPI_LOG_H__
+#define POWERAPI_LOG_H__
 
 #include <stdarg.h>
 

@@ -12,8 +12,8 @@
  * Create: 2022-06-23
  * Description: PowerAPI interface definition. The SI shall include this head file for using the PowerAPI.
  * **************************************************************************** */
-#ifndef __POWERAPI_H__
-#define __POWERAPI_H__
+#ifndef POWERAPI_H__
+#define POWERAPI_H__
 
 #include <stdarg.h>
 #include <stdint.h>
@@ -34,6 +34,9 @@ PWR_API int PWR_UnRegister(void);
 PWR_API int PWR_SetMetaDataCallback(void(MetaDataCallback)(const PWR_COM_CallbackData *callbackData));
 PWR_API int PWR_CreateDcTask(const PWR_COM_BasicDcTaskInfo *basicDcTaskInfo);
 PWR_API int PWR_DeleteDcTask(PWR_COM_COL_DATATYPE dataType);
+
+// SYS
+PWR_API int PWR_SYS_SetPowerState(int powerState);
 
 // CPU
 PWR_API int PWR_CPU_GetInfo(PWR_CPU_Info *cpuInfo);

@@ -12,8 +12,8 @@
  * Create: 2022-06-23
  * Description: The structures definition of powerAPI.
  * **************************************************************************** */
-#ifndef __POWERAPI_DATA_H__
-#define __POWERAPI_DATA_H__
+#ifndef POWERAPI_DATA_H__
+#define POWERAPI_DATA_H__
 #include <stdint.h>
 #define MAX_ELEMENT_NAME_LEN 32
 #define MAX_ARRRIBUTES 11
@@ -38,6 +38,11 @@
 enum Arch {
     AARCH_64 = 0,
     X86_64 = 1,
+};
+
+enum SysPowerState {
+    MEM = 1,
+    DISK = 2,
 };
 
 enum CpuAttType {
