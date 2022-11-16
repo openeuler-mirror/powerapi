@@ -19,7 +19,6 @@
 #include "common.h"
 #include "log.h"
 
-
 static int FindAvailableSlot(PwrClient clients[])
 {
     for (int i = 0; i < MAX_CLIENT_NUM; i++) {
@@ -70,7 +69,6 @@ int AddToClientList(PwrClient clients[], PwrClient newClient)
         return SUCCESS;
     }
 }
-
 
 int DeleteFromClientList(PwrClient clients[], int idx)
 {

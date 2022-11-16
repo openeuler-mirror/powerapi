@@ -31,6 +31,7 @@
 #include "sysservice.h"
 #include "cpuservice.h"
 #include "taskservice.h"
+#include "comservice.h"
 #include "pwrerr.h"
 #define COUNT_MAX 5
 
@@ -131,6 +132,13 @@ static void AcceptConnection(void)
     Logger(INFO, MD_NM_SVR, "Create new connection succeed. fd:%d, sysId:%d", client.fd, client.sysId);
 }
 
+static void CleanClientResource(PwrClient *pwrClient, int idx)
+{
+    CleanControlAuth(pwrClient->sysId);
+    CleanDataCollTaskByClient(pwrClient->sysId);
+    DeleteFromClientList(g_pwrClients, idx);
+}
+
 static int ReadMsg(void *pData, int len, int dstFd, int idx)
 {
     int leftLen;
@@ -142,12 +150,15 @@ static int ReadMsg(void *pData, int len, int dstFd, int idx)
     while (leftLen > 0) {
         recvLen = recv(dstFd, pData + readLen, leftLen, 0);
         if (recvLen < 0) {
+            if (recvLen == EINTR || recvLen == EWOULDBLOCK || recvLen == EAGAIN) {
+                continue;
+            }
             Logger(ERROR, MD_NM_SVR, "recv error %s errno:%d", strerror(errno), errno);
-            DeleteFromClientList(g_pwrClients, idx);
+            CleanClientResource(g_pwrClients, idx);
             return ERR_SYS_EXCEPTION;
         } else if (recvLen == 0) {
             Logger(ERROR, MD_NM_SVR, "connection closed !");
-            DeleteFromClientList(g_pwrClients, idx);
+            CleanClientResource(g_pwrClients, idx);
             return ERR_DISCONNECTED;
         }
         readLen += recvLen;
@@ -202,9 +213,16 @@ static int WriteMsg(const void *pData, int len, int dstFd)
     while (leftLen > 0) {
         sendLen = send(dstFd, pData + wrLen, leftLen, 0);
         if (sendLen < 0) {
+            if (sendLen == EINTR || sendLen == EWOULDBLOCK || sendLen == EAGAIN) {
+                continue;
+            }
             Logger(ERROR, MD_NM_SVR, "send error %s errno:%d", strerror(errno), errno);
-            DeleteFromClientList(g_pwrClients, GetIdxByFd(g_pwrClients, dstFd));
+            CleanClientResource(g_pwrClients, GetIdxByFd(g_pwrClients, dstFd));
             return ERR_SYS_EXCEPTION;
+        } else if (sendLen == 0) {
+            Logger(ERROR, MD_NM_SVR, "connection closed !");
+            CleanClientResource(g_pwrClients, GetIdxByFd(g_pwrClients, dstFd));
+            return ERR_DISCONNECTED;
         }
         leftLen -= sendLen;
         wrLen += sendLen;
@@ -324,6 +342,12 @@ static void ProcessReqMsg(PwrMsg *req)
         case COM_DELETE_DC_TASK:
             DeleteDataCollTask(req);
             break;
+        case COM_REQUEST_CONTROL_AUTH:
+            RequestControlAuth(req);
+            break;
+        case COM_RELEASE_CONTROL_AUTH:
+            ReleaseControlAuth(req);
+            break;
         case SYS_SET_POWER_STATE:
             SetSysPowerState(req);
             break;
@@ -344,20 +368,6 @@ static void ProcessReqMsg(PwrMsg *req)
             break;
         case CPU_GET_CUR_FREQ:
             GetCpuFreq(req);
-            break;
-        case DISK_GET_IO_RATE:
-            break;
-        case DISK_GET_LIST:
-            break;
-        case DISK_GET_LOAD:
-            break;
-        case DISK_GET_POWER_LEVEL:
-            break;
-        case DISK_SET_POWER_LEVEL:
-            break;
-        case DISK_GET_SCSI_POLICY:
-            break;
-        case DISK_SET_SCSI_POLICY:
             break;
         default:
             break;
@@ -457,7 +467,7 @@ void SendRspToClient(const PwrMsg *req, int rspCode, char *data, uint32_t len)
     }
 }
 // 本函数会将data指针所指向数据迁移走，调用方勿对data进行释放操作。
-int SendMetadataToClient(uint32_t sysId,  char *data, uint32_t len)
+int SendMetadataToClient(uint32_t sysId, char *data, uint32_t len)
 {
     if (!data && len != 0) {
         return ERR_INVALIDE_PARAM;

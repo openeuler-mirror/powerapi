@@ -34,6 +34,8 @@ PWR_API int PWR_UnRegister(void);
 PWR_API int PWR_SetMetaDataCallback(void(MetaDataCallback)(const PWR_COM_CallbackData *callbackData));
 PWR_API int PWR_CreateDcTask(const PWR_COM_BasicDcTaskInfo *basicDcTaskInfo);
 PWR_API int PWR_DeleteDcTask(PWR_COM_COL_DATATYPE dataType);
+PWR_API int PWR_RequestControlAuth(void);
+PWR_API int PWR_ReleaseControlAuth(void);
 
 // SYS
 PWR_API int PWR_SYS_SetPowerState(int powerState);
