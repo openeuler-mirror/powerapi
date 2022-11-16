@@ -17,6 +17,10 @@ add_library(${PG_NAME} SHARED ${PWRAPIC_SRC})
 set_target_properties(${PG_NAME} PROPERTIES LINKER_LANGUAGE C)
 set (CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+if(BUILD_LLT)
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fprofile-arcs -ftest-coverage")
+endif(BUILD_LLT)
+
 # set installation path
 set ( CMAKE_INSTALL_PREFIX "/usr/local" CACHE PATH "Install path prefix" FORCE)
 #install (TARGETS ${PG_NAME} DESTINATION sbin)
