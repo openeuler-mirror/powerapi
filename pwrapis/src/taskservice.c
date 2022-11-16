@@ -27,7 +27,6 @@
 #include "cpuservice.h"
 #include "utils.h"
 
-#define INVALIDE_TASK_ID (-1)
 #define MAX_TASK_NUM 10
 
 typedef struct CollDataSubscriber {
@@ -330,6 +329,18 @@ static void FiniAllTask(void)
     pthread_mutex_unlock(&g_taskListMutex);
 }
 
+static int DeleteAllTaskByClient(uint32_t subscriber)
+{
+    pthread_mutex_lock(&g_taskListMutex);
+    if (g_taskNum != 0) {
+        for (int i = 0; i < MAX_TASK_NUM; i++) {
+            if (g_collTaskList[i]) {
+                DeleteSubscriber(i, subscriber);
+            }
+        }
+    }
+    pthread_mutex_unlock(&g_taskListMutex);
+}
 
 // public======================================================================
 int InitTaskService(void)
@@ -374,4 +385,9 @@ void DeleteDataCollTask(const PwrMsg *req)
     PWR_COM_COL_DATATYPE *dataType = (PWR_COM_COL_DATATYPE *)req->data;
     int rspCode = DeleteTask(*dataType, req->head.sysId);
     SendRspToClient(req, rspCode, NULL, 0);
+}
+
+void CleanDataCollTaskByClient(uint32_t client)
+{
+    DeleteAllTaskByClient(client);
 }

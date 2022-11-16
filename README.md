@@ -5,7 +5,7 @@ Including a power API SO and the Power API Service.
 
 #### 软件架构
 软件架构说明
-
+![代码架构](./res/arch.png)
 
 #### 安装教程
 
@@ -15,9 +15,9 @@ Including a power API SO and the Power API Service.
 
 #### 使用说明
 
-1.  xxxx
-2.  xxxx
-3.  xxxx
+1. 编译：./build.sh
+2. 后台运行PowerAPI Service： ./release/pwrapis/pwrapis &
+3. 运行PowerAPI demo： ./release/pwrapi_demo/pwrapic_demo
 
 #### 参与贡献
 

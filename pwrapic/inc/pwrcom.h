@@ -9,15 +9,13 @@
  * PURPOSE.
  * See the Mulan PSL v2 for more details.
  * Author: queyanwen
- * Create: 2022-11-01
- * Description: Provide service for PowerAPI refer to TASK.
+ * Create: 2022-11-15
+ * Description: Provide service for PowerAPI refer to common function.
  * **************************************************************************** */
-#ifndef POWERAPI_TASK_H__
-#define POWERAPI_TASK_H__
+#ifndef POWERAPI_COMM_H__
+#define POWERAPI_COMM_H__
 
-#include "pwrdata.h"
-
-int CreateDcTask(const PWR_COM_BasicDcTaskInfo *basicDcTaskInfo);
-int DeleteDcTask(PWR_COM_COL_DATATYPE dataType);
+int RequestControlAuth(void);
+int ReleaseControlAuth(void);
 
 #endif

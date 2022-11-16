@@ -21,19 +21,31 @@
 #include "sockclient.h"
 #include "pwrtask.h"
 #include "pwrsys.h"
+#include "pwrcom.h"
 #include "pwrcpu.h"
 #include "pwrdisk.h"
 #include "pwrnet.h"
 #include "pwrusb.h"
 
-static int g_registed = 0;
+typedef enum PwrApiStatus {
+    STATUS_UNREGISTERED = 0,
+    STATUS_REGISTERTED = 1,
+    STATUS_AUTHED = 2,
+} PwrApiStatus;
 
-#define CHECK_STATUS()                      \
-    {                                       \
-        if (!g_registed) {                  \
-            PwrLog(ERROR, "Not Registed."); \
-            return ERR_NOT_REGISTED;        \
-        }                                   \
+static PwrApiStatus g_status = STATUS_UNREGISTERED;
+
+#define CHECK_STATUS(s)                           \
+    {                                             \
+        if ((s) > g_status) {                     \
+            if ((s) == STATUS_REGISTERTED) {      \
+                PwrLog(ERROR, "Not Registed.");   \
+                return ERR_NOT_REGISTED;          \
+            } else {                              \
+                PwrLog(ERROR, "Not Authorized."); \
+                return ERR_NOT_AUTHED;            \
+            }                                     \
+        }                                         \
     }
 
 #define CHECK_NULL_POINTER(p)        \
@@ -65,7 +77,9 @@ int PWR_Register(void)
     if (InitSockClient() != SUCCESS) {
         return ERR_COMMON;
     }
-    g_registed = 1;
+    if (g_status == STATUS_UNREGISTERED) {
+        g_status = STATUS_REGISTERTED;
+    }
     return SUCCESS;
 }
 
@@ -73,7 +87,7 @@ int PWR_UnRegister(void)
 {
     int ret = FiniSockClient();
     // todo: 增加必要的其他去初始化动作
-    g_registed = 0;
+    g_status = STATUS_UNREGISTERED;
     return ret;
 }
 
@@ -88,7 +102,7 @@ int PWR_SetMetaDataCallback(void(MetaDataCallback)(const PWR_COM_CallbackData *)
 
 int PWR_CreateDcTask(const PWR_COM_BasicDcTaskInfo *basicDcTaskInfo)
 {
-    CHECK_STATUS();
+    CHECK_STATUS(STATUS_REGISTERTED);
     CHECK_NULL_POINTER(basicDcTaskInfo);
 
     if (basicDcTaskInfo->interval < MIN_DC_INTERVAL || basicDcTaskInfo->interval > MAX_DC_INTERVAL) {
@@ -104,14 +118,34 @@ int PWR_CreateDcTask(const PWR_COM_BasicDcTaskInfo *basicDcTaskInfo)
 
 int PWR_DeleteDcTask(PWR_COM_COL_DATATYPE dataType)
 {
-    CHECK_STATUS();
+    CHECK_STATUS(STATUS_REGISTERTED);
 
     return DeleteDcTask(dataType);
 }
 
+int PWR_RequestControlAuth(void)
+{
+    CHECK_STATUS(STATUS_REGISTERTED);
+    int ret = RequestControlAuth();
+    if (ret == SUCCESS) {
+        g_status = STATUS_AUTHED;
+    }
+    return ret;
+}
+
+int PWR_ReleaseControlAuth(void)
+{
+    CHECK_STATUS(STATUS_AUTHED);
+    int ret = ReleaseControlAuth();
+    if (ret == SUCCESS) {
+        g_status = STATUS_REGISTERTED;
+    }
+    return ret;
+}
+
 int PWR_SYS_SetPowerState(int powerState)
 {
-    CHECK_STATUS();
+    CHECK_STATUS(STATUS_AUTHED);
     if (powerState != MEM && powerState != DISK) {
         return ERR_INVALIDE_PARAM;
     }
@@ -120,7 +154,7 @@ int PWR_SYS_SetPowerState(int powerState)
 
 int PWR_CPU_GetInfo(PWR_CPU_Info *cpuInfo)
 {
-    CHECK_STATUS();
+    CHECK_STATUS(STATUS_REGISTERTED);
     CHECK_NULL_POINTER(cpuInfo);
 
     return GetCpuInfo(cpuInfo);
@@ -128,7 +162,7 @@ int PWR_CPU_GetInfo(PWR_CPU_Info *cpuInfo)
 
 int PWR_CPU_GetUsage(PWR_CPU_Usage *usage, uint32_t bufferSize)
 {
-    CHECK_STATUS();
+    CHECK_STATUS(STATUS_REGISTERTED);
     CHECK_NULL_POINTER(usage);
     if (bufferSize < sizeof(PWR_CPU_Usage)) {
         return ERR_INVALIDE_PARAM;
@@ -139,7 +173,7 @@ int PWR_CPU_GetUsage(PWR_CPU_Usage *usage, uint32_t bufferSize)
 
 PWR_API int PWR_CPU_GetPerfData(PWR_CPU_PerfData *perfData)
 {
-    CHECK_STATUS();
+    CHECK_STATUS(STATUS_REGISTERTED);
     CHECK_NULL_POINTER(perfData);
 
     return GetCpuPerfData(perfData);
@@ -147,7 +181,7 @@ PWR_API int PWR_CPU_GetPerfData(PWR_CPU_PerfData *perfData)
 
 int PWR_CPU_GetFreqAbility(PWR_CPU_FreqAbility *freqAbi, uint32_t bufferSize)
 {
-    CHECK_STATUS();
+    CHECK_STATUS(STATUS_REGISTERTED);
     CHECK_NULL_POINTER(freqAbi);
     if (bufferSize < sizeof(PWR_CPU_FreqAbility)) {
         return ERR_INVALIDE_PARAM;
@@ -158,7 +192,7 @@ int PWR_CPU_GetFreqAbility(PWR_CPU_FreqAbility *freqAbi, uint32_t bufferSize)
 
 int PWR_CPU_GetFreqGovernor(char gov[], uint32_t size)
 {
-    CHECK_STATUS();
+    CHECK_STATUS(STATUS_REGISTERTED);
     CHECK_NULL_POINTER(gov);
     if (size < MAX_ELEMENT_NAME_LEN) {
         return ERR_INVALIDE_PARAM;
@@ -169,7 +203,7 @@ int PWR_CPU_GetFreqGovernor(char gov[], uint32_t size)
 
 int PWR_CPU_SetFreqGovernor(char gov[])
 {
-    CHECK_STATUS();
+    CHECK_STATUS(STATUS_AUTHED);
     CHECK_NULL_POINTER(gov);
     if (strlen(gov) == 0 || strlen(gov) >= MAX_ELEMENT_NAME_LEN) {
         return ERR_INVALIDE_PARAM;
@@ -180,7 +214,7 @@ int PWR_CPU_SetFreqGovernor(char gov[])
 
 int PWR_CPU_GetFreq(PWR_CPU_CurFreq curFreq[], uint32_t *len, int spec)
 {
-    CHECK_STATUS();
+    CHECK_STATUS(STATUS_REGISTERTED);
     CHECK_NULL_POINTER(curFreq);
     if (!len || *len == 0 || (spec != TRUE && spec != FALSE)) {
         return ERR_INVALIDE_PARAM;
@@ -191,7 +225,7 @@ int PWR_CPU_GetFreq(PWR_CPU_CurFreq curFreq[], uint32_t *len, int spec)
 
 int PWR_CPU_SetFreq(PWR_CPU_CurFreq curFreq[], uint32_t len)
 {
-    CHECK_STATUS();
+    CHECK_STATUS(STATUS_AUTHED);
     CHECK_NULL_POINTER(curFreq);
     if (len == 0) {
         return ERR_INVALIDE_PARAM;
@@ -202,7 +236,7 @@ int PWR_CPU_SetFreq(PWR_CPU_CurFreq curFreq[], uint32_t len)
 
 int PWR_CPU_DmaGetLatency(int *latency)
 {
-    CHECK_STATUS();
+    CHECK_STATUS(STATUS_REGISTERTED);
     CHECK_NULL_POINTER(latency);
 
     return GetCpuDmaLatency(latency);
@@ -210,7 +244,7 @@ int PWR_CPU_DmaGetLatency(int *latency)
 
 int PWR_CPU_DmaSetLatency(int latency)
 {
-    CHECK_STATUS();
+    CHECK_STATUS(STATUS_AUTHED);
     if (latency < 0 || latency > MAX_CPU_DMA_LATENCY) {
         return ERR_INVALIDE_PARAM;
     }
@@ -222,7 +256,7 @@ int PWR_CPU_DmaSetLatency(int latency)
 // Disk
 int PWR_DISK_GetList(char diskList[][MAX_ELEMENT_NAME_LEN], uint32_t *len)
 {
-    CHECK_STATUS();
+    CHECK_STATUS(STATUS_REGISTERTED);
     CHECK_NULL_POINTER(diskList);
     if (!len || *len == 0) {
         return ERR_INVALIDE_PARAM;
@@ -233,7 +267,7 @@ int PWR_DISK_GetList(char diskList[][MAX_ELEMENT_NAME_LEN], uint32_t *len)
 
 int PWR_DISK_GetLoad(PWR_DISK_Load load[], uint32_t *len, int spec)
 {
-    CHECK_STATUS();
+    CHECK_STATUS(STATUS_REGISTERTED);
     CHECK_NULL_POINTER(load);
     if (!len || *len == 0 || (spec != TRUE && spec != FALSE)) {
         return ERR_INVALIDE_PARAM;
@@ -244,7 +278,7 @@ int PWR_DISK_GetLoad(PWR_DISK_Load load[], uint32_t *len, int spec)
 
 int PWR_DISK_GetPwrLevel(PWR_DISK_PwrLevel pwrLevel[], uint32_t *len, int spec)
 {
-    CHECK_STATUS();
+    CHECK_STATUS(STATUS_REGISTERTED);
     CHECK_NULL_POINTER(pwrLevel);
     if (!len || *len == 0 || (spec != TRUE && spec != FALSE)) {
         return ERR_INVALIDE_PARAM;
@@ -255,7 +289,7 @@ int PWR_DISK_GetPwrLevel(PWR_DISK_PwrLevel pwrLevel[], uint32_t *len, int spec)
 
 int PWR_DISK_SetPwrLevel(PWR_DISK_PwrLevel pwrLevel[], uint32_t len)
 {
-    CHECK_STATUS();
+    CHECK_STATUS(STATUS_AUTHED);
     CHECK_NULL_POINTER(pwrLevel);
     if (len == 0) {
         return ERR_INVALIDE_PARAM;
@@ -266,7 +300,7 @@ int PWR_DISK_SetPwrLevel(PWR_DISK_PwrLevel pwrLevel[], uint32_t len)
 
 int PWR_DISK_GetScsiPolicy(PWR_DISK_ScsiPolicy scsiPolicy[], uint32_t *len, int spec)
 {
-    CHECK_STATUS();
+    CHECK_STATUS(STATUS_REGISTERTED);
     CHECK_NULL_POINTER(scsiPolicy);
     if (!len || *len == 0 || (spec != TRUE && spec != FALSE)) {
         return ERR_INVALIDE_PARAM;
@@ -277,7 +311,7 @@ int PWR_DISK_GetScsiPolicy(PWR_DISK_ScsiPolicy scsiPolicy[], uint32_t *len, int 
 
 int PWR_DISK_SetScsiPolicy(PWR_DISK_ScsiPolicy scsiPolicy[], uint32_t len)
 {
-    CHECK_STATUS();
+    CHECK_STATUS(STATUS_AUTHED);
     CHECK_NULL_POINTER(scsiPolicy);
     if (len == 0) {
         return ERR_INVALIDE_PARAM;
@@ -290,7 +324,7 @@ int PWR_DISK_SetScsiPolicy(PWR_DISK_ScsiPolicy scsiPolicy[], uint32_t len)
 // NET
 int PWR_NET_GetInfo(PWR_NET_Info *netInfo, uint32_t bufferSize)
 {
-    CHECK_STATUS();
+    CHECK_STATUS(STATUS_REGISTERTED);
     CHECK_NULL_POINTER(netInfo);
     if (bufferSize <= sizeof(PWR_NET_Info)) {
         return ERR_INVALIDE_PARAM;
@@ -301,7 +335,7 @@ int PWR_NET_GetInfo(PWR_NET_Info *netInfo, uint32_t bufferSize)
 
 int PWR_NET_GetThrouth(char ethName[], PWR_NET_Through *ethThrough)
 {
-    CHECK_STATUS();
+    CHECK_STATUS(STATUS_REGISTERTED);
     CHECK_NULL_POINTER(ethName);
     CHECK_NULL_POINTER(ethThrough);
 
@@ -314,7 +348,7 @@ int PWR_NET_GetThrouth(char ethName[], PWR_NET_Through *ethThrough)
 
 int PWR_NET_GetSpeedMod(char ethName[], uint32_t *speedMod)
 {
-    CHECK_STATUS();
+    CHECK_STATUS(STATUS_REGISTERTED);
     CHECK_NULL_POINTER(ethName);
     CHECK_NULL_POINTER(speedMod);
     if (strlen(ethName) == 0 || strlen(ethName) >= MAX_ELEMENT_NAME_LEN) {
@@ -325,7 +359,7 @@ int PWR_NET_GetSpeedMod(char ethName[], uint32_t *speedMod)
 
 int PWR_NET_SetSpeedMod(char ethName[], uint32_t speedMod)
 {
-    CHECK_STATUS();
+    CHECK_STATUS(STATUS_AUTHED);
     CHECK_NULL_POINTER(ethName);
     // todo 限制speedMod取值 100 1000 10000
     return SetNetSpeedMod(ethName, speedMod);
@@ -334,7 +368,7 @@ int PWR_NET_SetSpeedMod(char ethName[], uint32_t speedMod)
 // USB
 int PWR_USB_GetAutoSuspend(PWR_USB_AutoSuspend usbAts[], uint32_t *len)
 {
-    CHECK_STATUS();
+    CHECK_STATUS(STATUS_REGISTERTED);
     CHECK_NULL_POINTER(usbAts);
     if (!len || *len == 0) {
         return ERR_INVALIDE_PARAM;
@@ -345,7 +379,7 @@ int PWR_USB_GetAutoSuspend(PWR_USB_AutoSuspend usbAts[], uint32_t *len)
 
 int PWR_USB_SetAutoSuspend(PWR_USB_AutoSuspend usbAts[], uint32_t len)
 {
-    CHECK_STATUS();
+    CHECK_STATUS(STATUS_AUTHED);
     CHECK_NULL_POINTER(usbAts);
     if (len == 0) {
         return ERR_INVALIDE_PARAM;

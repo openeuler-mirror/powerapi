@@ -14,11 +14,12 @@
  * **************************************************************************** */
 #ifndef PAPIS_TASK_SERVICE_H__
 #define PAPIS_TASK_SERVICE_H__
+#include <stdint.h>
 #include "pwrmsg.h"
 
 int InitTaskService(void);
 void FiniTaskService(void);
 void CreateDataCollTask(const PwrMsg *req);
 void DeleteDataCollTask(const PwrMsg *req);
-
+void CleanDataCollTaskByClient(uint32_t client);
 #endif

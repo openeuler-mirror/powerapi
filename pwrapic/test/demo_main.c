@@ -155,7 +155,7 @@ static void TEST_PWR_CPU_GetUsage(void)
 static void TEST_PWR_CPU_GetPerfData(void)
 {
     int ret;
-    PWR_CPU_PerfData perfData = {0};
+    PWR_CPU_PerfData perfData = { 0 };
     ret = PWR_CPU_GetPerfData(&perfData);
     printf("PWR_CPU_GetPerfData ret: %d, IPC: %.8f  LLC misses: %.8f \n", ret, perfData.ipc, perfData.llcMiss);
 }
@@ -271,6 +271,12 @@ int main(int argc, const char *args[])
         continue;
     }
     printf("main regist succeed.\n");
+    int ret = PWR_RequestControlAuth();
+    if (ret != SUCCESS) {
+        printf("Request Control Auth failed.\n");
+    } else {
+        printf("Request Control Auth succeed.\n");
+    }
 
     TEST_PWR_CPU_GetInfo();
     // PWR_CPU_GetUsage
@@ -285,17 +291,18 @@ int main(int argc, const char *args[])
     // PWR_CPU_GetFreqGovernor PWR_CPU_SetFreqGovernor
     TEST_PWR_CPU_SetAndGetFreqGov();
 
-    TEST_SYS_SetPowerState();
+    // TEST_SYS_SetPowerState();
     // PWR_CPU_GetCurFreq PWR_CPU_SetCurFreq
     // TEST_PWR_CPU_SetAndGetCurFreq();
 
     // PWR_CPU_DmaSetLatency PWR_CPU_DmaGetLatency
     // TEST_PWR_CPU_DmaSetAndGetLatency();
-    TEST_PWR_COM_DcTaskMgr();
+    // TEST_PWR_COM_DcTaskMgr();
     // todo: 其他接口测试
     while (g_run) {
         sleep(MAIN_LOOP_INTERVAL);
     }
+    PWR_ReleaseControlAuth();
     PWR_UnRegister();
     return 0;
 }
