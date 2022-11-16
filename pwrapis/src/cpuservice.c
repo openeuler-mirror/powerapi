@@ -353,17 +353,7 @@ void GetCpuinfo(PwrMsg *req)
     }
     bzero(rstData, sizeof(rstData));
     int rspCode = CpuInfoRead(rstData);
-    PwrMsg *rsp = (PwrMsg *)malloc(sizeof(PwrMsg));
-    if (!rsp) {
-        Logger(ERROR, MD_NM_SVR_CPU, "Malloc failed.");
-        free(rstData);
-        return;
-    }
-    bzero(rsp, sizeof(PwrMsg));
-    GenerateRspMsg(req, rsp, rspCode, (char *)rstData, sizeof(PWR_CPU_Info));
-    if (SendRspMsg(rsp) != SUCCESS) {
-        ReleasePwrMsg(&rsp);
-    }
+    SendRspToClient(req, rspCode, (char *)rstData, sizeof(PWR_CPU_Info));
 }
 void GetCpuUsage(PwrMsg *req)
 {
@@ -377,17 +367,7 @@ void GetCpuUsage(PwrMsg *req)
         return;
     }
     int rspCode = CPUUsageRead(rstData, coreNum);
-    PwrMsg *rsp = (PwrMsg *)malloc(sizeof(PwrMsg));
-    if (!rsp) {
-        Logger(ERROR, MD_NM_SVR_CPU, "Malloc failed.");
-        free(rstData);
-        return;
-    }
-    bzero(rsp, sizeof(PwrMsg));
-    GenerateRspMsg(req, rsp, rspCode, (char *)rstData, sizeof(PWR_CPU_Usage) + sizeof(PWR_CPU_CoreUsage) * coreNum);
-    if (SendRspMsg(rsp) != SUCCESS) {
-        ReleasePwrMsg(&rsp);
-    }
+    SendRspToClient(req, rspCode, (char *)rstData, sizeof(PWR_CPU_Usage) + sizeof(PWR_CPU_CoreUsage) * coreNum);
 }
 
 void GetCpuPerfData(PwrMsg *req)
@@ -401,17 +381,7 @@ void GetCpuPerfData(PwrMsg *req)
         return;
     }
     int rspCode = PerfDataRead(rstData);
-    PwrMsg *rsp = (PwrMsg *)malloc(sizeof(PwrMsg));
-    if (!rsp) {
-        Logger(ERROR, MD_NM_SVR_CPU, "Malloc failed.");
-        free(rstData);
-        return;
-    }
-    bzero(rsp, sizeof(PwrMsg));
-    GenerateRspMsg(req, rsp, rspCode, (char *)rstData, sizeof(PWR_CPU_PerfData));
-    if (SendRspMsg(rsp) != SUCCESS) {
-        ReleasePwrMsg(&rsp);
-    }
+    SendRspToClient(req, rspCode, (char *)rstData, sizeof(PWR_CPU_PerfData));
 }
 
 void GetCpuFreqGovernor(PwrMsg *req)
@@ -425,17 +395,7 @@ void GetCpuFreqGovernor(PwrMsg *req)
         return;
     }
     int rspCode = GovernorRead(rstData);
-    PwrMsg *rsp = (PwrMsg *)malloc(sizeof(PwrMsg));
-    if (!rsp) {
-        Logger(ERROR, MD_NM_SVR_CPU, "Malloc failed.");
-        free(rstData);
-        return;
-    }
-    bzero(rsp, sizeof(PwrMsg));
-    GenerateRspMsg(req, rsp, rspCode, (char *)rstData, sizeof(char) * MAX_ELEMENT_NAME_LEN);
-    if (SendRspMsg(rsp) != SUCCESS) {
-        ReleasePwrMsg(&rsp);
-    }
+    SendRspToClient(req, rspCode, (char *)rstData, sizeof(char) * MAX_ELEMENT_NAME_LEN);
 }
 
 void SetCpuFreqGovernor(PwrMsg *req)
@@ -449,16 +409,7 @@ void SetCpuFreqGovernor(PwrMsg *req)
     int poNum;
     GetPolicys(policys, &poNum);
     int rspCode = GovernorSet(req->data, policys, &poNum);
-    PwrMsg *rsp = (PwrMsg *)malloc(sizeof(PwrMsg));
-    if (!rsp) {
-        Logger(ERROR, MD_NM_SVR_CPU, "Malloc failed.");
-        return;
-    }
-    bzero(rsp, sizeof(PwrMsg));
-    GenerateRspMsg(req, rsp, rspCode, NULL, 0);
-    if (SendRspMsg(rsp) != SUCCESS) {
-        ReleasePwrMsg(&rsp);
-    }
+    SendRspToClient(req, rspCode, NULL, 0);
 }
 
 void GetCpuFreq(PwrMsg *req)
@@ -476,17 +427,7 @@ void GetCpuFreq(PwrMsg *req)
         return;
     }
     int rspCode = FreqRead(rstData, policys, &poNum);
-    PwrMsg *rsp = (PwrMsg *)malloc(sizeof(PwrMsg));
-    if (!rsp) {
-        Logger(ERROR, MD_NM_SVR_CPU, "Malloc failed.");
-        free(rstData);
-        return;
-    }
-    bzero(rsp, sizeof(PwrMsg));
-    GenerateRspMsg(req, rsp, rspCode, (char *)rstData, sizeof(PWR_CPU_CurFreq) * poNum);
-    if (SendRspMsg(rsp) != SUCCESS) {
-        ReleasePwrMsg(&rsp);
-    }
+    SendRspToClient(req, rspCode, (char *)rstData, sizeof(PWR_CPU_CurFreq) * poNum);
 }
 
 // 总CPU核数

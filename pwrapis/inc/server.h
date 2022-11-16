@@ -25,7 +25,7 @@
  */
 int StartServer(void);
 void StopServer(void);
-int SendRspToClient(const PwrMsg *req, int rspCode, char *data, uint32_t len);
+void SendRspToClient(const PwrMsg *req, int rspCode, char *data, uint32_t len);
 int SendMetadataToClient(uint32_t sysId, char *data, uint32_t len);
 int SendRspMsg(PwrMsg *rsp);
 
