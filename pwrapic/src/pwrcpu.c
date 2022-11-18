@@ -130,12 +130,12 @@ int GetCpuFreqGovernor(char gov[], uint32_t size)
     return ret;
 }
 
-int SetCpuFreqGovernor(char gov[], uint32_t size)
+int SetCpuFreqGovernor(const char gov[], uint32_t size)
 {
     ReqInputParam input;
     input.optType = CPU_SET_FREQ_GOVERNOR;
     input.dataLen = size;
-    input.data = gov;
+    input.data = (char *)gov;
     RspOutputParam output;
     output.rspBuffSize = NULL;
     output.rspData = NULL;
@@ -176,7 +176,7 @@ int GetCpuCurFreq(PWR_CPU_CurFreq curFreq[], uint32_t *len, int spec)
     return ret;
 }
 
-int SetCpuCurFreq(PWR_CPU_CurFreq curFreq[], uint32_t len)
+int SetCpuCurFreq(const PWR_CPU_CurFreq curFreq[], uint32_t len)
 {
     ReqInputParam input;
     input.optType = CPU_SET_CUR_FREQ;

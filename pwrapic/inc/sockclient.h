@@ -33,5 +33,5 @@ int InitSockClient(void);
 int FiniSockClient(void);
 int SetMetaDataCallback(void(MetaDataCallback)(const PWR_COM_CallbackData *));
 int HasSetDataCallback(void);
-int SendReqAndWaitForRsp(ReqInputParam input, RspOutputParam output);
+int SendReqAndWaitForRsp(const ReqInputParam input, RspOutputParam output);
 #endif

@@ -201,7 +201,7 @@ int PWR_CPU_GetFreqGovernor(char gov[], uint32_t size)
     return GetCpuFreqGovernor(gov, size);
 }
 
-int PWR_CPU_SetFreqGovernor(char gov[])
+int PWR_CPU_SetFreqGovernor(const char gov[])
 {
     CHECK_STATUS(STATUS_AUTHED);
     CHECK_NULL_POINTER(gov);
@@ -223,7 +223,7 @@ int PWR_CPU_GetFreq(PWR_CPU_CurFreq curFreq[], uint32_t *len, int spec)
     return GetCpuCurFreq(curFreq, len, spec);
 }
 
-int PWR_CPU_SetFreq(PWR_CPU_CurFreq curFreq[], uint32_t len)
+int PWR_CPU_SetFreq(const PWR_CPU_CurFreq curFreq[], uint32_t len)
 {
     CHECK_STATUS(STATUS_AUTHED);
     CHECK_NULL_POINTER(curFreq);

@@ -22,9 +22,9 @@ int GetCpuUsage(PWR_CPU_Usage *usage, uint32_t bufferSize);
 int GetCpuPerfData(PWR_CPU_PerfData *perfData);
 int GetCpuFreqAbility(PWR_CPU_FreqAbility *freqAbi, uint32_t bufferSize);
 int GetCpuFreqGovernor(char gov[], uint32_t size);
-int SetCpuFreqGovernor(char gov[], uint32_t size);
+int SetCpuFreqGovernor(const char gov[], uint32_t size);
 int GetCpuCurFreq(PWR_CPU_CurFreq curFreq[], uint32_t *len, int spec);
-int SetCpuCurFreq(PWR_CPU_CurFreq curFreq[], uint32_t len);
+int SetCpuCurFreq(const PWR_CPU_CurFreq curFreq[], uint32_t len);
 int GetCpuDmaLatency(int *latency);
 int SetCpuDmaLatency(int latency);
 #endif

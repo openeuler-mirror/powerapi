@@ -387,7 +387,7 @@ int HasSetDataCallback(void)
     return g_metadata_callback != NULL;
 }
 
-int SendReqAndWaitForRsp(ReqInputParam input, RspOutputParam output)
+int SendReqAndWaitForRsp(const ReqInputParam input, RspOutputParam output)
 {
     if ((output.rspData && (!output.rspBuffSize || *output.rspBuffSize == 0))) {
         return ERR_INVALIDE_PARAM;
