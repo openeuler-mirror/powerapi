@@ -113,6 +113,19 @@ static void TEST_SYS_SetPowerState(void)
     printf("PWR_SYS_SetPowerState ret: %d\n", ret);
 }
 
+static void TEST_SYS_GetRtPowerInfo(void)
+{
+    int ret;
+    PWR_SYS_PowerInfo *u = (PWR_SYS_PowerInfo *)malloc(sizeof(PWR_SYS_PowerInfo));
+    if (!u) {
+        return;
+    }
+    bzero(u, sizeof(PWR_SYS_PowerInfo));
+    ret = PWR_SYS_GetRtPowerInfo(u);
+    printf("PWR_SYS_GetRtPower ret: %d, SYS power:%f\n", ret, u->sysPower);
+    free(u);
+}
+
 // PWR_CPU_GetUsage
 static void TEST_PWR_CPU_GetInfo(void)
 {
@@ -291,6 +304,7 @@ int main(int argc, const char *args[])
     // PWR_CPU_GetFreqGovernor PWR_CPU_SetFreqGovernor
     TEST_PWR_CPU_SetAndGetFreqGov();
 
+    TEST_SYS_GetRtPowerInfo();
     // TEST_SYS_SetPowerState();
     // PWR_CPU_GetCurFreq PWR_CPU_SetCurFreq
     // TEST_PWR_CPU_SetAndGetCurFreq();

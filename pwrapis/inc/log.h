@@ -12,8 +12,8 @@
  * Create: 2022-06-23
  * Description: provide log interface
  * **************************************************************************** */
-#ifndef __PAPIS_LOG_H__
-#define __PAPIS_LOG_H__
+#ifndef PAPIS_LOG_H__
+#define PAPIS_LOG_H__
 
 #include "config.h"
 

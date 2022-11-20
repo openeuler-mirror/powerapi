@@ -12,8 +12,8 @@
  * Create: 2022-08-22
  * Description: provide disk service
  * **************************************************************************** */
-#ifndef __PAPIS_DISK_SERVICE_H__
-#define __PAPIS_DISK_SERVICE_H__
+#ifndef PAPIS_DISK_SERVICE_H__
+#define PAPIS_DISK_SERVICE_H__
 #include <stdint.h>
 #include "config.h"
 #include "pwrmsg.h"

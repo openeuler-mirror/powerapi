@@ -77,6 +77,12 @@ typedef struct PWR_COM_BasicDcTaskInfo {
     int interval;
 } PWR_COM_BasicDcTaskInfo;
 
+typedef struct PWR_SYS_PowerInfo {
+    double sysPower;
+    double cpuPower;
+    double memPower;
+} PWR_SYS_PowerInfo;
+
 typedef struct PWR_CPU_NumaInfo {
     int nodeNo;
     char cpuList[MAX_CPU_LIST_LEN];

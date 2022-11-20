@@ -12,8 +12,8 @@
  * Create: 2022-06-23
  * Description: pwrclient manager. pwrclient refers to the socket connection info.
  * **************************************************************************** */
-#ifndef __PAPIS_CLIENT_H__
-#define __PAPIS_CLIENT_H__
+#ifndef PAPIS_CLIENT_H__
+#define PAPIS_CLIENT_H__
 
 #include <stdint.h>
 typedef struct PwrClient {

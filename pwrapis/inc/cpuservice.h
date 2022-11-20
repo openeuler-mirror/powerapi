@@ -12,11 +12,12 @@
  * Create: 2022-06-23
  * Description: provide cpu service
  * **************************************************************************** */
-#ifndef __PAPIS_CPU_SERVICE_H__
-#define __PAPIS_CPU_SERVICE_H__
+#ifndef PAPIS_CPU_SERVICE_H__
+#define PAPIS_CPU_SERVICE_H__
 #include "pwrmsg.h"
 #include "pwrdata.h"
 
+int GetArch(void);
 void GetCpuinfo(PwrMsg *req);
 void GetCpuUsage(PwrMsg *req);
 void GetCpuPerfData(PwrMsg *req);

@@ -351,6 +351,9 @@ static void ProcessReqMsg(PwrMsg *req)
         case SYS_SET_POWER_STATE:
             SetSysPowerState(req);
             break;
+        case SYS_GET_RT_POWER:
+            GetSysRtPowerInfo(req);
+            break;
         case CPU_GET_USAGE:
             GetCpuUsage(req);
             break;

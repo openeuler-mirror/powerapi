@@ -152,6 +152,13 @@ int PWR_SYS_SetPowerState(int powerState)
     return SetSysPowerState(powerState);
 }
 
+int PWR_SYS_GetRtPowerInfo(PWR_SYS_PowerInfo *powerInfo)
+{
+    CHECK_STATUS(STATUS_REGISTERTED);
+    CHECK_NULL_POINTER(powerInfo);
+    return GetSysRtPowerInfo(powerInfo);
+}
+
 int PWR_CPU_GetInfo(PWR_CPU_Info *cpuInfo)
 {
     CHECK_STATUS(STATUS_REGISTERTED);

@@ -19,4 +19,5 @@
 #include "pwrdata.h"
 
 int SetSysPowerState(int powerState);
+int GetSysRtPowerInfo(PWR_SYS_PowerInfo *powerInfo);
 #endif

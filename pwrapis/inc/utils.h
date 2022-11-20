@@ -12,8 +12,8 @@
  * Create: 2022-06-23
  * Description: provide common methods
  * **************************************************************************** */
-#ifndef __UTILS_H__
-#define __UTILS_H__
+#ifndef UTILS_H__
+#define UTILS_H__
 #include <time.h>
 #include <dirent.h>
 #include <regex.h>
