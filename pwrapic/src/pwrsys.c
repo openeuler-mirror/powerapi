@@ -44,3 +44,23 @@ int SetSysPowerState(int powerState)
     }
     return ret;
 }
+
+
+int GetSysRtPowerInfo(PWR_SYS_PowerInfo *powerInfo)
+{
+    ReqInputParam input;
+    input.optType = SYS_GET_RT_POWER;
+    input.dataLen = 0;
+    input.data = NULL;
+    RspOutputParam output;
+    uint32_t size = sizeof(PWR_SYS_PowerInfo);
+    output.rspBuffSize = &size;
+    output.rspData = (void *)powerInfo;
+    int ret = SendReqAndWaitForRsp(input, output);
+    if (ret != SUCCESS) {
+        PwrLog(ERROR, "GetSysRtPower failed. ret:%d", ret);
+    } else {
+        PwrLog(DEBUG, "GetSysRtPower Succeed.");
+    }
+    return ret;
+}

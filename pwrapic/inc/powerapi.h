@@ -39,6 +39,7 @@ PWR_API int PWR_ReleaseControlAuth(void);
 
 // SYS
 PWR_API int PWR_SYS_SetPowerState(int powerState);
+PWR_API int PWR_SYS_GetRtPowerInfo(PWR_SYS_PowerInfo *powerInfo);
 
 // CPU
 PWR_API int PWR_CPU_GetInfo(PWR_CPU_Info *cpuInfo);

@@ -12,8 +12,8 @@
  * Create: 2022-06-23
  * Description: provide server methods
  * **************************************************************************** */
-#ifndef __PAPIS_SERVER_H__
-#define __PAPIS_SERVER_H__
+#ifndef PAPIS_SERVER_H__
+#define PAPIS_SERVER_H__
 #include <stdint.h>
 #include <stdio.h>
 #include "pwrmsg.h"

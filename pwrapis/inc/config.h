@@ -12,8 +12,8 @@
  * Create: 2022-06-23
  * Description: provide configuration service
  * **************************************************************************** */
-#ifndef __PAPIS_CONFIG_H__
-#define __PAPIS_CONFIG_H__
+#ifndef PAPIS_CONFIG_H__
+#define PAPIS_CONFIG_H__
 #include <stdint.h>
 #include "common.h"
 #include "list.h"

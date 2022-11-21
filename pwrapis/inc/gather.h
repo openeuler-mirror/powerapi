@@ -12,8 +12,8 @@
  * Create: 2022-08-26
  * Description: provide cpu collect methods
  ******************************************************************************/
-#ifndef __GATHER_H__
-#define __GATHER_H__
+#ifndef GATHER_H__
+#define GATHER_H__
 
 #include <list.h>
 #include <common.h>

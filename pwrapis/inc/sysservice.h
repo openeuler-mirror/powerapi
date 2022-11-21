@@ -12,11 +12,12 @@
  * Create: 2022-11-10
  * Description: provide sys service
  * **************************************************************************** */
-#ifndef __PAPIS_SYS_SERVICE_H__
-#define __PAPIS_SYS_SERVICE_H__
+#ifndef PAPIS_SYS_SERVICE_H__
+#define PAPIS_SYS_SERVICE_H__
 #include "pwrmsg.h"
 #include "pwrdata.h"
 
 int PowerSet(char *state);
 void SetSysPowerState(PwrMsg *req);
+void GetSysRtPowerInfo(PwrMsg *req);
 #endif
