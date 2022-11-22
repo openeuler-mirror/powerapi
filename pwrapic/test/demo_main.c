@@ -24,7 +24,7 @@
 #define TEST_CORE_NUM 128
 #define AVG_LEN_PER_CORE 5
 #define TEST_CPU_DMA_LATENCY 2000
-#define TASK_INTERNAL 500
+#define TASK_INTERVAL 1000
 #define TASK_RUN_TIME 10
 static int g_run = 1;
 
@@ -261,7 +261,7 @@ static void TEST_PWR_COM_DcTaskMgr(void)
 
     PWR_COM_BasicDcTaskInfo task = { 0 };
     task.dataType = PWR_COM_DATATYPE_CPU_PERF;
-    task.interval = TASK_INTERNAL;
+    task.interval = TASK_INTERVAL;
     ret = PWR_CreateDcTask(&task);
     printf("PWR_CreateDcTask. dataType:%d ret: %d\n", task.dataType, ret);
     task.dataType = PWR_COM_DATATYPE_CPU_USAGE;

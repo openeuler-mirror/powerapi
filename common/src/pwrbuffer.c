@@ -18,7 +18,7 @@
 #include <errno.h>
 #include "pwrerr.h"
 
-#define WAITING_RESULT_TIME_OUT 1 // second
+#define WAITING_RESULT_TIME_OUT 2 // second
 #define USEC_TO_NSEC 1000
 // queue private
 static void DeleteFromHead(PwrMsgBuffer *smb)

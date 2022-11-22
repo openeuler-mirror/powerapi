@@ -227,7 +227,6 @@ const char *StrJoin(char **strArr, int itemNum, const char *joinStr, char *buf, 
  */
 const char *StrReplace(const char *src, const char *old, const char *new, char *dest, int destLen);
 
-void UsageToLong(char *buf, unsigned long paras[]);
 void DeleteChar(char str[], char a);
 char *StrMatch(char *str, char *want);
 int DeleteSubstr(char *str, char *substr);

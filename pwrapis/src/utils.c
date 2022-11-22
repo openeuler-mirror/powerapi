@@ -843,29 +843,6 @@ const char *StrReplace(const char *src, const char *old, const char *new, char *
     return pStrRes;
 }
 
-void UsageToLong(char *buf, unsigned long paras[])
-{
-    int i = 0;
-    int j = 0;
-    int k;
-    char temp[MAX_STRING_LEN];
-    while (i < CPU_USAGE_COLUMN) {
-        bzero(temp, sizeof(temp));
-        k = 0;
-        while (buf[j] != ' ') {
-            temp[k++] = buf[j++];
-        }
-        while (buf[j] == ' ') {
-            j++;
-        }
-        if (i != 0) {
-            paras[i - 1] = strtoul(temp, NULL, 0);
-        }
-        i++;
-    }
-    return;
-}
-
 void DeleteChar(char str[], char a)
 {
     int strLength = strlen(str);
