@@ -137,45 +137,84 @@ int GetArch(void)
     return re;
 }
 
+static int UsageToLong(char *buf, unsigned long paras[], int line)
+{
+    int i = 0;
+    int j = 0;
+    int k;
+    char temp[MAX_STRING_LEN];
+    while (i <= CPU_USAGE_COLUMN) {
+        bzero(temp, sizeof(temp));
+        k = 0;
+        while (buf[j] != ' ') {
+            temp[k++] = buf[j++];
+        }
+        while (buf[j] == ' ') {
+            j++;
+        }
+        if (i == 0 && line > 0) {
+            if (strstr(temp, "cpu") != NULL) {
+                DeleteSubstr(temp, "cpu");
+                paras[i] = strtoul(temp, NULL, 0);
+            } else {
+                return -2; // -2 means no this core usage informaton
+            }
+        } else if (i != 0) {
+            paras[i] = strtoul(temp, NULL, 0);
+        }
+        i++;
+    }
+    if (line == 0) {
+        return -1; // -1 means average cpu usage
+    } else {
+        return paras[0]; // return core Id
+    }
+}
+
+static void CalculateUsage(PWR_CPU_Usage *rstData, unsigned long paras[2][CPU_USAGE_COLUMN], int i)
+{
+    unsigned long parasSum1 = 0;
+    unsigned long parasSum2 = 0;
+    int j;
+    for (j = 1; j < CPU_USAGE_COLUMN; j++) {
+        parasSum1 += paras[0][j];
+        parasSum2 += paras[1][j];
+    }
+    if (i == 0) {
+        rstData->avgUsage =
+            1 - ((double)(paras[1][CPU_IDLE_COLUMN] - paras[0][CPU_IDLE_COLUMN])) / (parasSum2 - parasSum1);
+    } else {
+        rstData->coreUsage[paras[0][0]].coreNo = paras[0][0];
+        rstData->coreUsage[paras[0][0]].usage =
+            1 - ((double)(paras[1][CPU_IDLE_COLUMN] - paras[0][CPU_IDLE_COLUMN])) / (parasSum2 - parasSum1);
+    }
+}
+
 int CPUUsageRead(PWR_CPU_Usage *rstData, int coreNum)
 {
-    FILE *fp1 = NULL;
-    FILE *fp2 = NULL;
-    char usage[] = "cat /proc/stat";
-    unsigned long paras[2][7];
-    fp1 = popen(usage, "r");
+    const char usage[] = "cat /proc/stat";
+    unsigned long paras[2][CPU_USAGE_COLUMN];
+    FILE *fp1 = popen(usage, "r");
     usleep(LATENCY);
-    fp2 = popen(usage, "r");
+    FILE *fp2 = popen(usage, "r");
     if (fp1 == NULL || fp2 == NULL) {
         return ERR_COMMON;
     }
-    char buf[MAX_STRING_LEN] = {0};
+    char buf1[MAX_STRING_LEN] = {0};
+    char buf2[MAX_STRING_LEN] = {0};
     int i = 0;
+    rstData->coreNum = coreNum;
     while (i < coreNum + 1) {
-        if (fgets(buf, sizeof(buf) - 1, fp1) == NULL) {
+        if (fgets(buf1, sizeof(buf1) - 1, fp1) == NULL) {
             return ERR_COMMON;
         }
-        UsageToLong(buf, paras[0]);
-        if (fgets(buf, sizeof(buf) - 1, fp2) == NULL) {
+        if (fgets(buf2, sizeof(buf2) - 1, fp2) == NULL) {
             return ERR_COMMON;
         }
-        UsageToLong(buf, paras[1]);
-        unsigned long parasSum1 = 0;
-        unsigned long parasSum2 = 0;
-        int j;
-        for (j = 0; j < CPU_USAGE_COLUMN - 1; j++) {
-            parasSum1 += paras[0][j];
-            parasSum2 += paras[1][j];
+        if (UsageToLong(buf1, paras[0], i) != UsageToLong(buf2, paras[1], i)) {
+            return ERR_COMMON;
         }
-        if (i == 0) {
-            rstData->avgUsage =
-                1 - ((double)(paras[1][CPU_IDLE_COLUMN] - paras[0][CPU_IDLE_COLUMN])) / (parasSum2 - parasSum1);
-            rstData->coreNum = coreNum;
-        } else {
-            rstData->coreUsage[i - 1].coreNo = i - 1;
-            rstData->coreUsage[i - 1].usage =
-                1 - ((double)(paras[1][CPU_IDLE_COLUMN] - paras[0][CPU_IDLE_COLUMN])) / (parasSum2 - parasSum1);
-        }
+        CalculateUsage(rstData, paras, i);
         i++;
     }
     pclose(fp1);
@@ -250,6 +289,35 @@ int GetPolicys(char (*policys)[MAX_ELEMENT_NAME_LEN], int *poNum)
     return 0;
 }
 
+static int CheckGovernor(char *gov, char *policys)
+{
+    char *checkGovInfo = malloc(strlen(gov) + MAX_NAME_LEN);
+    if (checkGovInfo == NULL) {
+        Logger(ERROR, MD_NM_SVR_CPU, "Malloc failed.");
+        return 1;
+    }
+    const char s1[] = "cat /sys/devices/system/cpu/cpufreq/";
+    const char s2[] = "/scaling_available_governors";
+    StrCopy(checkGovInfo, s1, strlen(gov) + MAX_NAME_LEN);
+    strncat(checkGovInfo, policys, strlen(gov));
+    strncat(checkGovInfo, s2, strlen(s2));
+    char buf[MAX_STRING_LEN];
+    FILE *fp = popen(checkGovInfo, "r");
+    if (fp == NULL || fgets(buf, sizeof(buf) - 1, fp) == NULL) {
+        return 1;
+    }
+    DeleteChar(buf, '\n');
+    char *temp = strtok(buf, " ");
+    while (temp != NULL) {
+        DeleteChar(temp, ' ');
+        if (strcmp(temp, gov) == 0) {
+            return 0;
+        }
+        temp = strtok(NULL, " ");
+    }
+    return 1;
+}
+
 int GovernorRead(char *rstData)
 {
     FILE *fp = NULL;
@@ -282,6 +350,9 @@ int GovernorSet(char *gov, char (*policys)[MAX_ELEMENT_NAME_LEN], int *poNum)
     static const char s3[] = "/scaling_governor";
     int i;
     for (i = 0; i < (*poNum) - 1; i++) {
+        if (CheckGovernor(gov, policys[i]) != 0) {
+            return ERR_INVALIDE_PARAM;
+        }
         StrCopy(govInfo, s1, strlen(gov) + MAX_NAME_LEN);
         strncat(govInfo, gov, strlen(gov));
         strncat(govInfo, s2, strlen(s2));
@@ -289,7 +360,7 @@ int GovernorSet(char *gov, char (*policys)[MAX_ELEMENT_NAME_LEN], int *poNum)
         strncat(govInfo, s3, strlen(s3));
         fp = popen(govInfo, "r");
         if (fp == NULL) {
-            return 1;
+            return ERR_COMMON;
         }
     }
     pclose(fp);
@@ -366,7 +437,9 @@ void GetCpuUsage(PwrMsg *req)
     if (!rstData) {
         return;
     }
+    bzero(rstData, sizeof(sizeof(PWR_CPU_Usage) + sizeof(PWR_CPU_CoreUsage) * coreNum));
     int rspCode = CPUUsageRead(rstData, coreNum);
+    printf("rspcode is %d\n", rspCode);
     SendRspToClient(req, rspCode, (char *)rstData, sizeof(PWR_CPU_Usage) + sizeof(PWR_CPU_CoreUsage) * coreNum);
 }
 
