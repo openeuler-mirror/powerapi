@@ -21,7 +21,7 @@
 
 #define MAIN_LOOP_INTERVAL 5
 #define TEST_FREQ 2400
-#define TEST_CORE_NUM 128
+#define TEST_CORE_NUM 96
 #define AVG_LEN_PER_CORE 5
 #define TEST_CPU_DMA_LATENCY 2000
 #define TASK_INTERVAL 1000
@@ -204,7 +204,7 @@ static void TEST_PWR_CPU_SetAndGetFreqGov(void)
     char gov[MAX_ELEMENT_NAME_LEN] = {0};
     ret = PWR_CPU_GetFreqGovernor(gov, MAX_ELEMENT_NAME_LEN);
     printf("PWR_CPU_GetFreqGovernor ret: %d, gov:%s\n", ret, gov);
-    strncpy(gov, "ondemand", MAX_ELEMENT_NAME_LEN - 1);
+    strncpy(gov, "userspace", MAX_ELEMENT_NAME_LEN - 1);
     ret = PWR_CPU_SetFreqGovernor(gov);
     printf("PWR_CPU_SetFreqGovernor ret: %d\n", ret);
     bzero(gov, MAX_ELEMENT_NAME_LEN);
@@ -307,7 +307,7 @@ int main(int argc, const char *args[])
     TEST_SYS_GetRtPowerInfo();
     // TEST_SYS_SetPowerState();
     // PWR_CPU_GetCurFreq PWR_CPU_SetCurFreq
-    // TEST_PWR_CPU_SetAndGetCurFreq();
+    TEST_PWR_CPU_SetAndGetCurFreq();
 
     // PWR_CPU_DmaSetLatency PWR_CPU_DmaGetLatency
     // TEST_PWR_CPU_DmaSetAndGetLatency();

@@ -232,5 +232,6 @@ char *StrMatch(char *str, char *want);
 int DeleteSubstr(char *str, char *substr);
 char *StrMatch(char *str, char *want);
 void StrCopy(char *dest, const char *src, int destSize);
+int InIntRange(int *range, int len, int a);
 
 #endif

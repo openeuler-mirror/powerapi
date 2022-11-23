@@ -372,6 +372,9 @@ static void ProcessReqMsg(PwrMsg *req)
         case CPU_GET_CUR_FREQ:
             GetCpuFreq(req);
             break;
+        case CPU_SET_CUR_FREQ:
+            SetCpuFreq(req);
+            break;
         default:
             break;
     }
