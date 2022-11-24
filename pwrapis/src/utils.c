@@ -896,3 +896,14 @@ void StrCopy(char *dest, const char *src, int destSize)
     strncpy(dest, src, len);
     dest[len] = '\0';
 }
+
+int InIntRange(int *range, int len, int a)
+{
+    int i;
+    for (i = 0; i < len; i++) {
+        if (range[i] == a) {
+            return 0;
+        }
+    }
+    return 1;
+}

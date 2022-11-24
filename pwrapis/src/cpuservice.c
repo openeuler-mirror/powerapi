@@ -124,7 +124,6 @@ int GetArch(void)
     int re = -1;
     if (m != 0) {
         free(cpuInfo);
-        cpuInfo = NULL;
         return re;
     }
     if (strstr(cpuInfo->arch, "aarch64") != NULL) {
@@ -133,7 +132,6 @@ int GetArch(void)
         re = 1;
     }
     free(cpuInfo);
-    cpuInfo = NULL;
     return re;
 }
 
@@ -289,7 +287,30 @@ int GetPolicys(char (*policys)[MAX_ELEMENT_NAME_LEN], int *poNum)
     return 0;
 }
 
-static int CheckGovernor(char *gov, char *policys)
+static int CheckPolicys(PWR_CPU_CurFreq *target, int len)
+{
+    char policys[MAX_CPU_LIST_LEN][MAX_ELEMENT_NAME_LEN];
+    bzero(policys, sizeof(policys));
+    int poNum, i;
+    if (GetPolicys(policys, &poNum) == 0) {
+        int policysId[poNum];
+        // convert policys to int
+        for (i = 0; i < poNum; i++) {
+            DeleteSubstr(policys[i], "policy");
+            policysId[i] = atoi(policys[i]);
+        }
+        // Determine whether the policyId is valid.
+        for (i = 0; i < len; i++) {
+            if (InIntRange(policysId, poNum, target[i].policyId) == 1) {
+                return ERR_INVALIDE_PARAM;
+            }
+        }
+        return 0;
+    }
+    return ERR_COMMON;
+}
+
+static int CheckAvailableGovernor(char *gov, char *policys)
 {
     char *checkGovInfo = malloc(strlen(gov) + MAX_NAME_LEN);
     if (checkGovInfo == NULL) {
@@ -303,7 +324,13 @@ static int CheckGovernor(char *gov, char *policys)
     strncat(checkGovInfo, s2, strlen(s2));
     char buf[MAX_STRING_LEN];
     FILE *fp = popen(checkGovInfo, "r");
-    if (fp == NULL || fgets(buf, sizeof(buf) - 1, fp) == NULL) {
+    if (fp == NULL) {
+        free(checkGovInfo);
+        return 1;
+    }
+    if (fgets(buf, sizeof(buf) - 1, fp) == NULL) {
+        free(checkGovInfo);
+        pclose(fp);
         return 1;
     }
     DeleteChar(buf, '\n');
@@ -311,10 +338,13 @@ static int CheckGovernor(char *gov, char *policys)
     while (temp != NULL) {
         DeleteChar(temp, ' ');
         if (strcmp(temp, gov) == 0) {
+            free(checkGovInfo);
+            pclose(fp);
             return 0;
         }
         temp = strtok(NULL, " ");
     }
+    pclose(fp);
     return 1;
 }
 
@@ -328,6 +358,7 @@ int GovernorRead(char *rstData)
     }
     char buf[MAX_STRING_LEN];
     if (fgets(buf, sizeof(buf) - 1, fp) == NULL) {
+        pclose(fp);
         return ERR_COMMON;
     }
     DeleteChar(buf, '\n');
@@ -339,7 +370,12 @@ int GovernorRead(char *rstData)
 
 int GovernorSet(char *gov, char (*policys)[MAX_ELEMENT_NAME_LEN], int *poNum)
 {
-    FILE *fp = NULL;
+    int i;
+    for (i = 0; i < (*poNum); i++) {
+        if (CheckAvailableGovernor(gov, policys[i]) != 0) {
+            return ERR_INVALIDE_PARAM;
+        }
+    }
     char *govInfo = malloc(strlen(gov) + MAX_NAME_LEN);
     if (govInfo == NULL) {
         Logger(ERROR, MD_NM_SVR_CPU, "Malloc failed.");
@@ -348,34 +384,28 @@ int GovernorSet(char *gov, char (*policys)[MAX_ELEMENT_NAME_LEN], int *poNum)
     static const char s1[] = "echo ";
     static const char s2[] = "> /sys/devices/system/cpu/cpufreq/";
     static const char s3[] = "/scaling_governor";
-    int i;
-    for (i = 0; i < (*poNum) - 1; i++) {
-        if (CheckGovernor(gov, policys[i]) != 0) {
-            return ERR_INVALIDE_PARAM;
-        }
+    for (i = 0; i < (*poNum); i++) {
         StrCopy(govInfo, s1, strlen(gov) + MAX_NAME_LEN);
         strncat(govInfo, gov, strlen(gov));
         strncat(govInfo, s2, strlen(s2));
         strncat(govInfo, policys[i], strlen(policys[i]));
         strncat(govInfo, s3, strlen(s3));
-        fp = popen(govInfo, "r");
+        FILE *fp = popen(govInfo, "r");
         if (fp == NULL) {
+            free(govInfo);
             return ERR_COMMON;
         }
+        pclose(fp);
+        // todo: write back precious governor
     }
-    pclose(fp);
     return SUCCESS;
 }
 
-int FreqRead(PWR_CPU_CurFreq *rstData, char (*policys)[MAX_ELEMENT_NAME_LEN], int *poNum)
+static int FreqRead(PWR_CPU_CurFreq *rstData, char (*policys)[MAX_ELEMENT_NAME_LEN], int *poNum)
 {
     FILE *fp = NULL;
     int m = GetArch();
-    char *freqInfo = malloc(MAX_NAME_LEN);
-    if (freqInfo == NULL) {
-        Logger(ERROR, MD_NM_SVR_CPU, "Malloc failed.");
-        return ERR_COMMON;
-    }
+    char freqInfo[MAX_NAME_LEN] = {0};
     static const char s1[] = "cat /sys/devices/system/cpu/cpufreq/";
     static const char s2Arm[] = "/cpuinfo_cur_freq";
     static const char s2X86[] = "/scaling_cur_freq";
@@ -412,6 +442,36 @@ int FreqRead(PWR_CPU_CurFreq *rstData, char (*policys)[MAX_ELEMENT_NAME_LEN], in
     return SUCCESS;
 }
 
+static int FreqSet(PWR_CPU_CurFreq *target, int len)
+{
+    char setFreqInfo[MAX_NAME_LEN] = {0};
+    static const char s1[] = "echo ";
+    static const char s2[] = " > /sys/devices/system/cpu/cpufreq/policy";
+    static const char s3[] = "/scaling_setspeed";
+    int i, freq;
+    char buffer[MAX_ELEMENT_NAME_LEN] = {0};
+    for (i = 0; i < len; i++) {
+        StrCopy(setFreqInfo, s1, MAX_NAME_LEN);
+        freq = (int)target[i].curFreq * THOUSAND;
+        if (snprintf(buffer, MAX_ELEMENT_NAME_LEN - 1, "%d", freq) < 0) {
+            return ERR_COMMON;
+        }
+        strncat(setFreqInfo, buffer, strlen(buffer));
+        strncat(setFreqInfo, s2, strlen(s2));
+        if (snprintf(buffer, MAX_ELEMENT_NAME_LEN - 1, "%d", target[i].policyId) < 0) {
+            return ERR_COMMON;
+        }
+        strncat(setFreqInfo, buffer, strlen(buffer));
+        strncat(setFreqInfo, s3, strlen(s3));
+        FILE *fp = popen(setFreqInfo, "r");
+        if (fp == NULL) {
+            return ERR_COMMON;
+        }
+        pclose(fp);
+    }
+    return SUCCESS;
+}
+
 void GetCpuinfo(PwrMsg *req)
 {
     if (!req) {
@@ -439,7 +499,6 @@ void GetCpuUsage(PwrMsg *req)
     }
     bzero(rstData, sizeof(sizeof(PWR_CPU_Usage) + sizeof(PWR_CPU_CoreUsage) * coreNum));
     int rspCode = CPUUsageRead(rstData, coreNum);
-    printf("rspcode is %d\n", rspCode);
     SendRspToClient(req, rspCode, (char *)rstData, sizeof(PWR_CPU_Usage) + sizeof(PWR_CPU_CoreUsage) * coreNum);
 }
 
@@ -501,6 +560,29 @@ void GetCpuFreq(PwrMsg *req)
     }
     int rspCode = FreqRead(rstData, policys, &poNum);
     SendRspToClient(req, rspCode, (char *)rstData, sizeof(PWR_CPU_CurFreq) * poNum);
+}
+
+void SetCpuFreq(PwrMsg *req)
+{
+    if (!req) {
+        return;
+    }
+    Logger(DEBUG, MD_NM_SVR_CPU, "Set Freq  Req. seqId:%u, sysId:%d", req->head.seqId, req->head.sysId);
+    int len = (req->head.dataLen) / sizeof(PWR_CPU_CurFreq);
+    char currentGov[MAX_ELEMENT_NAME_LEN];
+    PWR_CPU_CurFreq *target = (PWR_CPU_CurFreq *)req->data;
+    int rspCode = 0;
+    if (GovernorRead(currentGov) == 1) {
+        rspCode = ERR_COMMON;
+    } else if (CheckPolicys(target, len) == 1 || strcmp(currentGov, "userspace") != 0) {
+        rspCode = ERR_INVALIDE_PARAM;
+    }
+    if (rspCode != 0) {
+        SendRspToClient(req, rspCode, NULL, 0);
+    } else {
+        rspCode = FreqSet(target, len);
+        SendRspToClient(req, rspCode, NULL, 0);
+    }
 }
 
 // 总CPU核数

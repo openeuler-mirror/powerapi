@@ -22,6 +22,7 @@ void GetCpuinfo(PwrMsg *req);
 void GetCpuUsage(PwrMsg *req);
 void GetCpuPerfData(PwrMsg *req);
 void GetCpuFreq(PwrMsg *req);
+void SetCpuFreq(PwrMsg *req);
 int PerfDataRead(PWR_CPU_PerfData *perfData);
 int CPUUsageRead(PWR_CPU_Usage *rstData, int coreNum);
 void GetCpuFreqGovernor(PwrMsg *req);
