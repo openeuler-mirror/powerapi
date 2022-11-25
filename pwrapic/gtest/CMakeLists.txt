@@ -5,9 +5,11 @@ set ( CMAKE_INCLUDE_CURRENT_DIR ON)
 execute_process(COMMAND sh ${PROJECT_SOURCE_DIR}/get_gtest.sh)
 
 set(TEST_FILE
+    Common.cpp
     GtestLog.cpp
     GtestBase.cpp
-    RegisterOkTest.cpp
+    RegisterOkCommonTest.cpp
+    RegisterOkCpuTest.cpp
 )
 
 add_executable(gtest_test
