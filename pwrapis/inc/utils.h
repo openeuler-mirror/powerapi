@@ -18,6 +18,7 @@
 #include <dirent.h>
 #include <regex.h>
 #include <stdint.h>
+#include <sys/stat.h>
 #include "config.h"
 
 #define DIR_ENTRY 4
