@@ -84,7 +84,7 @@ PwrMsg *ClonePwrMsg(PwrMsg *msg)
     c->head = msg->head;
     c->data = NULL;
     if (msg->data) {
-        char *data = (char *)malloc(sizeof(msg->head.dataLen));
+        char *data = (char *)malloc(msg->head.dataLen);
         if (!data) {
             free(c);
             return NULL;
