@@ -21,7 +21,7 @@
 
 #define MAIN_LOOP_INTERVAL 5
 #define TEST_FREQ 2400
-#define TEST_CORE_NUM 96
+#define TEST_CORE_NUM 128
 #define AVG_LEN_PER_CORE 5
 #define TEST_CPU_DMA_LATENCY 2000
 #define TASK_INTERVAL 1000
@@ -177,7 +177,7 @@ static void TEST_PWR_CPU_GetPerfData(void)
 static void TEST_PWR_CPU_GetFreqAbility(void)
 {
     int ret = 0;
-    int len = sizeof(PWR_CPU_FreqAbility) + AVG_LEN_PER_CORE * TEST_CORE_NUM;
+    int len = sizeof(PWR_CPU_FreqAbility) + AVG_LEN_PER_CORE * TEST_CORE_NUM * sizeof(int);
     PWR_CPU_FreqAbility *freqAbi = (PWR_CPU_FreqAbility *)malloc(len);
     if (!freqAbi) {
         return;
@@ -299,7 +299,7 @@ int main(int argc, const char *args[])
     TEST_PWR_CPU_GetPerfData();
 
     // PWR_CPU_GetFreqAbility
-    // TEST_PWR_CPU_GetFreqAbility();
+    TEST_PWR_CPU_GetFreqAbility();
 
     // PWR_CPU_GetFreqGovernor PWR_CPU_SetFreqGovernor
     TEST_PWR_CPU_SetAndGetFreqGov();

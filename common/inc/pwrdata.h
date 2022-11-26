@@ -31,6 +31,7 @@
 #define CPU_IDLE_COLUMN 4
 #define DECIMAL 10
 #define CONVERSION 1000
+#define MAX_CPU_ID_WIDTH 5
 
 #define MAX_CPU_DMA_LATENCY 2000000000
 #define MAX_DISK_LIST_LEN 128
@@ -139,7 +140,7 @@ typedef enum PWR_CPU_FREQ_GOV {
 typedef struct PWR_CPU_FreqAbility {
     char curDriver[MAX_ELEMENT_NAME_LEN];
     int avGovNum;
-    int avGovList[MAX_GOV_NUM][MAX_ELEMENT_NAME_LEN];
+    char avGovList[MAX_GOV_NUM][MAX_ELEMENT_NAME_LEN];
     int freqDomainNum;
     int freqDomainStep;
     char freqDomain[0];

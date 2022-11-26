@@ -193,9 +193,13 @@ int CPUUsageRead(PWR_CPU_Usage *rstData, int coreNum)
     const char usage[] = "cat /proc/stat";
     unsigned long paras[2][CPU_USAGE_COLUMN];
     FILE *fp1 = popen(usage, "r");
+    if (fp1 == NULL) {
+        return ERR_COMMON;
+    }
     usleep(LATENCY);
     FILE *fp2 = popen(usage, "r");
-    if (fp1 == NULL || fp2 == NULL) {
+    if (fp2 == NULL) {
+        pclose(fp1);
         return ERR_COMMON;
     }
     char buf1[MAX_STRING_LEN] = {0};
@@ -204,9 +208,13 @@ int CPUUsageRead(PWR_CPU_Usage *rstData, int coreNum)
     rstData->coreNum = coreNum;
     while (i < coreNum + 1) {
         if (fgets(buf1, sizeof(buf1) - 1, fp1) == NULL) {
+            pclose(fp1);
+            pclose(fp2);
             return ERR_COMMON;
         }
         if (fgets(buf2, sizeof(buf2) - 1, fp2) == NULL) {
+            pclose(fp1);
+            pclose(fp2);
             return ERR_COMMON;
         }
         if (UsageToLong(buf1, paras[0], i) != UsageToLong(buf2, paras[1], i)) {
@@ -310,6 +318,30 @@ static int CheckPolicys(PWR_CPU_CurFreq *target, int len)
     return ERR_COMMON;
 }
 
+static int AllGovernorsRead(char (*govList)[MAX_ELEMENT_NAME_LEN], int *govNum)
+{
+    char buf[MAX_ELEMENT_NAME_LEN * MAX_GOV_NUM] = {0};
+    const char govInfo[] = "/sys/devices/system/cpu/cpufreq/policy0/scaling_available_governors";
+    int fd = open(govInfo, O_RDONLY);
+    if (fd == -1) {
+        return 1;
+    }
+    if (read(fd, buf, MAX_ELEMENT_NAME_LEN * MAX_GOV_NUM - 1) <= 0) {
+        close(fd);
+        return 1;
+    }
+    close(fd);
+    DeleteChar(buf, '\n');
+    char *temp = strtok(buf, " ");
+    *govNum = 0;
+    while (temp != NULL) {
+        DeleteChar(temp, ' ');
+        StrCopy(govList[(*govNum)++], temp, MAX_ELEMENT_NAME_LEN);
+        temp = strtok(NULL, " ");
+    }
+    return 0;
+}
+
 static int CheckAvailableGovernor(char *gov, char *policys)
 {
     char *checkGovInfo = malloc(strlen(gov) + MAX_NAME_LEN);
@@ -348,7 +380,7 @@ static int CheckAvailableGovernor(char *gov, char *policys)
     return 1;
 }
 
-int GovernorRead(char *rstData)
+int CurrentGovernorRead(char *rstData)
 {
     FILE *fp = NULL;
     char govInfo[] = "cat /sys/devices/system/cpu/cpufreq/policy0/scaling_governor";
@@ -472,6 +504,69 @@ static int FreqSet(PWR_CPU_CurFreq *target, int len)
     return SUCCESS;
 }
 
+static int FreqDriverRead(char *buf, int bufLen)
+{
+    const char driverInfo[] = "/sys/devices/system/cpu/cpufreq/policy0/scaling_driver";
+    int fd = open(driverInfo, O_RDONLY);
+    if (fd == -1) {
+        return 1;
+    }
+    if (read(fd, buf, bufLen - 1) <= 0) {
+        close(fd);
+        return 1;
+    }
+    close(fd);
+    DeleteChar(buf, '\n');
+    buf[strlen(buf) - 1] = '\0';
+    return 0;
+}
+
+static int FreqDomainRead(char *buf, char (*policys)[MAX_ELEMENT_NAME_LEN], int domainNum, int step)
+{
+    char domainInfo[MAX_NAME_LEN] = {0};
+    char domainbuf[MAX_CPU_LIST_LEN] = {0};
+    char temp[MAX_ELEMENT_NAME_LEN] = {0};
+    char s1[] = "/sys/devices/system/cpu/cpufreq/";
+    char s2[] = "/affected_cpus";
+    int i;
+    for (i = 0; i < domainNum; i++) {
+        StrCopy(domainInfo, s1, MAX_NAME_LEN);
+        strncat(domainInfo, policys[i], strlen(policys[i]));
+        strncat(domainInfo, s2, strlen(s2));
+        int fd = open(domainInfo, O_RDONLY);
+        if (fd == -1) {
+            close(fd);
+            return 1;
+        }
+        if (read(fd, domainbuf, MAX_CPU_LIST_LEN - 1) <= 0) {
+            close(fd);
+            return 1;
+        }
+        close(fd);
+        DeleteChar(domainbuf, '\n');
+        // convert policys to int
+        StrCopy(temp, policys[i], MAX_ELEMENT_NAME_LEN);
+        DeleteSubstr(temp, "policy");
+        buf[i * step] = atoi(temp);
+        StrCopy(buf + i * step + sizeof(int), domainbuf, step - sizeof(int));
+    }
+    return 0;
+}
+
+
+static int FreqAbilityRead(PWR_CPU_FreqAbility *rstData, char (*policys)[MAX_ELEMENT_NAME_LEN])
+{
+    if (FreqDriverRead(rstData->curDriver, MAX_ELEMENT_NAME_LEN) != SUCCESS) {
+        return ERR_COMMON;
+    }
+    if (AllGovernorsRead(rstData->avGovList, &(rstData->avGovNum)) != SUCCESS) {
+        return ERR_COMMON;
+    }
+    if (FreqDomainRead(rstData->freqDomain, policys, rstData->freqDomainNum, rstData->freqDomainStep) != SUCCESS) {
+        return ERR_COMMON;
+    }
+}
+
 void GetCpuinfo(PwrMsg *req)
 {
     if (!req) {
@@ -526,7 +621,7 @@ void GetCpuFreqGovernor(PwrMsg *req)
     if (!rstData) {
         return;
     }
-    int rspCode = GovernorRead(rstData);
+    int rspCode = CurrentGovernorRead(rstData);
     SendRspToClient(req, rspCode, (char *)rstData, sizeof(char) * MAX_ELEMENT_NAME_LEN);
 }
 
@@ -572,7 +667,7 @@ void SetCpuFreq(PwrMsg *req)
     char currentGov[MAX_ELEMENT_NAME_LEN];
     PWR_CPU_CurFreq *target = (PWR_CPU_CurFreq *)req->data;
     int rspCode = 0;
-    if (GovernorRead(currentGov) == 1) {
+    if (CurrentGovernorRead(currentGov) != SUCCESS) {
         rspCode = ERR_COMMON;
     } else if (CheckPolicys(target, len) == 1 || strcmp(currentGov, "userspace") != 0) {
         rspCode = ERR_INVALIDE_PARAM;
@@ -583,6 +678,33 @@ void SetCpuFreq(PwrMsg *req)
         rspCode = FreqSet(target, len);
         SendRspToClient(req, rspCode, NULL, 0);
     }
+}
+
+void GetCpuFreqAbility(PwrMsg *req)
+{
+    if (!req) {
+        return;
+    }
+    Logger(DEBUG, MD_NM_SVR_CPU, "Get GetCpuFreqAbility Req. seqId:%u, sysId:%d", req->head.seqId, req->head.sysId);
+    int coreNum = GetCpuCoreNumber();
+    char policys[MAX_CPU_LIST_LEN][MAX_ELEMENT_NAME_LEN];
+    bzero(policys, sizeof(policys));
+    int poNum;
+    if (GetPolicys(policys, &poNum) != SUCCESS) {
+        int rspCode = ERR_COMMON;
+        SendRspToClient(req, rspCode, NULL, 0);
+        return;
+    }
+    int step = (coreNum / poNum) * MAX_CPU_ID_WIDTH + sizeof(int);
+    PWR_CPU_FreqAbility *rstData = malloc(sizeof(PWR_CPU_FreqAbility) + step * poNum);
+    if (!rstData) {
+        return;
+    }
+    bzero(rstData, sizeof(PWR_CPU_FreqAbility) + step * poNum);
+    rstData->freqDomainNum = poNum;
+    rstData->freqDomainStep = step;
+    int rspCode = FreqAbilityRead(rstData, policys);
+    SendRspToClient(req, rspCode, (char *)rstData, sizeof(PWR_CPU_FreqAbility) + step * poNum);
 }
 
 // 总CPU核数
