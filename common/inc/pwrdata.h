@@ -146,6 +146,10 @@ typedef struct PWR_CPU_FreqAbility {
     char freqDomain[0];
 } PWR_CPU_FreqAbility;
 
+typedef struct PWR_CPU_FreqRange {
+    int minFreq;
+    int maxFreq;
+} PWR_CPU_FreqRange;
 
 typedef struct PWR_CPU_CurFreq {
     int policyId;

@@ -21,6 +21,8 @@ int GetCpuInfo(PWR_CPU_Info *cpuInfo);
 int GetCpuUsage(PWR_CPU_Usage *usage, uint32_t bufferSize);
 int GetCpuPerfData(PWR_CPU_PerfData *perfData);
 int GetCpuFreqAbility(PWR_CPU_FreqAbility *freqAbi, uint32_t bufferSize);
+int GetCpuFreqRange(PWR_CPU_FreqRange *freqRange);
+int SetCpuFreqRange(const PWR_CPU_FreqRange *freqRange);
 int GetCpuFreqGovernor(char gov[], uint32_t size);
 int SetCpuFreqGovernor(const char gov[], uint32_t size);
 int GetCpuCurFreq(PWR_CPU_CurFreq curFreq[], uint32_t *len, int spec);

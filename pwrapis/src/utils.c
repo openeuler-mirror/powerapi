@@ -30,6 +30,8 @@
 #include <fcntl.h>
 #include <ctype.h>
 #include <common.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 
 #define SUCCESS 0
 
@@ -906,4 +908,53 @@ int InIntRange(int *range, int len, int a)
         }
     }
     return 1;
+}
+
+int ReadFile(const char *strInfo, char *buf, int bufLen)
+{
+    int fd = open(strInfo, O_RDONLY);
+    if (fd == -1) {
+        return 1;
+    }
+    if (read(fd, buf, bufLen - 1) <= 0) {
+        close(fd);
+        return 1;
+    }
+    close(fd);
+    DeleteChar(buf, '\n');
+    buf[strlen(buf)] = '\0';
+    return 0;
+}
+
+int WriteFile(const char *strInfo, char *buf, int bufLen)
+{
+    FILE *fp = fopen(strInfo, "w+");
+    if (fp == NULL) {
+        return 1;
+    }
+    if (fprintf(fp, "%s", buf) < 0) {
+        fclose(fp);
+        return 1;
+    }
+    if (fflush(fp) != 0) {
+        fclose(fp);
+        return 1;
+    }
+    (void)fclose(fp);
+    return 0;
+}
+
+int WriteFileAndCheck(const char *strInfo, char *buf, int bufLen)
+{
+    if (WriteFile(strInfo, buf, bufLen) != 0) {
+        return 1;
+    }
+    char checkBuf[MAX_ELEMENT_NAME_LEN] = {0};
+    if (ReadFile(strInfo, checkBuf, MAX_ELEMENT_NAME_LEN) != 0) {
+        return 1;
+    }
+    if (strcmp(buf, checkBuf) != 0) {
+        return 1;
+    }
+    return 0;
 }

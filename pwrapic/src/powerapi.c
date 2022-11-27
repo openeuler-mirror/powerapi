@@ -197,6 +197,22 @@ int PWR_CPU_GetFreqAbility(PWR_CPU_FreqAbility *freqAbi, uint32_t bufferSize)
     return GetCpuFreqAbility(freqAbi, bufferSize);
 }
 
+int PWR_CPU_GetFreqRange(PWR_CPU_FreqRange *freqRange)
+{
+    CHECK_STATUS(STATUS_REGISTERTED);
+    CHECK_NULL_POINTER(freqRange);
+
+    return GetCpuFreqRange(freqRange);
+}
+
+int PWR_CPU_SetFreqRange(const PWR_CPU_FreqRange *freqRange)
+{
+    CHECK_STATUS(STATUS_AUTHED);
+    CHECK_NULL_POINTER(freqRange);
+
+    return SetCpuFreqRange(freqRange);
+}
+
 int PWR_CPU_GetFreqGovernor(char gov[], uint32_t size)
 {
     CHECK_STATUS(STATUS_REGISTERTED);
