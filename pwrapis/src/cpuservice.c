@@ -38,6 +38,21 @@ int GetCpuArrId(char *att)
     return i;
 }
 
+static void FreqSortByPolicy(PWR_CPU_CurFreq *rstData, int len)
+{
+    int i, j;
+    PWR_CPU_CurFreq temp;
+    for (i = 0; i < len; i++) {
+        for (j = 0; j < len - i - 1; j++) {
+            if (rstData[j].policyId > rstData[j + 1].policyId) {
+                temp = rstData[j + 1];
+                rstData[j + 1] = rstData[j];
+                rstData[j] = temp;
+            }
+        }
+    }
+}
+
 int CpuInfoCopy(char *att, char *value, PWR_CPU_Info *rstData)
 {
     int attId = GetCpuArrId(att);
@@ -439,7 +454,6 @@ int GovernorSet(char *gov, char (*policys)[MAX_ELEMENT_NAME_LEN], int *poNum)
 
 static int FreqRead(PWR_CPU_CurFreq *rstData, char (*policys)[MAX_ELEMENT_NAME_LEN], int *poNum)
 {
-    FILE *fp = NULL;
     int m = GetArch();
     char freqInfo[MAX_NAME_LEN] = {0};
     static const char s1[] = "cat /sys/devices/system/cpu/cpufreq/";
@@ -458,7 +472,7 @@ static int FreqRead(PWR_CPU_CurFreq *rstData, char (*policys)[MAX_ELEMENT_NAME_L
         StrCopy(freqInfo, s1, MAX_NAME_LEN);
         strncat(freqInfo, policys[i], strlen(policys[i]));
         strncat(freqInfo, s2, strlen(s2));
-        fp = popen(freqInfo, "r");
+        FILE *fp = popen(freqInfo, "r");
         if (fp == NULL) {
             return 1;
         }
@@ -469,13 +483,11 @@ static int FreqRead(PWR_CPU_CurFreq *rstData, char (*policys)[MAX_ELEMENT_NAME_L
         DeleteChar(buf, '\n');
         DeleteChar(buf, ' ');
         DeleteSubstr(policys[i], "policy");
+        pclose(fp);
         rstData[i].policyId = atoi(policys[i]);
         rstData[i].curFreq = (double)strtoul(buf, NULL, DECIMAL) / CONVERSION;
     }
-    pclose(fp);
-    if (i < (*poNum)) {
-        return ERR_COMMON;
-    }
+    FreqSortByPolicy(rstData, (*poNum));
     return SUCCESS;
 }
 
@@ -570,6 +582,76 @@ static int FreqAbilityRead(PWR_CPU_FreqAbility *rstData, char (*policys)[MAX_ELE
     if (FreqDomainRead(rstData->freqDomain, policys, rstData->freqDomainNum, rstData->freqDomainStep) != SUCCESS) {
         return ERR_COMMON;
     }
+}
+
+static int CheckFreqInRange(PWR_CPU_CurFreq *target, int len, PWR_CPU_FreqRange freqRange)
+{
+    for (int i = 0; i < len; i++) {
+        if (target[i].curFreq < freqRange.minFreq || target[i].curFreq > freqRange.maxFreq) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static int FreqRangeRead(PWR_CPU_FreqRange *rstData)
+{
+    char buf[MAX_ELEMENT_NAME_LEN] = {0};
+    const char minFreqInfo[] = "/sys/devices/system/cpu/cpufreq/policy0/scaling_min_freq";
+    const char maxFreqInfo[] = "/sys/devices/system/cpu/cpufreq/policy0/scaling_max_freq";
+    if (ReadFile(minFreqInfo, buf, MAX_ELEMENT_NAME_LEN) != 0) {
+        return 1;
+    }
+    rstData->minFreq = atoi(buf) / THOUSAND;
+    if (ReadFile(maxFreqInfo, buf, MAX_ELEMENT_NAME_LEN) != 0) {
+        return 1;
+    }
+    rstData->maxFreq = atoi(buf) / THOUSAND;
+    return 0;
+}
+
+static int FreqRangeSet(PWR_CPU_FreqRange *rstData)
+{
+    char policys[MAX_CPU_LIST_LEN][MAX_ELEMENT_NAME_LEN] = {0};
+    int poNum, i;
+    if (GetPolicys(policys, &poNum) != 0) {
+        return 1;
+    }
+    char buf[MAX_ELEMENT_NAME_LEN] = {0};
+
+    // set min freq
+    if (snprintf(buf, MAX_ELEMENT_NAME_LEN - 1, "%d", rstData->minFreq * THOUSAND) < 0) {
+        return 1;
+    }
+
+    char minFreqFile[MAX_NAME_LEN] = {0};
+    const char min1[] = "/sys/devices/system/cpu/cpufreq/";
+    const char min2[] = "/scaling_min_freq";
+    for (i = 0; i < poNum; i++) {
+        StrCopy(minFreqFile, min1, MAX_NAME_LEN);
+        strncat(minFreqFile, policys[i], strlen(policys[i]));
+        strncat(minFreqFile, min2, strlen(min2));
+        if (WriteFileAndCheck(minFreqFile, buf, strlen(buf)) != 0) {
+            return 1;
+        }
+    }
+
+    // set max freq
+    if (snprintf(buf, MAX_ELEMENT_NAME_LEN - 1, "%d", rstData->maxFreq * THOUSAND) < 0) {
+        return 1;
+    }
+    char maxFreqFile[MAX_NAME_LEN] = {0};
+    const char max1[] = "/sys/devices/system/cpu/cpufreq/";
+    const char max2[] = "/scaling_max_freq";
+    for (i = 0; i < poNum; i++) {
+        StrCopy(maxFreqFile, max1, MAX_NAME_LEN);
+        strncat(maxFreqFile, policys[i], strlen(policys[i]));
+        strncat(maxFreqFile, max2, strlen(max2));
+        if (WriteFileAndCheck(maxFreqFile, buf, strlen(buf)) != 0) {
+            return 1;
+        }
+    }
+    return 0;
 }
 
 void GetCpuinfo(PwrMsg *req)
@@ -672,11 +754,22 @@ void SetCpuFreq(PwrMsg *req)
     char currentGov[MAX_ELEMENT_NAME_LEN];
     PWR_CPU_CurFreq *target = (PWR_CPU_CurFreq *)req->data;
     int rspCode = 0;
+
+    // check whether current governor is userspace
     if (CurrentGovernorRead(currentGov) != SUCCESS) {
         rspCode = ERR_COMMON;
     } else if (CheckPolicys(target, len) == 1 || strcmp(currentGov, "userspace") != 0) {
-        rspCode = ERR_INVALIDE_PARAM;
+        rspCode = ERR_POLICY_INVALIDE;
     }
+
+    // check whether frequency is in range
+    PWR_CPU_FreqRange freqRange;
+    if (FreqRangeRead(&freqRange) != 0) {
+        rspCode = ERR_COMMON;
+    } else if (CheckFreqInRange(target, len, freqRange) != 0) {
+        rspCode = ERR_FREQ_NOT_IN_RANGE;
+    }
+
     if (rspCode != 0) {
         SendRspToClient(req, rspCode, NULL, 0);
     } else {
@@ -710,66 +803,6 @@ void GetCpuFreqAbility(PwrMsg *req)
     rstData->freqDomainStep = step;
     int rspCode = FreqAbilityRead(rstData, policys);
     SendRspToClient(req, rspCode, (char *)rstData, sizeof(PWR_CPU_FreqAbility) + step * poNum);
-}
-
-static int FreqRangeRead(PWR_CPU_FreqRange *rstData)
-{
-    char buf[MAX_ELEMENT_NAME_LEN] = {0};
-    const char minFreqInfo[] = "/sys/devices/system/cpu/cpufreq/policy0/scaling_min_freq";
-    const char maxFreqInfo[] = "/sys/devices/system/cpu/cpufreq/policy0/scaling_max_freq";
-    if (ReadFile(minFreqInfo, buf, MAX_ELEMENT_NAME_LEN) != 0) {
-        return 1;
-    }
-    rstData->minFreq = atoi(buf) / THOUSAND;
-    if (ReadFile(maxFreqInfo, buf, MAX_ELEMENT_NAME_LEN) != 0) {
-        return 1;
-    }
-    rstData->maxFreq = atoi(buf) / THOUSAND;
-    return 0;
-}
-
-static int FreqRangeSet(PWR_CPU_FreqRange *rstData)
-{
-    char policys[MAX_CPU_LIST_LEN][MAX_ELEMENT_NAME_LEN] = {0};
-    int poNum, i;
-    if (GetPolicys(policys, &poNum) != 0) {
-        return 1;
-    }
-    char buf[MAX_ELEMENT_NAME_LEN] = {0};
-
-    // set min freq
-    if (snprintf(buf, MAX_ELEMENT_NAME_LEN - 1, "%d", rstData->minFreq * THOUSAND) < 0) {
-        return 1;
-    }
-
-    char minFreqFile[MAX_NAME_LEN] = {0};
-    const char min1[] = "/sys/devices/system/cpu/cpufreq/";
-    const char min2[] = "/scaling_min_freq";
-    for (i = 0; i < poNum; i++) {
-        StrCopy(minFreqFile, min1, MAX_NAME_LEN);
-        strncat(minFreqFile, policys[i], strlen(policys[i]));
-        strncat(minFreqFile, min2, strlen(min2));
-        if (WriteFileAndCheck(minFreqFile, buf, strlen(buf)) != 0) {
-            return 1;
-        }
-    }
-
-    // set max freq
-    if (snprintf(buf, MAX_ELEMENT_NAME_LEN - 1, "%d", rstData->maxFreq * THOUSAND) < 0) {
-        return 1;
-    }
-    char maxFreqFile[MAX_NAME_LEN] = {0};
-    const char max1[] = "/sys/devices/system/cpu/cpufreq/";
-    const char max2[] = "/scaling_max_freq";
-    for (i = 0; i < poNum; i++) {
-        StrCopy(maxFreqFile, max1, MAX_NAME_LEN);
-        strncat(maxFreqFile, policys[i], strlen(policys[i]));
-        strncat(maxFreqFile, max2, strlen(max2));
-        if (WriteFileAndCheck(maxFreqFile, buf, strlen(buf)) != 0) {
-            return 1;
-        }
-    }
-    return 0;
 }
 
 void GetCpuFreqRange(PwrMsg *req)
