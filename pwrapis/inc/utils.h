@@ -234,5 +234,8 @@ int DeleteSubstr(char *str, char *substr);
 char *StrMatch(char *str, char *want);
 void StrCopy(char *dest, const char *src, int destSize);
 int InIntRange(int *range, int len, int a);
+int ReadFile(const char *strInfo, char *buf, int bufLen);
+int WriteFile(const char *strInfo, char *buf, int bufLen);
+int WriteFileAndCheck(const char *strInfo, char *buf, int bufLen);
 
 #endif

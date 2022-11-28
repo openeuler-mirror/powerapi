@@ -13,13 +13,14 @@
  * Description: provide cpu service
  * **************************************************************************** */
 
-#include "cpuservice.h"
+#include "fcntl.h"
 #include "string.h"
 #include "pwrerr.h"
 #include "server.h"
 #include "log.h"
 #include "unistd.h"
 #include "utils.h"
+#include "cpuservice.h"
 
 const char cpuAttributes[MAX_ARRRIBUTES][MAX_NAME_LEN] = {
     "Architecture", "Model name", "Byte Order", "NUMA node(s)", "NUMA node", "CPU(s)",
@@ -218,6 +219,8 @@ int CPUUsageRead(PWR_CPU_Usage *rstData, int coreNum)
             return ERR_COMMON;
         }
         if (UsageToLong(buf1, paras[0], i) != UsageToLong(buf2, paras[1], i)) {
+            pclose(fp1);
+            pclose(fp2);
             return ERR_COMMON;
         }
         CalculateUsage(rstData, paras, i);
@@ -252,6 +255,7 @@ int PerfDataRead(PWR_CPU_PerfData *perfData)
     unsigned long cycles = 0;
     while (fgets(buf, sizeof(buf) - 1, fp) != NULL) {
         if (buf == NULL) {
+            pclose(fp);
             return 1;
         }
         DeleteChar(buf, '\n');
@@ -459,6 +463,7 @@ static int FreqRead(PWR_CPU_CurFreq *rstData, char (*policys)[MAX_ELEMENT_NAME_L
             return 1;
         }
         if (fgets(buf, sizeof(buf) - 1, fp) == NULL) {
+            pclose(fp);
             return ERR_COMMON;
         }
         DeleteChar(buf, '\n');
@@ -705,6 +710,94 @@ void GetCpuFreqAbility(PwrMsg *req)
     rstData->freqDomainStep = step;
     int rspCode = FreqAbilityRead(rstData, policys);
     SendRspToClient(req, rspCode, (char *)rstData, sizeof(PWR_CPU_FreqAbility) + step * poNum);
+}
+
+static int FreqRangeRead(PWR_CPU_FreqRange *rstData)
+{
+    char buf[MAX_ELEMENT_NAME_LEN] = {0};
+    const char minFreqInfo[] = "/sys/devices/system/cpu/cpufreq/policy0/scaling_min_freq";
+    const char maxFreqInfo[] = "/sys/devices/system/cpu/cpufreq/policy0/scaling_max_freq";
+    if (ReadFile(minFreqInfo, buf, MAX_ELEMENT_NAME_LEN) != 0) {
+        return 1;
+    }
+    rstData->minFreq = atoi(buf) / THOUSAND;
+    if (ReadFile(maxFreqInfo, buf, MAX_ELEMENT_NAME_LEN) != 0) {
+        return 1;
+    }
+    rstData->maxFreq = atoi(buf) / THOUSAND;
+    return 0;
+}
+
+static int FreqRangeSet(PWR_CPU_FreqRange *rstData)
+{
+    char policys[MAX_CPU_LIST_LEN][MAX_ELEMENT_NAME_LEN] = {0};
+    int poNum, i;
+    if (GetPolicys(policys, &poNum) != 0) {
+        return 1;
+    }
+    char buf[MAX_ELEMENT_NAME_LEN] = {0};
+
+    // set min freq
+    if (snprintf(buf, MAX_ELEMENT_NAME_LEN - 1, "%d", rstData->minFreq * THOUSAND) < 0) {
+        return 1;
+    }
+
+    char minFreqFile[MAX_NAME_LEN] = {0};
+    const char min1[] = "/sys/devices/system/cpu/cpufreq/";
+    const char min2[] = "/scaling_min_freq";
+    for (i = 0; i < poNum; i++) {
+        StrCopy(minFreqFile, min1, MAX_NAME_LEN);
+        strncat(minFreqFile, policys[i], strlen(policys[i]));
+        strncat(minFreqFile, min2, strlen(min2));
+        if (WriteFileAndCheck(minFreqFile, buf, strlen(buf)) != 0) {
+            return 1;
+        }
+    }
+
+    // set max freq
+    if (snprintf(buf, MAX_ELEMENT_NAME_LEN - 1, "%d", rstData->maxFreq * THOUSAND) < 0) {
+        return 1;
+    }
+    char maxFreqFile[MAX_NAME_LEN] = {0};
+    const char max1[] = "/sys/devices/system/cpu/cpufreq/";
+    const char max2[] = "/scaling_max_freq";
+    for (i = 0; i < poNum; i++) {
+        StrCopy(maxFreqFile, max1, MAX_NAME_LEN);
+        strncat(maxFreqFile, policys[i], strlen(policys[i]));
+        strncat(maxFreqFile, max2, strlen(max2));
+        if (WriteFileAndCheck(maxFreqFile, buf, strlen(buf)) != 0) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+void GetCpuFreqRange(PwrMsg *req)
+{
+    if (!req) {
+        return;
+    }
+    Logger(DEBUG, MD_NM_SVR_CPU, "Get GetCpuFreqRange Req. seqId:%u, sysId:%d", req->head.seqId, req->head.sysId);
+
+    PWR_CPU_FreqRange *rstData = malloc(sizeof(PWR_CPU_FreqRange));
+    if (!rstData) {
+        return;
+    }
+    int rspCode = FreqRangeRead(rstData);
+    SendRspToClient(req, rspCode, (char *)rstData, sizeof(PWR_CPU_FreqRange));
+}
+
+void SetCpuFreqRange(PwrMsg *req)
+{
+    if (!req) {
+        return;
+    }
+    Logger(DEBUG, MD_NM_SVR_CPU, "Get SetCpuFreqRange Req. seqId:%u, sysId:%d", req->head.seqId, req->head.sysId);
+
+    PWR_CPU_FreqRange *rstData = (PWR_CPU_FreqRange *)req->data;
+
+    int rspCode = FreqRangeSet(rstData);
+    SendRspToClient(req, rspCode, (char *)rstData, sizeof(PWR_CPU_FreqRange));
 }
 
 // 总CPU核数

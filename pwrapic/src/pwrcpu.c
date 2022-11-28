@@ -105,6 +105,44 @@ int GetCpuFreqAbility(PWR_CPU_FreqAbility *freqAbi, uint32_t bufferSize)
     return ret;
 }
 
+int GetCpuFreqRange(PWR_CPU_FreqRange *freqRange)
+{
+    ReqInputParam input;
+    input.optType = CPU_GET_FREQ_RANGE;
+    input.dataLen = 0;
+    input.data = NULL;
+    RspOutputParam output;
+    uint32_t size = sizeof(PWR_CPU_FreqRange);
+    output.rspBuffSize = &size;
+    output.rspData = (void *)freqRange;
+    int ret = SendReqAndWaitForRsp(input, output);
+    if (ret != SUCCESS) {
+        PwrLog(ERROR, "GetCpuFreqRange failed. ret:%d", ret);
+    } else {
+        PwrLog(DEBUG, "GetCpuFreqRange Succeed.");
+    }
+    return ret;
+}
+
+int SetCpuFreqRange(const PWR_CPU_FreqRange *freqRange)
+{
+    ReqInputParam input;
+    input.optType = CPU_SET_FREQ_RANGE;
+    input.dataLen = sizeof(PWR_CPU_FreqRange);
+    input.data = (char *)freqRange;
+    RspOutputParam output;
+    output.rspBuffSize = NULL;
+    output.rspData = NULL;
+
+    int ret = SendReqAndWaitForRsp(input, output);
+    if (ret != SUCCESS) {
+        PwrLog(ERROR, "SetCpuFreqRange failed. ret:%d", ret);
+    } else {
+        PwrLog(DEBUG, "SetCpuFreqRange Succeed.");
+    }
+    return ret;
+}
+
 int GetCpuFreqGovernor(char gov[], uint32_t size)
 {
     ReqInputParam input;

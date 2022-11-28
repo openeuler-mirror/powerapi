@@ -28,5 +28,7 @@ int CPUUsageRead(PWR_CPU_Usage *rstData, int coreNum);
 void GetCpuFreqGovernor(PwrMsg *req);
 void SetCpuFreqGovernor(PwrMsg *req);
 void GetCpuFreqAbility(PwrMsg *req);
+void GetCpuFreqRange(PwrMsg *req);
+void SetCpuFreqRange(PwrMsg *req);
 int GetCpuCoreNumber(void);
 #endif

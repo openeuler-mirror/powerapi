@@ -378,6 +378,11 @@ static void ProcessReqMsg(PwrMsg *req)
         case CPU_GET_FREQ_ABILITY:
             GetCpuFreqAbility(req);
             break;
+        case CPU_GET_FREQ_RANGE:
+            GetCpuFreqRange(req);
+            break;
+        case CPU_SET_FREQ_RANGE:
+            SetCpuFreqRange(req);
         default:
             break;
     }

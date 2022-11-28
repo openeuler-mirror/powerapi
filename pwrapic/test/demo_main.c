@@ -26,6 +26,9 @@
 #define TEST_CPU_DMA_LATENCY 2000
 #define TASK_INTERVAL 1000
 #define TASK_RUN_TIME 10
+#define TEST_FREQ_RANGE_MIN 1100
+#define TEST_FREQ_RANGE_MAX 2500
+
 static int g_run = 1;
 
 enum {
@@ -198,6 +201,26 @@ static void TEST_PWR_CPU_GetFreqAbility(void)
     free(freqAbi);
 }
 
+static void TEST_PWR_CPU_GetAndSetFreqRange(void)
+{
+    int ret = 0;
+    int len = sizeof(PWR_CPU_FreqRange);
+    PWR_CPU_FreqRange *freqRange = (PWR_CPU_FreqRange *)malloc(len);
+    if (!freqRange) {
+        return;
+    }
+    bzero(freqRange, len);
+    ret = PWR_CPU_GetFreqRange(freqRange);
+    printf("PWR_CPU_GetFreqRange ret: %d, MinFreq:%d, MaxFreq: %d\n", ret, freqRange->minFreq, freqRange->maxFreq);
+    freqRange->minFreq = TEST_FREQ_RANGE_MIN;
+    freqRange->maxFreq = TEST_FREQ_RANGE_MAX;
+    ret = PWR_CPU_SetFreqRange(freqRange);
+    printf("PWR_CPU_SetFreqRange ret: %d\n", ret);
+    ret = PWR_CPU_GetFreqRange(freqRange);
+    printf("PWR_CPU_GetFreqRange ret: %d, MinFreq:%d, MaxFreq: %d\n", ret, freqRange->minFreq, freqRange->maxFreq);
+    free(freqRange);
+}
+
 static void TEST_PWR_CPU_SetAndGetFreqGov(void)
 {
     int ret = 0;
@@ -302,12 +325,14 @@ int main(int argc, const char *args[])
     TEST_PWR_CPU_GetFreqAbility();
 
     // PWR_CPU_GetFreqGovernor PWR_CPU_SetFreqGovernor
-    TEST_PWR_CPU_SetAndGetFreqGov();
+    // TEST_PWR_CPU_SetAndGetFreqGov();
 
     TEST_SYS_GetRtPowerInfo();
     // TEST_SYS_SetPowerState();
     // PWR_CPU_GetCurFreq PWR_CPU_SetCurFreq
     TEST_PWR_CPU_SetAndGetCurFreq();
+
+    TEST_PWR_CPU_GetAndSetFreqRange();
 
     // PWR_CPU_DmaSetLatency PWR_CPU_DmaGetLatency
     // TEST_PWR_CPU_DmaSetAndGetLatency();
