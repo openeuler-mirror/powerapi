@@ -26,7 +26,7 @@
 #define TEST_CPU_DMA_LATENCY 2000
 #define TASK_INTERVAL 1000
 #define TASK_RUN_TIME 10
-#define TEST_FREQ_RANGE_MIN 1100
+#define TEST_FREQ_RANGE_MIN 1200
 #define TEST_FREQ_RANGE_MAX 2500
 
 static int g_run = 1;
