@@ -314,6 +314,31 @@ int GetPolicys(char (*policys)[MAX_ELEMENT_NAME_LEN], int *poNum)
     return 0;
 }
 
+static void MergeDuplicatePolicys(PWR_CPU_CurFreq *target, int *len)
+{
+    int length = *len;
+    int cpuNum = sysconf(_SC_NPROCESSORS_CONF);
+    int *validId = (int *)malloc(cpuNum * sizeof(int));
+    if (validId == NULL) {
+        return;
+    }
+    memset(validId, 0, sizeof(int) * cpuNum);
+    for (int i = 0; i < length; i++) {
+        if (target[i].policyId < cpuNum) {
+            validId[target[i].policyId] = 1;
+        }
+    }
+    int count = 0;
+    for (int i = 0; i < cpuNum; i++) {
+        if (validId[i] == 1) {
+            target[count].policyId = i;
+            count++;
+        }
+    }
+    *len = count;
+    free(validId);
+}
+
 static int CheckPolicys(PWR_CPU_CurFreq *target, int len)
 {
     char policys[MAX_CPU_LIST_LEN][MAX_ELEMENT_NAME_LEN];
@@ -334,7 +359,20 @@ static int CheckPolicys(PWR_CPU_CurFreq *target, int len)
         }
         return 0;
     }
-    return ERR_COMMON;
+    return 1;
+}
+
+static int InputTargetPolicys(PWR_CPU_CurFreq *target, char (*policys)[MAX_ELEMENT_NAME_LEN], int poNum)
+{
+    char buffer[MAX_ELEMENT_NAME_LEN] = {0};
+    for (int i = 0; i < poNum; i++) {
+        StrCopy(policys[i], "policy", MAX_ELEMENT_NAME_LEN);
+        if (snprintf(buffer, MAX_ELEMENT_NAME_LEN - 1, "%d", target->policyId) < 0) {
+            return 1;
+        }
+        strncat(policys[i], buffer, strlen(buffer));
+    }
+    return 0;
 }
 
 static int AllGovernorsRead(char (*govList)[MAX_ELEMENT_NAME_LEN], int *govNum)
@@ -534,7 +572,7 @@ static int FreqDriverRead(char *buf, int bufLen)
     }
     close(fd);
     DeleteChar(buf, '\n');
-    buf[strlen(buf) - 1] = '\0';
+    buf[strlen(buf)] = '\0';
     return 0;
 }
 
@@ -631,7 +669,7 @@ static int FreqRangeSet(PWR_CPU_FreqRange *rstData)
         StrCopy(minFreqFile, min1, MAX_NAME_LEN);
         strncat(minFreqFile, policys[i], strlen(policys[i]));
         strncat(minFreqFile, min2, strlen(min2));
-        if (WriteFileAndCheck(minFreqFile, buf, strlen(buf)) != 0) {
+        if (WriteFile(minFreqFile, buf, strlen(buf)) != 0) {
             return 1;
         }
     }
@@ -647,7 +685,7 @@ static int FreqRangeSet(PWR_CPU_FreqRange *rstData)
         StrCopy(maxFreqFile, max1, MAX_NAME_LEN);
         strncat(maxFreqFile, policys[i], strlen(policys[i]));
         strncat(maxFreqFile, max2, strlen(max2));
-        if (WriteFileAndCheck(maxFreqFile, buf, strlen(buf)) != 0) {
+        if (WriteFile(maxFreqFile, buf, strlen(buf)) != 0) {
             return 1;
         }
     }
@@ -735,12 +773,32 @@ void GetCpuFreq(PwrMsg *req)
     char policys[MAX_CPU_LIST_LEN][MAX_ELEMENT_NAME_LEN];
     bzero(policys, sizeof(policys));
     int poNum;
-    GetPolicys(policys, &poNum);
+    int rspCode = 0;
+    if (req->head.dataLen > 0 && req->data != NULL) {
+        // spec = 1
+        PWR_CPU_CurFreq *target = (PWR_CPU_CurFreq *)req->data;
+        poNum = req->head.dataLen / sizeof(PWR_CPU_CurFreq);
+        MergeDuplicatePolicys(target, &poNum);
+        if (CheckPolicys(target, poNum) != 0) {
+            rspCode = ERR_POLICY_INVALIDE;
+        } else if (InputTargetPolicys(target, policys, poNum) != 0) {
+            rspCode = ERR_COMMON;
+        }
+    } else if (req->head.dataLen > 0) {
+        rspCode = ERR_INVALIDE_PARAM;
+    } else if (GetPolicys(policys, &poNum) != 0) {
+        // spec = 0
+        rspCode = ERR_COMMON;
+    }
+    if (rspCode != 0) {
+        SendRspToClient(req, rspCode, NULL, 0);
+        return;
+    }
     PWR_CPU_CurFreq *rstData = malloc(sizeof(PWR_CPU_CurFreq) * poNum);
     if (!rstData) {
         return;
     }
-    int rspCode = FreqRead(rstData, policys, &poNum);
+    rspCode = FreqRead(rstData, policys, &poNum);
     SendRspToClient(req, rspCode, (char *)rstData, sizeof(PWR_CPU_CurFreq) * poNum);
 }
 
@@ -758,8 +816,10 @@ void SetCpuFreq(PwrMsg *req)
     // check whether current governor is userspace
     if (CurrentGovernorRead(currentGov) != SUCCESS) {
         rspCode = ERR_COMMON;
-    } else if (CheckPolicys(target, len) == 1 || strcmp(currentGov, "userspace") != 0) {
+    } else if (CheckPolicys(target, len) == 1) {
         rspCode = ERR_POLICY_INVALIDE;
+    } else if (strcmp(currentGov, "userspace") != 0) {
+        rspCode = ERR_GOVERNOR_INVALIDE;
     }
 
     // check whether frequency is in range
@@ -830,7 +890,7 @@ void SetCpuFreqRange(PwrMsg *req)
     PWR_CPU_FreqRange *rstData = (PWR_CPU_FreqRange *)req->data;
 
     int rspCode = FreqRangeSet(rstData);
-    SendRspToClient(req, rspCode, (char *)rstData, sizeof(PWR_CPU_FreqRange));
+    SendRspToClient(req, rspCode, NULL, 0);
 }
 
 // 总CPU核数
