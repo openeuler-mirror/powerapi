@@ -189,6 +189,10 @@ int SetCpuFreqGovernor(const char gov[], uint32_t size)
 
 int GetCpuCurFreq(PWR_CPU_CurFreq curFreq[], uint32_t *len, int spec)
 {
+    if ((*len) > MAX_INPUT_NUM) {
+        PwrLog(ERROR, "GetCpuCurFreq failed. ret:%d", ERR_INPUT_OVERSIZE);
+        return ERR_INPUT_OVERSIZE;
+    }
     uint32_t size = sizeof(PWR_CPU_CurFreq) * (*len);
     ReqInputParam input;
     input.optType = CPU_GET_CUR_FREQ;
@@ -205,9 +209,9 @@ int GetCpuCurFreq(PWR_CPU_CurFreq curFreq[], uint32_t *len, int spec)
     output.rspData = (void *)curFreq;
 
     int ret = SendReqAndWaitForRsp(input, output);
+    *len = size / sizeof(PWR_CPU_CurFreq);
     if (ret != SUCCESS) {
         PwrLog(ERROR, "GetCpuCurFreq failed. ret:%d", ret);
-        *len = size / sizeof(PWR_CPU_CurFreq);
     } else {
         PwrLog(DEBUG, "GetCpuCurFreq Succeed.");
     }
