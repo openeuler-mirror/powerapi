@@ -25,7 +25,6 @@ target_include_directories(gtest_test PRIVATE
 
 target_link_directories(gtest_test PRIVATE
     ${PROJECT_SOURCE_DIR}/../../build/pwrapic/src
-    ${PROJECT_SOURCE_DIR}/lib
 )
 
 target_link_libraries(gtest_test PRIVATE
