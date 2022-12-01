@@ -12,6 +12,7 @@
  * Create: 2022-11-04
  * Description: PowerAPI testcase. All the cases in This file are based on testsuit RegisterOkCpuTest
  * **************************************************************************** */
+#include <map>
 #include <gtest/gtest.h>
 #include "GtestLog.h"
 #include "powerapi.h"
@@ -42,6 +43,14 @@ class RegisterOkCpuTest : public ::testing::Test {
             EXPECT_EQ(0, StopService());
         }
 };
+
+/*
+ * 功能描述: PWR_SYS_SetPowerState函数入参为3, 函数调用失败
+ */
+TEST_F(RegisterOkCpuTest, PWR_SYS_SetPowerState_Test_001)
+{
+    EXPECT_NE(SUCCESS, PWR_SYS_SetPowerState(3));
+}
 
 TEST_F(RegisterOkCpuTest, PWR_SYS_GetRtPowerInfo_Test_001)
 {
@@ -92,22 +101,36 @@ TEST_F(RegisterOkCpuTest, PWR_CPU_GetInfo_Test_002)
     EXPECT_NE(SUCCESS, PWR_CPU_GetInfo(NULL));
 }
 
-// 遗留问题, 需要写一段代码来添加负载, 然后检测CPU利用率
+/*
+ * 功能描述: 滴哦用PWR_CPU_GetUsage获取CPU利用率, 校验
+ * coreNum等于系统中的CPU数目, avgUsage不小于0且不大于1
+ * coreNo不存在重复, 每个core的usage不小于0且不大于1
+ */
 TEST_F(RegisterOkCpuTest, PWR_CPU_GetUsage_Test_001)
 {
-    int buffSize = sizeof(PWR_CPU_Usage) + TEST_CORE_NUM * sizeof(PWR_CPU_CoreUsage);
+    int cpuNum = sysconf(_SC_NPROCESSORS_CONF);
+    int buffSize = sizeof(PWR_CPU_Usage) + cpuNum * sizeof(PWR_CPU_CoreUsage);
     PWR_CPU_Usage *usage = (PWR_CPU_Usage *)malloc(buffSize);
     EXPECT_FALSE(usage == NULL);
     EXPECT_EQ(SUCCESS, PWR_CPU_GetUsage(usage, buffSize));
     printf("PWR_CPU_GetUsage, CPU avgUsage:%f, coreNum: %d \n", usage->avgUsage, usage->coreNum);
-    EXPECT_EQ(sysconf(_SC_NPROCESSORS_CONF), usage->coreNum);
+    EXPECT_EQ(cpuNum, usage->coreNum);
     EXPECT_TRUE(!(usage->avgUsage < 0) && !(usage->avgUsage > 1));
+
+    std::map<int, int> coreCountMap;
     for (int i = 0; i < usage->coreNum; i++) {
+        if (coreCountMap.count(usage->coreUsage[i].coreNo) == 0) {
+            coreCountMap[usage->coreUsage[i].coreNo] = 1;
+        } else {
+            printf("coreNo duplicate, i = %d\n", i);
+            EXPECT_EQ(0, coreCountMap.count(usage->coreUsage[i].coreNo));
+        }
         if (i > 0) {
             EXPECT_NE(usage->coreUsage[i].coreNo, usage->coreUsage[i - 1].coreNo);
         }
         EXPECT_TRUE(!(usage->coreUsage[i].usage < 0) && !(usage->coreUsage[i].usage > 1));
     }
+
     free(usage);
 }
 
@@ -134,7 +157,7 @@ TEST_F(RegisterOkCpuTest, PWR_CPU_GetFreqAbility_Test_001)
 {
     int coreNum = sysconf(_SC_NPROCESSORS_CONF);
     // 5: 用字符串表示CPU编号, 每个CPU最多占用5个字节, policyId占用4个字节
-    int len = sizeof(PWR_CPU_FreqAbility) + (4 * 5) * coreNum;
+    int len = sizeof(PWR_CPU_FreqAbility) + (sizeof(int) * 5) * coreNum;
     PWR_CPU_FreqAbility *freqAbi = (PWR_CPU_FreqAbility *)malloc(len);
     EXPECT_TRUE(freqAbi != NULL);
     memset(freqAbi, 0, len);
@@ -148,7 +171,8 @@ TEST_F(RegisterOkCpuTest, PWR_CPU_GetFreqAbility_Test_001)
     }
     EXPECT_TRUE((freqAbi->freqDomainNum <= coreNum) && (freqAbi->freqDomainNum > 0));
     printf("frequency domain num is: %d\n", freqAbi->freqDomainNum);
-    EXPECT_LT(5, freqAbi->freqDomainStep);
+    // 8: freqDomainStep至少为9
+    EXPECT_LT(8, freqAbi->freqDomainStep);
     printf("frequency domain step is: %d\n", freqAbi->freqDomainStep);
 
     for (int i = 0; i < freqAbi->freqDomainNum; i++) {
@@ -208,28 +232,42 @@ TEST_F(RegisterOkCpuTest, PWR_CPU_SetFreqRange_Test_001)
     EXPECT_EQ(SUCCESS, PWR_CPU_GetFreqGovernor(gov, MAX_ELEMENT_NAME_LEN));
     EXPECT_STREQ(governor, gov);
 
-    PWR_CPU_Info cpuInfo;
-    PWR_CPU_FreqRange freqRange;
-    EXPECT_EQ(SUCCESS, PWR_CPU_GetInfo(&cpuInfo));
-    freqRange.maxFreq = (cpuInfo.maxFreq < 2000) ? cpuInfo.maxFreq : 2000;
-    freqRange.minFreq = (cpuInfo.minFreq > 1000) ? cpuInfo.minFreq : 1000;
-    EXPECT_EQ(SUCCESS,  PWR_CPU_SetFreqRange(&freqRange));
-    PWR_CPU_FreqRange actualFreqRange;
-    EXPECT_EQ(SUCCESS, PWR_CPU_GetFreqRange(&actualFreqRange));
-    EXPECT_EQ(actualFreqRange.maxFreq, freqRange.maxFreq);
-    EXPECT_EQ(actualFreqRange.minFreq, freqRange.minFreq);
+    int coreNum = sysconf(_SC_NPROCESSORS_CONF);
+    // 5: 用字符串表示CPU编号, 每个CPU最多占用5个字节, policyId占用4个字节
+    int len = sizeof(PWR_CPU_FreqAbility) + (sizeof(int) * 5) * coreNum;
+    PWR_CPU_FreqAbility *freqAbi = (PWR_CPU_FreqAbility *)malloc(len);
+    EXPECT_TRUE(freqAbi != NULL);
+    memset(freqAbi, 0, len);
+    EXPECT_EQ(SUCCESS, PWR_CPU_GetFreqAbility(freqAbi, len));
 
-    // 将最大频率恢复为硬件支持的最大频率
-    freqRange.maxFreq = (int)cpuInfo.maxFreq;
-    EXPECT_EQ(SUCCESS, PWR_CPU_SetFreqRange(&freqRange));
-    EXPECT_EQ(SUCCESS, PWR_CPU_GetFreqRange(&actualFreqRange));
-    EXPECT_EQ(actualFreqRange.maxFreq, freqRange.maxFreq);
+    // 仅对cpufreq driver为cppc_cpufreq的环境做PWR_CPU_SetFreqRange接口的检测
+    if (std::string(freqAbi->curDriver) == std::string("cppc_cpufreq")) {
+        printf("cpufreq driver is %s\n", freqAbi->curDriver);
+        PWR_CPU_Info cpuInfo;
+        PWR_CPU_FreqRange freqRange;
+        EXPECT_EQ(SUCCESS, PWR_CPU_GetInfo(&cpuInfo));
+        freqRange.maxFreq = (cpuInfo.maxFreq < 2000) ? cpuInfo.maxFreq : 2000;
+        freqRange.minFreq = (cpuInfo.minFreq > 1000) ? cpuInfo.minFreq : 1000;
+        EXPECT_EQ(SUCCESS,  PWR_CPU_SetFreqRange(&freqRange));
+        PWR_CPU_FreqRange actualFreqRange;
+        EXPECT_EQ(SUCCESS, PWR_CPU_GetFreqRange(&actualFreqRange));
+        EXPECT_EQ(actualFreqRange.maxFreq, freqRange.maxFreq);
+        EXPECT_EQ(actualFreqRange.minFreq, freqRange.minFreq);
+
+        // 将最大频率恢复为硬件支持的最大频率
+        freqRange.maxFreq = (int)cpuInfo.maxFreq;
+        EXPECT_EQ(SUCCESS, PWR_CPU_SetFreqRange(&freqRange));
+        EXPECT_EQ(SUCCESS, PWR_CPU_GetFreqRange(&actualFreqRange));
+        EXPECT_EQ(actualFreqRange.maxFreq, freqRange.maxFreq);
+    }
 
     // 将governor恢复为performance
     char govPerformance[] = "performance";
     EXPECT_EQ(SUCCESS, PWR_CPU_SetFreqGovernor(govPerformance));
     EXPECT_EQ(SUCCESS, PWR_CPU_GetFreqGovernor(gov, MAX_ELEMENT_NAME_LEN));
     EXPECT_STREQ(govPerformance, gov);
+
+    free(freqAbi);
 }
 
 TEST_F(RegisterOkCpuTest, PWR_CPU_SetFreqRange_Test_002)
@@ -314,8 +352,12 @@ TEST_F(RegisterOkCpuTest, PWR_CPU_GetFreq_Test_002)
     memset(freqAbi, 0, len);
     EXPECT_EQ(SUCCESS, PWR_CPU_GetFreqAbility(freqAbi, len));
 
-    unsigned int policyNum = (unsigned int)freqAbi->freqDomainNum + 1;
+    // 3: 申请3倍的内存用于验证spec为1的场景
+    unsigned int policyNum = (unsigned int)(freqAbi->freqDomainNum * 3);
     PWR_CPU_CurFreq *curFreq = (PWR_CPU_CurFreq *)calloc(policyNum, sizeof(PWR_CPU_CurFreq));
+    for (unsigned int i = 0; i < policyNum; i++) {
+        curFreq[i].policyId = (int)freqAbi->freqDomain[(i % freqAbi->freqDomainNum) * freqAbi->freqDomainStep];
+    }
     EXPECT_EQ(SUCCESS, PWR_CPU_GetFreq(curFreq, &policyNum, 1));
     EXPECT_EQ(policyNum, freqAbi->freqDomainNum);
     for (unsigned int i = 0; i < policyNum; i++) {
@@ -328,9 +370,40 @@ TEST_F(RegisterOkCpuTest, PWR_CPU_GetFreq_Test_002)
 }
 
 /*
- * 功能描述: PWR_CPU_GetFreq函数入参为NULL, 应该返回错误
+ * 功能描述: 正常调用PWR_CPU_GetFreq函数, 应该返回正常, 且频率大于10MHz
+ * 第三个参数设置为1, 设置有效的policyId数目为总policy数目减1
  */
 TEST_F(RegisterOkCpuTest, PWR_CPU_GetFreq_Test_003)
+{
+    int coreNum = sysconf(_SC_NPROCESSORS_CONF);
+    // 5: 用字符串表示CPU编号, 每个CPU最多占用5个字节, policyId占用4个字节
+    int len = sizeof(PWR_CPU_FreqAbility) + (sizeof(int) * 5) * coreNum;
+    PWR_CPU_FreqAbility *freqAbi = (PWR_CPU_FreqAbility *)malloc(len);
+    EXPECT_TRUE(freqAbi != NULL);
+    memset(freqAbi, 0, len);
+    EXPECT_EQ(SUCCESS, PWR_CPU_GetFreqAbility(freqAbi, len));
+
+    // 3: 申请3倍的内存用于验证spec为1的场景
+    unsigned int policyNum = (unsigned int)(freqAbi->freqDomainNum * 3);
+    PWR_CPU_CurFreq *curFreq = (PWR_CPU_CurFreq *)calloc(policyNum, sizeof(PWR_CPU_CurFreq));
+    for (unsigned int i = 0; i < policyNum; i++) {
+        curFreq[i].policyId = (int)freqAbi->freqDomain[(i % (freqAbi->freqDomainNum - 1)) * freqAbi->freqDomainStep];
+    }
+    EXPECT_EQ(SUCCESS, PWR_CPU_GetFreq(curFreq, &policyNum, 1));
+    EXPECT_EQ(policyNum, freqAbi->freqDomainNum - 1);
+    for (unsigned int i = 0; i < policyNum; i++) {
+        // 10: 获取到的频率至少要大于10MHz
+        EXPECT_LT(10, (unsigned int)curFreq[i].curFreq);
+        printf("policyId:%d, freq:%lf\n", curFreq[i].policyId, curFreq[i].curFreq);
+    }
+    free(freqAbi);
+    free(curFreq);
+}
+
+/*
+ * 功能描述: PWR_CPU_GetFreq函数入参为NULL, 应该返回错误
+ */
+TEST_F(RegisterOkCpuTest, PWR_CPU_GetFreq_Test_004)
 {
     EXPECT_NE(SUCCESS, PWR_CPU_GetFreq(NULL, 0, 0));
 }
@@ -364,8 +437,9 @@ TEST_F(RegisterOkCpuTest, PWR_CPU_SetFreq_Test_001)
         curFreq[i].policyId = (int)freqAbi->freqDomain[i * freqAbi->freqDomainStep];
         curFreq[i].curFreq = 2000.0;
     }
-    EXPECT_EQ(SUCCESS, PWR_CPU_SetFreq(curFreq, policyNum));
+
     if (std::string(freqAbi->curDriver) == std::string("cppc_cpufreq")) {
+        EXPECT_EQ(SUCCESS, PWR_CPU_SetFreq(curFreq, policyNum));
         printf("check frequency, if cpufreq driver is cppc_cpufreq\n");
         EXPECT_EQ(SUCCESS, PWR_CPU_GetFreq(curFreq, &policyNum, 0));
         for (unsigned int i = 0; i < policyNum; i++) {
