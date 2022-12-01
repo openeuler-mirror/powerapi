@@ -171,7 +171,7 @@
 #define CPU_FIVE_MIN_LOAD_FIELD_NUM 2
 #define CPU_FIFTEEN_MIN_LOAD_FIELD_NUM 3
 
-// Memery data location define
+// Memery data define
 #define FIRST_MATCH_LINE 1
 #define MEMINFO_DATA_FIELD_NUM 2
 #define NUMA_MEM_DATA_FIELD_NUM 4

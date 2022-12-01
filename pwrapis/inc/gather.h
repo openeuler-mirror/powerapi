@@ -105,7 +105,7 @@ int InitCollector(const struct CollCfg cfg);
  */
 int UpdColCfg(const struct CollCfg cfg);
 /**
- * UpdPeriod - Update data collection cycle and make it effective
+ * UpdPeriod - Update collection cycle and make it effective
  *
  * @pTpNm: Pointer to the name of the collection type
  * @dNm: Pointer to the name of the collected data
@@ -115,7 +115,7 @@ int UpdColCfg(const struct CollCfg cfg);
  */
 int UpdPeriod(const char* pTpNm, const char* dNm, uint16_t period);
 /**
- * DtCollReg - Data collection registration
+ * DtCollReg - Collection registration
  *
  * Note: return 0 if success; - 1 if failed
  */
