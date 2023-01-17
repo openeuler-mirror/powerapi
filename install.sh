@@ -2,4 +2,4 @@
 
 cd build
 sudo make install 
-sudo systemctl start pwrapis.service
+sudo systemctl enable pwrapis.service --now
