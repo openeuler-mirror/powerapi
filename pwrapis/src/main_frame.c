@@ -70,10 +70,15 @@ static void SetupSignal(void)
 int main(int argc, const char *args[])
 {
     int ret;
-    /* if (argc < ARGS_NUM) {
+    if (argc < ARGS_NUM) {
         PrintUsage(args);
-        return -1;
-    } */ // todo 增加启动参数，比如指定配置文件路径
+    } else {
+        ret = UpdateConfigPath(args[1]);
+        if (ret != SUCCESS) {
+            Logger(ERROR, MD_NM_MAN, "Update config path failed. ret:%d", ret);
+            exit(-1);
+        }
+    }
 
     ret = BaseInit();
     if (ret != SUCCESS) {

@@ -771,6 +771,25 @@ char *Rtrim(char *s)
     return s;
 }
 
+// Remove the front and the last spaces of str.
+void LRtrim(char *str)
+{
+    int length = strlen(str);
+    int head = 0;
+    int tail = length - 1;
+    while (isspace(str[head])) {
+        head++;
+    }
+    while (isspace(str[tail])) {
+        tail--;
+    }
+    int i;
+    for (i = 0; i <= tail - head; i++) {
+        str[i] = str[head + i];
+    }
+    str[i] = '\0';
+}
+
 char *StrSplit(const char *src, const char *sep, char **res, int *itemNum)
 {
     int idx;
