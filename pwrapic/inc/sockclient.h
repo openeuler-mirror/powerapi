@@ -29,6 +29,7 @@ typedef struct RspOutputParam {
     char *rspData;
 } RspOutputParam;
 
+int SetServerInfo(const char* socketPath);
 int InitSockClient(void);
 int FiniSockClient(void);
 int SetMetaDataCallback(void(MetaDataCallback)(const PWR_COM_CallbackData *));

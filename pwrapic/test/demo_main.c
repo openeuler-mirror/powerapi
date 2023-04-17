@@ -298,8 +298,18 @@ static void TEST_PWR_COM_DcTaskMgr(void)
     printf("PWR_DeleteDcTask. dataType:%d ret: %d\n", PWR_COM_DATATYPE_CPU_USAGE, ret);
 }
 
+static void TEST_PWR_SetServerInfo(void)
+{
+    char str[] = "pwrserver.sock";
+    if (PWR_SetServerInfo(str) != SUCCESS) {
+        printf("PWR_SetServerInfo. failed");
+    }
+    printf("success");
+}
+
 int main(int argc, const char *args[])
 {
+    TEST_PWR_SetServerInfo();
     PWR_SetLogCallback(LogCallback);
     while (PWR_Register() != SUCCESS) {
         sleep(MAIN_LOOP_INTERVAL);

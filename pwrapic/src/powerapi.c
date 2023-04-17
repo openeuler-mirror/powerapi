@@ -71,6 +71,14 @@ int PWR_SetLogCallback(void(LogCallback)(int, const char *, va_list))
     return ERR_NULL_POINTER;
 }
 
+int PWR_SetServerInfo(const char* socketPath)
+{
+    if (socketPath) {
+        return SetServerInfo(socketPath);
+    }
+    return ERR_NULL_POINTER;
+}
+
 int PWR_Register(void)
 {
     // todo: 增加必要的其他初始化动作

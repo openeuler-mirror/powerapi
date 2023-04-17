@@ -184,6 +184,7 @@ const char *ReadNums(const char *pSrc, const char *sep, int maxCnt, uint64_t dts
 
 char *Ltrim(char *str);
 char *Rtrim(char *str);
+void LRtrim(char str[]);
 
 /*
  * StrSplit - Split string by delimiter

@@ -24,7 +24,7 @@
 #define DEFAULT_LOG_PFX "papis.log"
 #define DEFAULT_FILE_SIZE 10 // MB
 #define DEFAULT_FILE_NUM 3
-
+#define MAX_SERVER_PORT 65535
 
 // LogCfg
 enum LogLevel {
@@ -32,6 +32,18 @@ enum LogLevel {
     INFO,
     WARNING,
     ERROR
+};
+
+// Config Item Type
+enum CnfItemType {
+    E_CFG_IT_FLS,
+    E_CFG_IT_CNT,
+    E_CFG_IT_LGV,
+    E_CFG_IT_LGP,
+    E_CFG_IT_BKP,
+    E_CFG_IT_PFX,
+    E_CFG_IT_SVP,
+    E_CFG_IT_SKF,
 };
 
 typedef struct LogCfg {
@@ -56,6 +68,7 @@ typedef struct ServCfg {
     char sockFile[MAX_FILE_NAME];
 } ServCfg;
 
+int UpdateConfigPath(const char* configPath);
 int InitConfig(void);
 LogCfg *GetLogCfg(void);
 ServCfg *GetServCfg(void);

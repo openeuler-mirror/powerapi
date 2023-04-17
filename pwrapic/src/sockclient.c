@@ -30,12 +30,12 @@
 #include "pwrbuffer.h"
 
 #define CLIENT_ADDR "pwrclient.sock."
-#define SERVER_ADDR "pwrserver.sock"
 #define INVALID_FD (-1)
 #define SOCK_THREAD_LOOP_INTERVAL 2000 // us
 #define RECONNECTE_INTERVAL 3          // s
 #define MAX_PID_LEN 12
 #define MAX_PROC_NUM_IN_ONE_LOOP 5
+#define MAX_PATH_LEN 128
 
 static int g_sockFd = INVALID_FD;
 static ThreadInfo g_sockThread;
@@ -43,6 +43,7 @@ static ThreadInfo g_sockThread;
 static PwrMsgBuffer g_sendBuff;         // 发送队列
 static PwrMsgBuffer g_recvBuff;         // 接收队列
 static ResultWaitingMsgList g_waitList; // 等待结果列表
+static char SERVER_ADDR[MAX_PATH_LEN] = "/etc/sysconfig/pwrapis/pwrserver.sock"; // 默认server路径
 
 #define CHECK_SOCKET_STATUS()                         \
     if (g_sockFd == INVALID_FD) {                     \
@@ -335,6 +336,16 @@ static int SendReqMsgAndWaitForRsp(PwrMsg *req, PwrMsg **rsp)
 }
 
 // public****************************************************************************************/
+int SetServerInfo(const char* socketPath)
+{
+    if (!socketPath) {
+        return ERR_NULL_POINTER;
+    }
+    
+    strncpy(SERVER_ADDR, socketPath, sizeof(SERVER_ADDR) - 1);
+    return SUCCESS;
+}
+
 int InitSockClient(void)
 {
     InitPwrMsgBuffer(&g_sendBuff);
