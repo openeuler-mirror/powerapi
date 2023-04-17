@@ -893,7 +893,7 @@ void SetCpuFreqRange(PwrMsg *req)
     SendRspToClient(req, rspCode, NULL, 0);
 }
 
-// 总CPU核数
+// Total CPU cores
 int GetCpuCoreNumber(void)
 {
     return sysconf(_SC_NPROCESSORS_CONF);

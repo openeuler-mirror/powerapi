@@ -25,6 +25,7 @@
 #define DEFAULT_FILE_SIZE 10 // MB
 #define DEFAULT_FILE_NUM 3
 #define MAX_SERVER_PORT 65535
+#define MD5_LEN 33
 
 // LogCfg
 enum LogLevel {
