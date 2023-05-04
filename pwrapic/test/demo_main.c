@@ -153,7 +153,7 @@ static void TEST_PWR_CPU_GetInfo(void)
 static void TEST_PWR_CPU_GetUsage(void)
 {
     int ret;
-    int buffSize = sizeof(PWR_CPU_Usage) + TEST_CORE_NUM * sizeof(PWR_CPU_CoreUsage);
+    size_t buffSize = sizeof(PWR_CPU_Usage) + TEST_CORE_NUM * sizeof(PWR_CPU_CoreUsage);
     PWR_CPU_Usage *u = (PWR_CPU_Usage *)malloc(buffSize);
     if (!u) {
         return;
@@ -180,7 +180,7 @@ static void TEST_PWR_CPU_GetPerfData(void)
 static void TEST_PWR_CPU_GetFreqAbility(void)
 {
     int ret = 0;
-    int len = sizeof(PWR_CPU_FreqAbility) + AVG_LEN_PER_CORE * TEST_CORE_NUM * sizeof(int);
+    size_t len = sizeof(PWR_CPU_FreqAbility) + AVG_LEN_PER_CORE * TEST_CORE_NUM * sizeof(int);
     PWR_CPU_FreqAbility *freqAbi = (PWR_CPU_FreqAbility *)malloc(len);
     if (!freqAbi) {
         return;
@@ -204,7 +204,7 @@ static void TEST_PWR_CPU_GetFreqAbility(void)
 static void TEST_PWR_CPU_GetAndSetFreqRange(void)
 {
     int ret = 0;
-    int len = sizeof(PWR_CPU_FreqRange);
+    size_t len = sizeof(PWR_CPU_FreqRange);
     PWR_CPU_FreqRange *freqRange = (PWR_CPU_FreqRange *)malloc(len);
     if (!freqRange) {
         return;

@@ -30,7 +30,8 @@ int SetSysPowerState(int powerState)
     } else if (powerState == DISK) {
         strncpy(state, "disk", strlen("disk"));
     }
-    input.dataLen = strlen(state);
+    size_t dataLen = strlen(state);
+    input.dataLen = dataLen;
     input.data = state;
     RspOutputParam output;
     output.rspBuffSize = NULL;
@@ -53,7 +54,8 @@ int GetSysRtPowerInfo(PWR_SYS_PowerInfo *powerInfo)
     input.dataLen = 0;
     input.data = NULL;
     RspOutputParam output;
-    uint32_t size = sizeof(PWR_SYS_PowerInfo);
+    size_t s = sizeof(PWR_SYS_PowerInfo);
+    uint32_t size = s;
     output.rspBuffSize = &size;
     output.rspData = (void *)powerInfo;
     int ret = SendReqAndWaitForRsp(input, output);

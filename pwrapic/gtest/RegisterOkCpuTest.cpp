@@ -84,14 +84,14 @@ TEST_F(RegisterOkCpuTest, PWR_CPU_GetInfo_Test_001)
     EXPECT_LT(10, info->minFreq);
     EXPECT_GT(20000, info->maxFreq);
     EXPECT_LT(info->minFreq, info->maxFreq);
-    int modelNameLen = strlen(info->modelName);
+    size_t modelNameLen = strlen(info->modelName);
     EXPECT_LT(2, modelNameLen);
     EXPECT_LT(0, info->numaNum);
     EXPECT_GT(info->coreNum + 1, info->numaNum);
     EXPECT_LT(0, info->threadsPerCore);
     for (int i = 0; i < info->numaNum; i++) {
         EXPECT_GT(info->numaNum, info->numa[i].nodeNo);
-        int cpuListLen = strlen(info->numa[i].cpuList);
+        size_t cpuListLen = strlen(info->numa[i].cpuList);
         EXPECT_LT(0, cpuListLen);
     }
 }

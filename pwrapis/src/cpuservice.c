@@ -808,7 +808,7 @@ void SetCpuFreq(PwrMsg *req)
         return;
     }
     Logger(DEBUG, MD_NM_SVR_CPU, "Set Freq  Req. seqId:%u, sysId:%d", req->head.seqId, req->head.sysId);
-    int len = (req->head.dataLen) / sizeof(PWR_CPU_CurFreq);
+    size_t len = (req->head.dataLen) / sizeof(PWR_CPU_CurFreq);
     char currentGov[MAX_ELEMENT_NAME_LEN];
     PWR_CPU_CurFreq *target = (PWR_CPU_CurFreq *)req->data;
     int rspCode = 0;

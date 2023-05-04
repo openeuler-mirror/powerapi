@@ -163,7 +163,7 @@ static int DeleteSubscriber(int index, uint32_t subscriber)
     return SUCCESS;
 }
 
-static void SendMetadataToSubscribers(CollTask *task, const char *data, int len, const struct timeval *startTime)
+static void SendMetadataToSubscribers(CollTask *task, const char *data, size_t len, const struct timeval *startTime)
 {
     for (int i = 0; i < MAX_CLIENT_NUM; i++) {
         if (task->subscriberList[i].sysId != 0 &&
@@ -179,7 +179,7 @@ static void SendMetadataToSubscribers(CollTask *task, const char *data, int len,
     }
 }
 
-static PWR_COM_CallbackData *CreateMedataObject(int dataLen, PWR_COM_COL_DATATYPE dataType)
+static PWR_COM_CallbackData *CreateMedataObject(size_t dataLen, PWR_COM_COL_DATATYPE dataType)
 {
     PWR_COM_CallbackData *callbackData = (PWR_COM_CallbackData *)malloc(dataLen);
     if (!callbackData) {
@@ -188,14 +188,15 @@ static PWR_COM_CallbackData *CreateMedataObject(int dataLen, PWR_COM_COL_DATATYP
     bzero(callbackData, dataLen);
     GetCurFullTime(callbackData->ctime, MAX_TIME_LEN);
     callbackData->dataType = dataType;
-    callbackData->dataLen = dataLen - sizeof(PWR_COM_CallbackData);
+    size_t dLen = dataLen - sizeof(PWR_COM_CallbackData);
+    callbackData->dataLen = dLen;
     return callbackData;
 }
 
 typedef void (*ActionFunc)(CollTask *, const struct timeval *);
 static void TaskProcessCpuPerf(CollTask *task, const struct timeval *startTime)
 {
-    int callbackDataLen = sizeof(PWR_COM_CallbackData) + sizeof(PWR_CPU_PerfData);
+    size_t callbackDataLen = sizeof(PWR_COM_CallbackData) + sizeof(PWR_CPU_PerfData);
     PWR_COM_CallbackData *callbackData = CreateMedataObject(callbackDataLen, task->dataType);
     if (!callbackData) {
         return;
@@ -211,7 +212,7 @@ static void TaskProcessCpuPerf(CollTask *task, const struct timeval *startTime)
 static void TaskProcessCpuUsage(CollTask *task, const struct timeval *startTime)
 {
     int coreNum = GetCpuCoreNumber();
-    int callbackDataLen = sizeof(PWR_COM_CallbackData) + sizeof(PWR_CPU_Usage) + coreNum * sizeof(PWR_CPU_CoreUsage);
+    size_t callbackDataLen = sizeof(PWR_COM_CallbackData) + sizeof(PWR_CPU_Usage) + coreNum * sizeof(PWR_CPU_CoreUsage);
     PWR_COM_CallbackData *callbackData = CreateMedataObject(callbackDataLen, task->dataType);
     if (!callbackData) {
         return;

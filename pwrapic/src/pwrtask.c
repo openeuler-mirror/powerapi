@@ -23,11 +23,12 @@ int CreateDcTask(const PWR_COM_BasicDcTaskInfo *basicDcTaskInfo)
 {
     ReqInputParam input;
     input.optType = COM_CREATE_DC_TASK;
-    input.dataLen = sizeof(PWR_COM_BasicDcTaskInfo);
+    size_t dataLen = sizeof(PWR_COM_BasicDcTaskInfo);
+    input.dataLen = dataLen;
     input.data = (char *)basicDcTaskInfo;
 
     RspOutputParam output;
-    uint32_t size = sizeof(int);
+    size_t size = sizeof(int);
     output.rspBuffSize = NULL;
     output.rspData = NULL;
 
@@ -44,7 +45,8 @@ int DeleteDcTask(PWR_COM_COL_DATATYPE dataType)
 {
     ReqInputParam input;
     input.optType = COM_DELETE_DC_TASK;
-    input.dataLen = sizeof(dataType);
+    size_t dataLen = sizeof(dataType);
+    input.dataLen = dataLen;
     input.data = (char *)&dataType;
     RspOutputParam output;
     output.rspBuffSize = NULL;
