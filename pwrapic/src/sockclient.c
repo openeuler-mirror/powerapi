@@ -40,10 +40,10 @@
 static int g_sockFd = INVALID_FD;
 static ThreadInfo g_sockThread;
 
-static PwrMsgBuffer g_sendBuff;         // 发送队列
-static PwrMsgBuffer g_recvBuff;         // 接收队列
-static ResultWaitingMsgList g_waitList; // 等待结果列表
-static char SERVER_ADDR[MAX_PATH_LEN] = "/etc/sysconfig/pwrapis/pwrserver.sock"; // 默认server路径
+static PwrMsgBuffer g_sendBuff;         // Send queue
+static PwrMsgBuffer g_recvBuff;         // Receive queue
+static ResultWaitingMsgList g_waitList; // Waiting for results list
+static char SERVER_ADDR[MAX_PATH_LEN] = "/etc/sysconfig/pwrapis/pwrserver.sock"; // Default server path
 
 #define CHECK_SOCKET_STATUS()                         \
     if (g_sockFd == INVALID_FD) {                     \

@@ -9,6 +9,6 @@ if [ -f "./build/install_manifest.txt" ];then
     else
     rm /usr/lib/libpwrapi.so
     rm /usr/sbin/pwrapis
-    rm /etc/sysconfig/pwrapis_config.ini
+    rm /etc/sysconfig/pwrapis/pwrapis_config.ini
     rm /usr/lib/systemd/system/pwrapis.service
 fi

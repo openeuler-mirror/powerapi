@@ -16,7 +16,7 @@ Including a power API SO and the Power API Service.
 #### 使用说明
 
 1. 编译：./build.sh
-2. 后台运行PowerAPI Service： ./release/pwrapis/pwrapis &
+2. 后台运行PowerAPI Service： ./release/pwrapis/pwrapis pwrapis/conf/pwrapis_config.ini &
 3. 运行PowerAPI demo： ./release/pwrapi_demo/pwrapic_demo
 
 #### 参与贡献

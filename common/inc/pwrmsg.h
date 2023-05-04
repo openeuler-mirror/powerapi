@@ -36,7 +36,7 @@ typedef struct MsgHead {
     uint32_t taskNo;
     uint32_t crcMagic;
     uint32_t dataLen;
-    uint32_t sysId; // 消息源头的系统标识，IPC场景使用PID
+    uint32_t sysId; // System id of msg source, using PID for IPC scene.
     char reserved[4];
 } MsgHead;
 

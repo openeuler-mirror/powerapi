@@ -40,9 +40,9 @@ static pthread_mutex_t g_listenFdLock = PTHREAD_MUTEX_INITIALIZER;
 static ThreadInfo g_sockProcThread;
 static ThreadInfo g_serviceThread;
 
-static PwrClient g_pwrClients[MAX_CLIENT_NUM]; // 对该结构的读和写都在一个线程完成，因而不需要加锁
-static PwrMsgBuffer g_sendBuff;                // 发送队列
-static PwrMsgBuffer g_recvBuff;                // 接收队列
+static PwrClient g_pwrClients[MAX_CLIENT_NUM]; // Reading and writing the struct are done in one thread, no need locks
+static PwrMsgBuffer g_sendBuff;                // Send queue
+static PwrMsgBuffer g_recvBuff;                // Receive queue
 static pthread_mutex_t g_waitMsgMutex;
 static pthread_cond_t g_waitMsgCond;
 
@@ -169,7 +169,7 @@ static int ReadMsg(void *pData, int len, int dstFd, int idx)
 
 static void ProcessRecvMsgFromClient(int clientIdx)
 {
-    // 从connFd获取消息，并送到service队列，等待处理
+    // Get msg from connFd, send to service queue and waiting for processing
     int dstFd = g_pwrClients[clientIdx].fd;
     PwrMsg *msg = (PwrMsg *)malloc(sizeof(PwrMsg));
     if (!msg || ReadMsg(msg, sizeof(PwrMsg), dstFd, clientIdx) != SUCCESS) {
@@ -232,7 +232,7 @@ static int WriteMsg(const void *pData, int len, int dstFd)
 
 static void ProcessSendMsgToClient(void)
 {
-    // 从缓存中读取待发送消息，并发送出去
+    // Read msg from buffer and send.
     int count = 0;
     static char data[MAX_DATA_SIZE];
     while (!IsEmptyBuffer(&g_sendBuff) && count < COUNT_MAX) {
@@ -458,7 +458,7 @@ void StopServer(void)
     pthread_mutex_destroy((pthread_mutex_t *)&g_waitMsgMutex);
 }
 
-// 本函数会将data指针所指向数据迁移走，调用方勿对data进行释放操作。
+// This function will move the 'data' pointer to data migration, and the caller should not release the 'data'.
 void SendRspToClient(const PwrMsg *req, int rspCode, char *data, uint32_t len)
 {
     if (!req) {
@@ -480,7 +480,7 @@ void SendRspToClient(const PwrMsg *req, int rspCode, char *data, uint32_t len)
         ReleasePwrMsg(&rsp);
     }
 }
-// 本函数会将data指针所指向数据迁移走，调用方勿对data进行释放操作。
+// This function will move the 'data' pointer to data migration, and the caller should not release the 'data'.
 int SendMetadataToClient(uint32_t sysId, char *data, uint32_t len)
 {
     if (!data && len != 0) {

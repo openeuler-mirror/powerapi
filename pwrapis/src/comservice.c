@@ -27,7 +27,7 @@ static uint32_t g_authOwner = 0;
 static int DoAuthRequest(uint32_t client)
 {
     if (g_authed) {
-        if (g_authOwner != client) { // 控制权已授予其他应用
+        if (g_authOwner != client) { // Control has been granted to other app
             return ERR_CONTROL_AUTH_REQUESTED;
         }
         return SUCCESS;

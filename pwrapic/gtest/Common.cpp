@@ -29,7 +29,7 @@ int StartService(void)
 
     std::string gtestDir = dir;
     std::string pwrapisDir;
-    // 10: length for "gtest_test", 只保留文件的路径
+    // 10: length for "gtest_test", keep only the path of file
     gtestDir = gtestDir.substr(0, gtestDir.length() - 10);
     pwrapisDir = gtestDir + "../pwrapis/pwrapis &";
     ret = system(pwrapisDir.c_str());

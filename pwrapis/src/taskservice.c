@@ -39,8 +39,8 @@ typedef struct CollDataSubscriber {
 typedef struct CollTask {
     PWR_COM_COL_DATATYPE dataType;
     int interval;
-    int subNum;                                        // 订阅数
-    CollDataSubscriber subscriberList[MAX_CLIENT_NUM]; // 该数据订阅方
+    int subNum;                                        // Number of subscriptions
+    CollDataSubscriber subscriberList[MAX_CLIENT_NUM]; // The data subscriber
     ThreadInfo collThread;
 } CollTask;
 
@@ -74,13 +74,17 @@ static int FindAvailebleTaskSlot(void)
 
 static inline void FiniTask(int index)
 {
-    FiniThreadInfo(&(g_collTaskList[index]->collThread)); // 必须先停止线程
+    FiniThreadInfo(&(g_collTaskList[index]->collThread)); // Must stop thread first
     free(g_collTaskList[index]);
     g_collTaskList[index] = NULL;
     g_taskNum--;
 }
 
-// 需要使用指定的订阅者周期更新task周期时，subIdx填具体订阅者的索引，否则填INVALIDE_INDEX
+/**
+ * When the task cycle needs to be updated using the specified subscriber cycle,
+ * subIdx should fill in the index of the specific subscriber,
+ * otherwise fill in INVALIDE_ INDEX
+ */
 static void UpdataTaskInterval(int index, int subIdx)
 {
     if (subIdx != INVALID_INDEX) {
@@ -151,7 +155,7 @@ static int DeleteSubscriber(int index, uint32_t subscriber)
         }
     }
 
-    if (g_collTaskList[index]->subNum <= 0) { // 无用户订阅数据时，停止采集
+    if (g_collTaskList[index]->subNum <= 0) { // Stop collecting data when there is no user subscription
         FiniTask(index);
     } else {
         UpdataTaskInterval(index, INVALID_INDEX);
@@ -169,7 +173,7 @@ static void SendMetadataToSubscribers(CollTask *task, const char *data, int len,
                 continue;
             }
             memcpy(dataCpy, data, len);
-            SendMetadataToClient(task->subscriberList[i].sysId, dataCpy, len); // 该函数内部会释放dataCpy
+            SendMetadataToClient(task->subscriberList[i].sysId, dataCpy, len); // Internally release 'dataCpy'
             task->subscriberList[i].lastSent = *startTime;
         }
     }
@@ -245,7 +249,7 @@ static void *RunDcTaskProcess(void *arg)
     int sleepTime = 0;
     while (task->collThread.keepRunning) {
         gettimeofday(&after, NULL);
-        sleepTime = task->interval - GetTimeDistance(after, before); // 任务周期 - 上次执行花费时间
+        sleepTime = task->interval - GetTimeDistance(after, before); // Task cycle - Last execution took time
         if (sleepTime > 0) {
             usleep(THOUSAND * sleepTime);
         }
