@@ -18,6 +18,12 @@
 #include <stdio.h>
 #include "pwrmsg.h"
 
+struct ucred {
+    pid_t pid;
+    uid_t uid;
+    gid_t gid;
+};
+
 /**
  * Init and start the server
  * Note: return connected socket fd if success;

@@ -15,6 +15,7 @@
 
 #include "config.h"
 #include <stdio.h>
+#include <stdlib.h>
 #include <unistd.h>
 #include "string.h"
 #include "pwrerr.h"
@@ -36,6 +37,8 @@ inline ServCfg *GetServCfg(void)
 
 static char g_configPath[MAX_PATH_NAME] = "/etc/sysconfig/pwrapis/pwrapis_config.ini";
 static char g_lastMd5[MD5_LEN] = {0};
+static char** g_adminArray = NULL;
+static char** g_observerArray = NULL;
 
 int UpdateConfigPath(const char* configPath)
 {
@@ -62,6 +65,10 @@ static int UpdateLogLevel(enum LogLevel logLevel)
 static int UpdateLogCfg(enum CnfItemType type, char *value)
 {
     int actualValue;
+    if (strlen(value) == 0) {
+        return ERR_INVALIDE_PARAM;
+    }
+
     switch (type) {
         case E_CFG_IT_FLS:
             actualValue = atoi(value);
@@ -112,6 +119,10 @@ static int UpdateLogCfg(enum CnfItemType type, char *value)
 static int UpdateServCfg(enum CnfItemType type, char *value)
 {
     int actualValue;
+    if (strlen(value) == 0) {
+        return ERR_INVALIDE_PARAM;
+    }
+
     switch (type) {
         case E_CFG_IT_SVP:
             actualValue = atoi(value);
@@ -123,16 +134,93 @@ static int UpdateServCfg(enum CnfItemType type, char *value)
             g_servCfg.port = actualValue;
             break;
         case E_CFG_IT_SKF:
-            if (access(value, F_OK) != 0) {
-                Logger(ERROR, MD_NM_CFG, "Sock_file in config is invalid");
-                return ERR_INVALIDE_PARAM;
-            }
-
-            strncpy(g_servCfg.sockFile, value, sizeof(g_servCfg.sockFile) - 1);
+            snprintf(g_servCfg.sockFile, sizeof(g_servCfg.sockFile), "%s", value);
             break;
         default:
             break;
     }
+    return SUCCESS;
+}
+
+static char** UpdateRoleArrayAction(const char *value)
+{
+    size_t maxNum = 0;
+    int i = 0;
+    char** tempRoleArray = NULL;
+    maxNum = strlen(value);
+    if (maxNum == 0) {
+        return NULL;
+    }
+    tempRoleArray = calloc(maxNum + 1, sizeof(char *));
+    if (!tempRoleArray) {
+        Logger(ERROR, MD_NM_CFG, "Calloc failed.");
+        return NULL;
+    }
+
+    if (StrSplit(value, ",", tempRoleArray, &maxNum) == NULL) {
+        DoReleaseWhiteList(tempRoleArray);
+        tempRoleArray = NULL;
+        return NULL;
+    }
+    while (tempRoleArray[i] != NULL) {
+        LRtrim(tempRoleArray[i]);
+        i++;
+    }
+
+    /**
+     * If success, return temp array.
+     * tempRoleArray will be release in UpdateRoleArray
+    */
+    return tempRoleArray;
+}
+
+static int UpdateRoleArray(enum CnfItemType type, const char *value)
+{
+    char** tempRoleArray = UpdateRoleArrayAction(value);
+    char** oldRoleArray = NULL;
+    switch (type) {
+        case E_CFG_IT_ADM:
+            if (value == NULL) {
+                DoReleaseWhiteList(g_adminArray);
+                g_adminArray = NULL;
+                return SUCCESS;
+            }
+
+            if (tempRoleArray == NULL) {
+                Logger(INFO, MD_NM_CFG, "Admin in config is meaningless!%s", value);
+                return ERR_INVALIDE_PARAM;
+            }
+
+            oldRoleArray = g_adminArray;
+            g_adminArray = tempRoleArray;
+            DoReleaseWhiteList(oldRoleArray);
+            oldRoleArray = NULL;
+            Logger(INFO, MD_NM_CFG, "Admin in config has been modified to %s", value);
+            break;
+        case E_CFG_IT_OBSER:
+            if (value == NULL) {
+                DoReleaseWhiteList(g_observerArray);
+                g_observerArray = NULL;
+                Logger(INFO, MD_NM_CFG, "Observer in config has been modified to null");
+                return SUCCESS;
+            }
+
+            if (tempRoleArray == NULL) {
+                Logger(INFO, MD_NM_CFG, "Observer in config is meaningless!%s", value);
+                return ERR_INVALIDE_PARAM;
+            }
+
+            oldRoleArray = g_observerArray;
+            g_observerArray = tempRoleArray;
+            DoReleaseWhiteList(oldRoleArray);
+            oldRoleArray = NULL;
+            Logger(INFO, MD_NM_CFG, "Obser in config has been modified to %s", value);
+            break;
+        default:
+            DoReleaseWhiteList(tempRoleArray);
+            break;
+    }
+    tempRoleArray = NULL;
     return SUCCESS;
 }
 
@@ -178,6 +266,10 @@ static enum CnfItemType StringToEnum(char *str)
         return E_CFG_IT_SVP;
     } else if (strcmp(str, CFG_IT_SKF) == 0) {
         return E_CFG_IT_SKF;
+    } else if (strcmp(str, CFG_IT_ADM) == 0) {
+        return E_CFG_IT_ADM;
+    } else if (strcmp(str, CFG_IT_OBSER) == 0) {
+        return E_CFG_IT_OBSER;
     }
 }
 
@@ -191,9 +283,7 @@ static int LoadConfigFile(void)
     if (access(realpathRes, R_OK) != 0) return ERR_COMMON;
 
     FILE *fp = fopen(realpathRes, "r");
-    if (fp == NULL) {
-        return ERR_NULL_POINTER;
-    }
+    if (fp == NULL) return ERR_NULL_POINTER;
     while (fgets(line, sizeof(line) - 1, fp) != NULL) {
         // Skip invalid lines such as empty lines、comment lines
         if (strlen(line) <= 1 || line[0] == '#' || line[0] == '[') {
@@ -203,20 +293,18 @@ static int LoadConfigFile(void)
         char key[MAX_KEY_LEN] = {0};
         char value[MAX_LINE_LENGTH] = {0};
         char *index = strchr(line, '=');
-        if (index == NULL) {
-            continue;
-        }
-        
+        if (index == NULL) continue;
+
         strncpy(key, line, index - line);
-        strncpy(value, index + 1, sizeof(value));
+        strncpy(value, index + 1, MAX_LINE_LENGTH - 1);
         LRtrim(key);
         LRtrim(value);
-        if (strlen(key) == 0 || strlen(value) == 0) {
-            // Key or value is invalid
+        if (strlen(key) == 0) {
+            // Key is invalid
             continue;
         }
         enum CnfItemType type = StringToEnum(key);
-        
+
         switch (type) {
             case E_CFG_IT_FLS:
             case E_CFG_IT_CNT:
@@ -230,11 +318,15 @@ static int LoadConfigFile(void)
             case E_CFG_IT_SKF:
                 UpdateServCfg(type, value);
                 break;
+            case E_CFG_IT_ADM:
+            case E_CFG_IT_OBSER:
+                UpdateRoleArray(type, value);
+                break;
             default:
                 break;
         }
     }
-    pclose(fp);
+    if (fclose(fp) < 0) return ERR_COMMON;
     return SUCCESS;
 }
 
@@ -345,6 +437,9 @@ int UpdateConfig(char *key, char *value)
                 Logger(INFO, MD_NM_CFG, "Log_level in config has been modified to %d", actualValue);
             }
             break;
+        case E_CFG_IT_ADM:
+        case E_CFG_IT_OBSER:
+            return UpdateRoleArray(type, value);
         // Properties that cannot be dynamically validated
         default:
             return HandleInvalidUpdate(key, value);
@@ -370,9 +465,7 @@ int CheckAndUpdateConfig(void)
     if (access(realpathRes, R_OK) != 0) return ERR_COMMON;
 
     FILE *fp = fopen(realpathRes, "r");
-    if (fp == NULL) {
-        return ERR_NULL_POINTER;
-    }
+    if (fp == NULL) return ERR_NULL_POINTER;
 
     while (fgets(line, sizeof(line) - 1, fp) != NULL) {
         if (strlen(line) <= 1 || line[0] == '#' || line[0] == '[') continue;
@@ -398,7 +491,7 @@ int CheckAndUpdateConfig(void)
                 break;
         }
     }
-    pclose(fp);
+    if (fclose(fp) < 0) return ERR_COMMON;
     strncpy(g_lastMd5, curMd5, sizeof(g_lastMd5));
     /**
      * The file has been confirmed to be modified now.
@@ -439,4 +532,65 @@ static enum LogLevel CauLeve(int level)
             lgLvl = ERROR;
     }
     return lgLvl;
+}
+
+int IsAdmin(const char* user)
+{
+    int i = 0;
+
+    if (strcmp(user, "root") == 0) {
+        return TRUE;
+    }
+    if (g_adminArray == NULL) {
+        return FALSE;
+    }
+    while (g_adminArray[i] != NULL) {
+        if (strcmp(user, g_adminArray[i]) == 0) {
+            return TRUE;
+        }
+        i++;
+    }
+
+    return FALSE;
+}
+
+int IsObserver(const char* user)
+{
+    int i = 0;
+
+    if (g_observerArray == NULL) {
+        return FALSE;
+    }
+    while (g_observerArray[i] != NULL) {
+        if (strcmp(user, g_observerArray[i]) == 0) {
+            return TRUE;
+        }
+        i++;
+    }
+
+    return FALSE;
+}
+
+void DoReleaseWhiteList(char** whiteList)
+{
+    int i = 0;
+    if (!whiteList) {
+        return;
+    }
+
+    while (whiteList[i] != NULL) {
+        free(whiteList[i]);
+        whiteList[i] = NULL;
+        i++;
+    }
+    free(whiteList);
+    whiteList = NULL;
+}
+
+void ReleaseWhiteList(void)
+{
+    DoReleaseWhiteList(g_adminArray);
+    DoReleaseWhiteList(g_observerArray);
+    g_adminArray = NULL;
+    g_observerArray = NULL;
 }

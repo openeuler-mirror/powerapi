@@ -69,7 +69,7 @@ typedef enum PWR_COM_COL_DATATYPE {
 
 typedef struct PWR_COM_CallbackData {
     char ctime[MAX_TIME_LEN];
-    int dataType;
+    PWR_COM_COL_DATATYPE dataType;
     int dataLen;
     char data[0];
 } PWR_COM_CallbackData;
@@ -78,6 +78,20 @@ typedef struct PWR_COM_BasicDcTaskInfo {
     PWR_COM_COL_DATATYPE dataType;
     int interval;
 } PWR_COM_BasicDcTaskInfo;
+
+typedef enum PWR_COM_EVT_TYPE {
+    PWR_COM_EVTTYPE_CPUFREQ_GOV_CHANGED = 1,
+    PWR_COM_EVTTYPE_AUTH_REQUESTED,
+    PWR_COM_EVTTYPE_AUTH_RELEASED,
+    PWR_COM_EVTTYPE_CRED_FAILED,
+} PWR_COM_EVT_TYPE;
+
+typedef struct PWR_COM_EventInfo {
+    char ctime[MAX_TIME_LEN];
+    PWR_COM_EVT_TYPE eventType;
+    int infoLen;
+    char info[0];
+} PWR_COM_EventInfo;
 
 typedef struct PWR_SYS_PowerInfo {
     double sysPower;
@@ -190,7 +204,6 @@ typedef struct PWR_DISK_PwrLevel {
     uint16_t powerLevel;
     uint16_t spindownLevel;
 } PWR_DISK_PwrLevel;
-
 
 typedef struct PWR_DISK_ScsiPolicy {
     char scsiId[MAX_ELEMENT_NAME_LEN];

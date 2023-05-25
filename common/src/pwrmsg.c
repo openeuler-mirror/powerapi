@@ -148,6 +148,29 @@ int GenerateRspMsg(const PwrMsg *req, PwrMsg *rsp, int rspCode, char *data, int 
     return SUCCESS;
 }
 
+int GenerateEventMsg(PwrMsg *event, uint32_t sysId, const char *data, uint32_t len)
+{
+    if (!event || !data) {
+        return ERR_NULL_POINTER;
+    }
+
+    bzero(event, sizeof(PwrMsg));
+    event->head.majorVer = MAJOR_VERSION;
+    event->head.minorVer = MINOR_VERSION;
+    event->head.optType = COM_CALLBACK_EVENT;
+    event->head.dataFormat = FMT_BIN;
+    event->head.msgType = MT_EVT;
+    event->head.rspCode = 0;
+    event->head.seqId = GenerateSeqId();
+    event->head.taskNo = 0; // Currently ineffective
+    event->head.crcMagic = GenerateCrcMagic();
+    event->head.dataLen = len;
+    event->head.sysId = sysId;
+    event->data = data;
+
+    return SUCCESS;
+}
+
 void InitThreadInfo(ThreadInfo *threadInfo)
 {
     if (!threadInfo) {

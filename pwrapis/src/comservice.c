@@ -20,12 +20,26 @@
 #include "log.h"
 #include "pwrdata.h"
 #include "server.h"
+#include "utils.h"
+#include "config.h"
+#include "pwrerr.h"
 
 static int g_authed = FALSE;
 static uint32_t g_authOwner = 0;
 
 static int DoAuthRequest(uint32_t client)
 {
+    UnixCredOS credOS;
+    int ret = GetSockoptFromOS(client, &credOS);
+    if (ret != SUCCESS) {
+        Logger(ERROR, MD_NM_SVR_TASK, "get sockopt from OS failed, ret : %d", ret);
+        return ERR_COMMON;
+    }
+    if (!IsAdmin(credOS.user)) {
+        Logger(ERROR, MD_NM_SVR_TASK, "the client <%s> is not an admin", credOS.user);
+        return ERR_CONTROL_AUTH_NO_PERMISSION;
+    }
+
     if (g_authed) {
         if (g_authOwner != client) { // Control has been granted to other app
             return ERR_CONTROL_AUTH_REQUESTED;

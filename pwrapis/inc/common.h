@@ -59,6 +59,7 @@
 #define MD_NM_SVR_CPU "CPU_SERVICE"
 #define MD_NM_SVR_DISK "DISK_SERVICE"
 #define MD_NM_SVR_TASK "TASK_SERVICE"
+#define MD_NM_CRED "CREDENTIALS"
 
 // Define configuration section name
 #define CFG_NM_PST "persist"
@@ -85,6 +86,8 @@
 #define CFG_IT_PFX "log_pfx"
 #define CFG_IT_SVP "port"
 #define CFG_IT_SKF "sock_file"
+#define CFG_IT_ADM "admin"
+#define CFG_IT_OBSER "observer"
 #define CFG_IT_GIV "interval"
 #define CFG_IT_MNT "mnt_point"
 #define CFG_IT_IO_DISK "^io.disk[[:digit:]]+$"

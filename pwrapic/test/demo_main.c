@@ -300,17 +300,32 @@ static void TEST_PWR_COM_DcTaskMgr(void)
 
 static void TEST_PWR_SetServerInfo(void)
 {
-    char str[] = "pwrserver.sock";
+    char str[] = "/etc/sysconfig/pwrapis/pwrserver.sock";
     if (PWR_SetServerInfo(str) != SUCCESS) {
         printf("PWR_SetServerInfo. failed");
     }
     printf("success");
 }
 
+void EventCallback(const PWR_COM_EventInfo *eventInfo)
+{
+    printf("[Event] Get event notification\n");
+    switch (eventInfo->eventType) {
+        case PWR_COM_EVTTYPE_CRED_FAILED:
+            printf("[Event] ctime:%s, type:%d\n", eventInfo->ctime, eventInfo->eventType);
+            printf("[Event] info:%s\n", eventInfo->info);
+            break;
+        default:
+            printf("[Event] Get invalid event.\n");
+            break;
+    }
+}
+
 int main(int argc, const char *args[])
 {
     TEST_PWR_SetServerInfo();
     PWR_SetLogCallback(LogCallback);
+    PWR_SetEventCallback(EventCallback);
     while (PWR_Register() != SUCCESS) {
         sleep(MAIN_LOOP_INTERVAL);
         printf("main registed failed!\n");

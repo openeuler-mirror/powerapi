@@ -23,7 +23,8 @@ set ( CMAKE_INSTALL_PREFIX "/usr" CACHE PATH "Install path prefix" FORCE)
 install (TARGETS ${PG_NAME} DESTINATION sbin)
 
 # Install default config files
-install (FILES "${PROJECT_SOURCE_DIR}/../conf/pwrapis_config.ini" DESTINATION /etc/sysconfig/pwrapis)
+install (FILES "${PROJECT_SOURCE_DIR}/../conf/pwrapis_config.ini"
+    DESTINATION /etc/sysconfig/pwrapis PERMISSIONS OWNER_READ OWNER_WRITE)
 install (FILES "${PROJECT_SOURCE_DIR}/../pwrapis.service" DESTINATION /usr/lib/systemd/system)
 
 # release complile mode

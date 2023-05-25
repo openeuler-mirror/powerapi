@@ -33,6 +33,7 @@
 #include "taskservice.h"
 #include "comservice.h"
 #include "pwrerr.h"
+#include "utils.h"
 #define COUNT_MAX 5
 
 static int g_listenFd = -1;
@@ -46,7 +47,7 @@ static PwrMsgBuffer g_recvBuff;                // Receive queue
 static pthread_mutex_t g_waitMsgMutex;
 static pthread_cond_t g_waitMsgCond;
 
-static int ListenStart(int sockFd, const struct sockaddr *addr)
+static int ListenStart(int sockFd, const struct sockaddr_un *addr)
 {
     int ret;
     int reuse = 0x0;
@@ -56,9 +57,17 @@ static int ListenStart(int sockFd, const struct sockaddr *addr)
         Logger(ERROR, MD_NM_SVR, "set reuse socket error %s errno: %d\n", strerror(errno), errno);
         return ERR_SYS_EXCEPTION;
     }
-    ret = bind(sockFd, addr, sizeof(struct sockaddr));
+    ret = bind(sockFd, addr, sizeof(struct sockaddr_un));
     if (ret < 0) {
         Logger(ERROR, MD_NM_SVR, "bind socket error %s errno: %d\n", strerror(errno), errno);
+        return ERR_SYS_EXCEPTION;
+    }
+
+    /* Set the permissions of the pwrserver.sock to 722 */
+    mode_t mode = 0722;
+    ret = chmod(addr->sun_path, mode);
+    if (ret == -1) {
+        Logger(ERROR, MD_NM_SVR, "set permission error");
         return ERR_SYS_EXCEPTION;
     }
 
@@ -89,7 +98,7 @@ static int StartUnxListen(const char *localFileName)
         Logger(ERROR, MD_NM_SVR, "socket error %s errno: %d\n", strerror(errno), errno);
         return ERR_SYS_EXCEPTION;
     }
-    return ListenStart(sockFd, (struct sockaddr *)&tSockaddr);
+    return ListenStart(sockFd, (struct sockaddr_un *)&tSockaddr);
 }
 
 static void StopListen(void)
@@ -102,6 +111,53 @@ static void StopListen(void)
     }
     g_listenFd = INVALID_FD;
     pthread_mutex_unlock(&g_listenFdLock);
+}
+
+static int PassCredVerification(const int sockfd, pid_t *pid)
+{
+    int ret;
+    struct ucred credSocket;
+    UnixCredOS credOS;
+    socklen_t socklen = sizeof(struct ucred);
+    if (getsockopt(sockfd, SOL_SOCKET, SO_PEERCRED, &credSocket, &socklen) < 0) {
+        Logger(ERROR, MD_NM_SVR, "get sock opt failed");
+        return ERR_COMMON;
+    }
+
+    ret = GetSockoptFromOS(*pid, &credOS);
+    if (ret != SUCCESS) {
+        Logger(ERROR, MD_NM_SVR, "get sockopt from OS failed, ret : %d", ret);
+        return ERR_COMMON;
+    }
+
+    if (credSocket.uid != credOS.uid || credSocket.gid != credOS.gid) {
+        Logger(ERROR, MD_NM_SVR, "uid or gid from socket and OS are different");
+        return ERR_COMMON;
+    }
+
+    if (!IsAdmin(credOS.user) && !IsObserver(credOS.user)) {
+        Logger(ERROR, MD_NM_SVR, "the client <%s> is not in white list", credOS.user);
+        return ERR_COMMON;
+    }
+
+    *pid = credOS.pid;
+    return SUCCESS;
+}
+
+static PWR_COM_EventInfo* CreateEventInfo(char *info, PWR_COM_EVT_TYPE eventType)
+{
+    size_t eventInfoLen = sizeof(PWR_COM_EventInfo) + strlen(info);
+    PWR_COM_EventInfo *eventInfo = (PWR_COM_EventInfo *)malloc(eventInfoLen);
+    if (!eventInfo) {
+        return NULL;
+    }
+
+    bzero(eventInfo, sizeof(PWR_COM_EventInfo));
+    GetCurFullTime(eventInfo->ctime, MAX_TIME_LEN);
+    eventInfo->eventType = eventType;
+    eventInfo->infoLen = strlen(info);
+    strcpy(eventInfo->info, info);
+    return eventInfo;
 }
 
 static void AcceptConnection(void)
@@ -118,6 +174,7 @@ static void AcceptConnection(void)
             clientAddr.sun_path);
         return;
     }
+
     /*
     SetKeepAlive(newClientFd); todo 链路保活，后续完善 */
     PwrClient client;
@@ -125,9 +182,28 @@ static void AcceptConnection(void)
     unsigned char strSysId[MAX_SYSID_LEN] = {0};
     strncpy(strSysId, clientAddr.sun_path + strlen(CLIENT_ADDR), MAX_SYSID_LEN - 1);
     client.sysId = atoi(strSysId);
+
+    if (PassCredVerification(newClientFd, &client.sysId) != SUCCESS) {
+        Logger(ERROR, MD_NM_CRED, "credentials verification failed");
+        const char *info = "Server has closed connection. This client is not in white list";
+        /* eventData should be release in the function that uses it */
+        PWR_COM_EventInfo *eventInfo = CreateEventInfo(info, PWR_COM_EVTTYPE_CRED_FAILED);
+        if (!eventInfo) {
+            Logger(ERROR, MD_NM_SVR, "Create event failed.");
+            close(newClientFd);
+            return;
+        }
+
+        SendEventToClient(newClientFd, client.sysId, (char *)eventInfo,
+            sizeof(PWR_COM_EventInfo) + strlen(info));
+        close(newClientFd);
+        return;
+    }
+
     if (AddToClientList(g_pwrClients, client) != SUCCESS) {
         Logger(ERROR, MD_NM_SVR, "Reach maximum connections or client existed : %d ", MAX_CLIENT_NUM);
         close(newClientFd);
+        return;
     }
     Logger(INFO, MD_NM_SVR, "Create new connection succeed. fd:%d, sysId:%d", client.fd, client.sysId);
 }
@@ -193,7 +269,11 @@ static void ProcessRecvMsgFromClient(int clientIdx)
         msg->data = NULL;
     }
 
-    msg->head.sysId = g_pwrClients[clientIdx].sysId;
+    if (msg->head.sysId != g_pwrClients[clientIdx].sysId) {
+        ReleasePwrMsg(&msg);
+        return;
+    }
+
     if (AddToBufferTail(&g_recvBuff, msg) != SUCCESS) {
         ReleasePwrMsg(&msg);
     }
@@ -230,11 +310,36 @@ static int WriteMsg(const void *pData, size_t len, int dstFd)
     return SUCCESS;
 }
 
+static void SendMsgToClientAction(int dstFd, PwrMsg *msg)
+{
+    static char data[MAX_DATA_SIZE];
+    size_t len = sizeof(PwrMsg) + msg->head.dataLen;
+
+    if (len <= MAX_DATA_SIZE) {
+        memcpy(data, msg, sizeof(PwrMsg));
+        memcpy(data + sizeof(PwrMsg), msg->data, msg->head.dataLen);
+        WriteMsg(data, len, dstFd);
+    } else {
+        memcpy(data, msg, sizeof(PwrMsg));
+        memcpy(data + sizeof(PwrMsg), msg->data, MAX_DATA_SIZE - sizeof(PwrMsg));
+        WriteMsg(data, MAX_DATA_SIZE, dstFd);
+        size_t datasent = MAX_DATA_SIZE - sizeof(PwrMsg);
+        size_t leftLen = len - MAX_DATA_SIZE;
+        while (leftLen > MAX_DATA_SIZE) {
+            memcpy(data, msg->data + datasent, MAX_DATA_SIZE);
+            WriteMsg(data, MAX_DATA_SIZE, dstFd);
+            datasent += MAX_DATA_SIZE;
+            leftLen -= MAX_DATA_SIZE;
+        }
+        memcpy(data, msg->data + datasent, leftLen);
+        WriteMsg(data, leftLen, dstFd);
+    }
+}
+
 static void ProcessSendMsgToClient(void)
 {
     // Read msg from buffer and send.
     int count = 0;
-    static char data[MAX_DATA_SIZE];
     while (!IsEmptyBuffer(&g_sendBuff) && count < COUNT_MAX) {
         PwrMsg *msg = PopFromBufferHead(&g_sendBuff);
         count++;
@@ -247,27 +352,7 @@ static void ProcessSendMsgToClient(void)
             ReleasePwrMsg(&msg);
             continue;
         }
-        size_t len = sizeof(PwrMsg) + msg->head.dataLen;
-
-        if (len <= MAX_DATA_SIZE) {
-            memcpy(data, msg, sizeof(PwrMsg));
-            memcpy(data + sizeof(PwrMsg), msg->data, msg->head.dataLen);
-            WriteMsg(data, len, dstFd);
-        } else {
-            memcpy(data, msg, sizeof(PwrMsg));
-            memcpy(data + sizeof(PwrMsg), msg->data, MAX_DATA_SIZE - sizeof(PwrMsg));
-            WriteMsg(data, MAX_DATA_SIZE, dstFd);
-            size_t datasent = MAX_DATA_SIZE - sizeof(PwrMsg);
-            size_t leftLen = len - MAX_DATA_SIZE;
-            while (leftLen > MAX_DATA_SIZE) {
-                memcpy(data, msg->data + datasent, MAX_DATA_SIZE);
-                WriteMsg(data, MAX_DATA_SIZE, dstFd);
-                datasent += MAX_DATA_SIZE;
-                leftLen -= MAX_DATA_SIZE;
-            }
-            memcpy(data, msg->data + datasent, leftLen);
-            WriteMsg(data, leftLen, dstFd);
-        }
+        SendMsgToClientAction(dstFd, msg);
         Logger(DEBUG, MD_NM_SVR, "send msg. opt:%d,sysId:%d", msg->head.optType, msg->head.sysId);
         ReleasePwrMsg(&msg);
     }
@@ -456,6 +541,7 @@ void StopServer(void)
     DestroyMsgFactory();
     pthread_cond_destroy((pthread_cond_t *)&g_waitMsgCond);
     pthread_mutex_destroy((pthread_mutex_t *)&g_waitMsgMutex);
+    ReleaseWhiteList();
 }
 
 // This function will move the 'data' pointer to data migration, and the caller should not release the 'data'.
@@ -502,4 +588,38 @@ int SendMetadataToClient(uint32_t sysId, char *data, uint32_t len)
 int SendRspMsg(PwrMsg *rsp)
 {
     return AddToBufferTail(&g_sendBuff, rsp);
+}
+
+int SendEventToClient(const int dstFd, const uint32_t sysId, char *data, uint32_t len)
+{
+    if (!data && len != 0) {
+        return ERR_INVALIDE_PARAM;
+    }
+
+    PwrMsg *event = (PwrMsg *)malloc(sizeof(PwrMsg));
+    char *dataCpy = (char *)malloc(len);
+    if (!event || !dataCpy) {
+        Logger(ERROR, MD_NM_SVR, "Malloc failed");
+        free(data);
+        return ERR_SYS_EXCEPTION;
+    }
+
+    bzero(event, sizeof(PwrMsg));
+    memset(dataCpy, 0, len);
+    memcpy(dataCpy, data, len);
+    int res = GenerateEventMsg(event, sysId, dataCpy, len);
+    if (res != SUCCESS) {
+        Logger(ERROR, MD_NM_SVR, "Generate event msg failed, result:%d", res);
+        free(data);
+        data = NULL;
+        ReleasePwrMsg(&event);
+        return res;
+    }
+
+    SendMsgToClientAction(dstFd, event);
+    Logger(INFO, MD_NM_SVR, "Send event notifcation success.");
+    free(data);
+    data = NULL;
+    ReleasePwrMsg(&event);
+    return SUCCESS;
 }

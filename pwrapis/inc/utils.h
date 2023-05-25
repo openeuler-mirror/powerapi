@@ -20,6 +20,7 @@
 #include <stdint.h>
 #include <sys/stat.h>
 #include "config.h"
+#include "pwrdata.h"
 
 #define DIR_ENTRY 4
 #define TM_SEC_NUM 6
@@ -34,6 +35,13 @@ struct FieldLocation {
     int fieldNum;
     const char *sep;
 };
+
+typedef struct _UnixCredOS {
+    pid_t pid;
+    uid_t uid;
+    gid_t gid;
+    char user[MAX_ELEMENT_NAME_LEN];
+} UnixCredOS;
 /**
  * GetCurSec - returns the current time as the number of seconds
  * since the Epoch, 1970 - 01 - 01 00:00:00 + 0000 (UTC).
@@ -240,5 +248,5 @@ int WriteFile(const char *strInfo, char *buf, int bufLen);
 int WriteFileAndCheck(const char *strInfo, char *buf, int bufLen);
 int GetMd5(const char *filename, char *md5);
 int NormalizeAndVerifyFilepath(const char *filename, char *realpathRes);
-
+int GetSockoptFromOS(const pid_t pid, UnixCredOS *credOS);
 #endif
