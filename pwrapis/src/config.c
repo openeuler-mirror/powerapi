@@ -184,8 +184,13 @@ static enum CnfItemType StringToEnum(char *str)
 static int LoadConfigFile(void)
 {
     char line[MAX_LINE_NUM] = {0};
+    char realpathRes[MAX_FULL_NAME] = {0};
 
-    FILE *fp = fopen(g_configPath, "r");
+    int ret = NormalizeAndVerifyFilepath(g_configPath, realpathRes);
+    if (ret != SUCCESS) return ret;
+    if (access(realpathRes, R_OK) != 0) return ERR_COMMON;
+
+    FILE *fp = fopen(realpathRes, "r");
     if (fp == NULL) {
         return ERR_NULL_POINTER;
     }
@@ -358,21 +363,23 @@ int CheckAndUpdateConfig(void)
     int invalidUpdateSum = 0;   // The number of invalid updates
     int nonDynamicSum = 0;      // The number of undynamically validated attrs that been modified
     char line[MAX_LINE_LENGTH];
-    FILE *fp = fopen(g_configPath, "r");
+    char realpathRes[MAX_FULL_NAME] = {0};
+
+    int ret = NormalizeAndVerifyFilepath(g_configPath, realpathRes);
+    if (ret != SUCCESS) return ret;
+    if (access(realpathRes, R_OK) != 0) return ERR_COMMON;
+
+    FILE *fp = fopen(realpathRes, "r");
     if (fp == NULL) {
         return ERR_NULL_POINTER;
     }
 
     while (fgets(line, sizeof(line) - 1, fp) != NULL) {
-        if (strlen(line) <= 1 || line[0] == '#' || line[0] == '[') {
-            continue;
-        }
+        if (strlen(line) <= 1 || line[0] == '#' || line[0] == '[') continue;
         char key[MAX_KEY_LEN] = {0};
         char value[MAX_LINE_LENGTH] = {0};
         char *index = strchr(line, '=');
-        if (index == NULL) {
-            continue;
-        }
+        if (index == NULL) continue;
         
         strncpy(key, line, index - line);
         strncpy(value, index + 1, sizeof(value));

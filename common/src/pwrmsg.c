@@ -119,7 +119,7 @@ int GenerateMetadataMsg(PwrMsg *metadata, uint32_t sysId, char *data, uint32_t l
     metadata->head.msgType = MT_MDT;
     metadata->head.rspCode = 0;
     metadata->head.seqId = GenerateSeqId();
-    metadata->head.taskNo = 0;  // 暂时无作用
+    metadata->head.taskNo = 0;  // Currently ineffective
     metadata->head.crcMagic = GenerateCrcMagic();
     metadata->head.dataLen = len;
     metadata->head.sysId = sysId;

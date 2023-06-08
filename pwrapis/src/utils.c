@@ -177,6 +177,10 @@ int GetFileLines(const char *file, int *num)
     if (file == NULL) {
         return ERR_INVALIDE_PARAM;
     }
+    if (access(file, F_OK | R_OK) != 0) {
+        return ERR_COMMON;
+    }
+
     fp = fopen(file, "r");
     if (fp == NULL) {
         return ERR_NULL_POINTER;
@@ -300,6 +304,9 @@ const char *GetNthLine(const char *fileName, int nth, char *lineBuf, size_t bufL
     char line[MAX_LINE_NUM] = {0};
 
     if (fileName == NULL || nth < 1 || bufLen < 0) {
+        return NULL;
+    }
+    if (access(fileName, F_OK | R_OK) != 0) {
         return NULL;
     }
 
@@ -485,6 +492,7 @@ int MatchCnt(const char *fileName, regex_t *pRegex)
     if (access(fileName, F_OK | R_OK) != 0) {
         return FAILED;
     }
+
     pFile = fopen(fileName, "r");
     while (!feof(pFile)) {
         pRdRes = fgets(line, sizeof(line) - 1, pFile);
@@ -521,6 +529,7 @@ const char *GetMatchN(const char *fileName, regex_t *pRegex, int n, char *row, i
     if (access(fileName, F_OK | R_OK) != 0) {
         return NULL;
     }
+
     pFile = fopen(fileName, "r");
     while (!feof(pFile)) {
         pRdRes = fgets(line, sizeof(line) - 1, pFile);
@@ -551,8 +560,8 @@ const char *GetMatchN(const char *fileName, regex_t *pRegex, int n, char *row, i
 
 int MkDirs(const char *sDirName)
 {
-    int i;
-    int len;
+    size_t i;
+    size_t len;
     char DirName[MAX_PATH_NAME] = {0};
 
     strcpy(DirName, sDirName);
@@ -631,7 +640,7 @@ int GetFileCrc32Val(const char *fileName, unsigned int *fileCrc)
 
 int IsNumStr(const char *pStr)
 {
-    int len;
+    size_t len;
     int idx;
     if (pStr == NULL) {
         return 0;
@@ -774,7 +783,7 @@ char *Rtrim(char *s)
 // Remove the front and the last spaces of str.
 void LRtrim(char *str)
 {
-    int length = strlen(str);
+    size_t length = strlen(str);
     int head = 0;
     int tail = length - 1;
     while (isspace(str[head])) {
@@ -814,8 +823,8 @@ char *StrSplit(const char *src, const char *sep, char **res, int *itemNum)
 const char *StrJoin(char **strArr, int itemNum, const char *joinStr, char *buf, int bufLen)
 {
     int idx;
-    int sepLen;
-    int fieldLen;
+    size_t sepLen;
+    size_t fieldLen;
     char *pos = NULL;
     char tmpBuf[MAX_LINE_LENGTH] = {0};
 
@@ -866,7 +875,7 @@ const char *StrReplace(const char *src, const char *old, const char *new, char *
 
 void DeleteChar(char str[], char a)
 {
-    int strLength = strlen(str);
+    size_t strLength = strlen(str);
     int point = 0;
     for (int i = 0; i < strLength; i++) {
         if ((str[i] == a)) {
@@ -947,6 +956,9 @@ int ReadFile(const char *strInfo, char *buf, int bufLen)
 
 int WriteFile(const char *strInfo, char *buf, int bufLen)
 {
+    if (access(strInfo, F_OK | R_OK | W_OK) != 0) {
+        return 1;
+    }
     FILE *fp = fopen(strInfo, "w+");
     if (fp == NULL) {
         return 1;
@@ -998,5 +1010,22 @@ int GetMd5(const char *filename, char *md5)
     }
     strncpy(md5, buf, sizeof(buf));
     pclose(fp);
+    return SUCCESS;
+}
+
+int NormalizeAndVerifyFilepath(const char *filename, char *realpathRes)
+{
+    char *path = NULL;
+    path = realpath(filename, NULL);
+    strncpy(realpathRes, path, strlen(path));
+    if (realpathRes == NULL) {
+        return ERR_PATH_NORMALIZE;
+    }
+    // Verify file path
+    if (access(realpathRes, F_OK) != 0) {
+        return ERR_PATH_VERIFY;
+    }
+    free(path);
+    path = NULL;
     return SUCCESS;
 }

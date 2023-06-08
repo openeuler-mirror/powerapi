@@ -76,11 +76,11 @@ static int ReadMsg(void *pData, int len)
     return SUCCESS;
 }
 
-static int WriteMsg(const void *pData, int len)
+static int WriteMsg(const void *pData, size_t len)
 {
-    int leftLen;
-    int sendLen;
-    int wrLen = 0;
+    size_t leftLen;
+    size_t sendLen;
+    size_t wrLen = 0;
 
     leftLen = len;
     while (leftLen > 0) {
@@ -180,7 +180,7 @@ static void SendMsgToSocket(void)
         if (!msg) {
             continue;
         }
-        int len = sizeof(PwrMsg) + msg->head.dataLen;
+        size_t len = sizeof(PwrMsg) + msg->head.dataLen;
 
         if (len <= MAX_DATA_SIZE) {
             memcpy(data, msg, sizeof(PwrMsg));
@@ -190,8 +190,8 @@ static void SendMsgToSocket(void)
             memcpy(data, msg, sizeof(PwrMsg));
             memcpy(data + sizeof(PwrMsg), msg->data, MAX_DATA_SIZE - sizeof(PwrMsg));
             WriteMsg(data, MAX_DATA_SIZE);
-            int datasent = MAX_DATA_SIZE - sizeof(PwrMsg);
-            int leftLen = len - MAX_DATA_SIZE;
+            size_t datasent = MAX_DATA_SIZE - sizeof(PwrMsg);
+            size_t leftLen = len - MAX_DATA_SIZE;
             while (leftLen > MAX_DATA_SIZE) {
                 memcpy(data, msg->data + datasent, MAX_DATA_SIZE);
                 WriteMsg(data, MAX_DATA_SIZE);
@@ -227,7 +227,7 @@ static int CreateConnection(void)
     strncpy(clientAddr.sun_path, CLIENT_ADDR, sizeof(clientAddr.sun_path) - 1);
     // socket file "pwrclient.sock.{$pid}"
     strncat(clientAddr.sun_path, pidStr, sizeof(clientAddr.sun_path) - strlen(CLIENT_ADDR) - 1);
-    int clen = SUN_LEN(&clientAddr);
+    size_t clen = SUN_LEN(&clientAddr);
     unlink(clientAddr.sun_path);
     if (bind(clientFd, (struct sockaddr *)&clientAddr, clen) < 0) {
         PwrLog(ERROR, "bind socket failed.");
@@ -239,7 +239,7 @@ static int CreateConnection(void)
     bzero(&serverAddr, sizeof(serverAddr));
     serverAddr.sun_family = AF_UNIX;
     strncpy(serverAddr.sun_path, SERVER_ADDR, sizeof(serverAddr.sun_path) - 1);
-    int slen = SUN_LEN(&serverAddr);
+    size_t slen = SUN_LEN(&serverAddr);
     if (connect(clientFd, (struct sockaddr *)&serverAddr, slen) < 0) {
         PwrLog(ERROR, "connect to server failed.");
         close(clientFd);

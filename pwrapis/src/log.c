@@ -41,11 +41,22 @@ static FILE *OpenLogFile(void)
 {
     struct stat st;
     char fullName[MAX_FULL_NAME] = {0};
+    char realpathRes[MAX_FULL_NAME] = {0};
+
     // Create log file
     if (sprintf(fullName, "%s/%s", GetLogCfg()->logPath, GetLogCfg()->logPfx) < 0) {
         return NULL;
     }
-    g_pFile = fopen(fullName, "a");
+    
+    int ret = NormalizeAndVerifyFilepath(fullName, realpathRes);
+    if (ret != SUCCESS) {
+        return NULL;
+    }
+    if (access(realpathRes, W_OK) != 0) {
+        return NULL;
+    }
+
+    g_pFile = fopen(realpathRes, "a");
     if (stat(fullName, &st) < 0) {
         return NULL;
     }
@@ -189,7 +200,7 @@ void Logger(enum LogLevel level, const char *moduleName, const char *format, ...
         return;
     }
 
-    int logLen;
+    size_t logLen;
     int ret;
     va_list valist;
     char curTime[MAX_STD_TIME] = {0};

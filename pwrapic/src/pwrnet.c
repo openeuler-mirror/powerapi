@@ -36,7 +36,8 @@ int GetNetInfo(PWR_NET_Info *netInfo, uint32_t bufferSize)
     }
 
     // Remediate coreNum
-    netInfo->ethNum = (size - sizeof(PWR_NET_Info)) / sizeof(PWR_NET_Eth);
+    size_t ethNum = (size - sizeof(PWR_NET_Info)) / sizeof(PWR_NET_Eth);
+    netInfo->ethNum = ethNum;
     PwrLog(DEBUG, "GetNetInfo succeed.");
     return SUCCESS;
 }
@@ -45,10 +46,12 @@ int GetNetThrough(char ethName[], PWR_NET_Through *ethThrough)
 {
     ReqInputParam input;
     input.optType = NET_GET_THROUGH;
-    input.dataLen = strlen(ethName) + 1;
+    size_t dataLen = strlen(ethName) + 1;
+    input.dataLen = dataLen;
     input.data = (char *)ethName;
     RspOutputParam output;
-    uint32_t size = sizeof(PWR_NET_Through);
+    size_t s = sizeof(PWR_NET_Through);
+    uint32_t size = s;
     output.rspBuffSize = &size;
     output.rspData = (void *)ethThrough;
 
@@ -65,10 +68,12 @@ int GetNetSpeedMod(char ethName[], uint32_t *speedMod)
 {
     ReqInputParam input;
     input.optType = NET_GET_SPEED_MOD;
-    input.dataLen = strlen(ethName) + 1;
+    size_t dataLen = strlen(ethName) + 1;
+    input.dataLen = dataLen;
     input.data = (char *)ethName;
     RspOutputParam output;
-    uint32_t size = sizeof(uint32_t);
+    size_t s = sizeof(uint32_t);
+    uint32_t size = s;
     output.rspBuffSize = &size;
     output.rspData = (void *)speedMod;
 
@@ -85,7 +90,7 @@ int SetNetSpeedMod(char ethName[], uint32_t speedMod)
 {
     ReqInputParam input = { 0 };
     input.optType = NET_SET_SPEED_MOD;
-    uint32_t dlen = sizeof(speedMod) + strlen(ethName) + 1;
+    size_t dlen = sizeof(speedMod) + strlen(ethName) + 1;
     input.dataLen = dlen;
     input.data = (char *)malloc(dlen);
     if (!input.data) {

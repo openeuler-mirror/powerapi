@@ -435,7 +435,7 @@ IoHdRef hdArr[] = {
 static CollHandler GetColHdl(const char* dataName)
 {
     int idx;
-    int len;
+    size_t len;
 
     len = sizeof(hdArr) / sizeof(IoHdRef);
     for (idx = 0; idx < len; ++idx) {
@@ -487,7 +487,7 @@ void InitIoColl(void)
 void ClearIoColl(void)
 {
     int i;
-    int length;
+    size_t length;
 
     length = sizeof(hdArr) / sizeof(IoHdRef);
     for (i = 0; i < length; ++i) {
@@ -518,6 +518,10 @@ int ReadDiskName(const char *file, PWR_DISK_Info disklist[], int diskNum)
     if (file == NULL) {
         return ERR_INVALIDE_PARAM;
     }
+    if (access(file, F_OK | R_OK) != 0) {
+        return ERR_COMMON;
+    }
+
     fp = fopen(file, "r");
     if (fp == NULL) {
         return ERR_NULL_POINTER;

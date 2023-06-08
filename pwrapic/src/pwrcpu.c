@@ -26,7 +26,8 @@ int GetCpuInfo(PWR_CPU_Info *cpuInfo)
     input.dataLen = 0;
     input.data = NULL;
     RspOutputParam output;
-    int size = sizeof(PWR_CPU_Info);
+    size_t s = sizeof(PWR_CPU_Info);
+    uint32_t size = s;
     output.rspBuffSize = &size;
     output.rspData = (void *)cpuInfo;
 
@@ -57,7 +58,8 @@ int GetCpuUsage(PWR_CPU_Usage *usage, uint32_t bufferSize)
     }
 
     // Remediate coreNum
-    usage->coreNum = (size - sizeof(PWR_CPU_Usage)) / sizeof(PWR_CPU_CoreUsage);
+    size_t coreNum = (size - sizeof(PWR_CPU_Usage)) / sizeof(PWR_CPU_CoreUsage);
+    usage->coreNum = coreNum;
     PwrLog(DEBUG, "GetCpuUsage succeed.");
     return SUCCESS;
 }
@@ -69,7 +71,8 @@ int GetCpuPerfData(PWR_CPU_PerfData *perfData)
     input.dataLen = 0;
     input.data = NULL;
     RspOutputParam output;
-    uint32_t size = sizeof(PWR_CPU_PerfData);
+    size_t s = sizeof(PWR_CPU_PerfData);
+    uint32_t size = s;
     output.rspBuffSize = &size;
     output.rspData = (void *)perfData;
     int ret = SendReqAndWaitForRsp(input, output);
@@ -97,7 +100,8 @@ int GetCpuFreqAbility(PWR_CPU_FreqAbility *freqAbi, uint32_t bufferSize)
         PwrLog(ERROR, "GetCpuFreqAbility failed. ret:%d", ret);
         if (freqAbi->freqDomainStep != 0) {
             // Remediate the data to avoid error happens in buffersize is smaller then real data length.
-            freqAbi->freqDomainNum = (size - sizeof(PWR_CPU_FreqAbility)) / freqAbi->freqDomainStep;
+            size_t freqDomainNum = (size - sizeof(PWR_CPU_FreqAbility)) / freqAbi->freqDomainStep;
+            freqAbi->freqDomainNum = freqDomainNum;
         }
     } else {
         PwrLog(DEBUG, "GetCpuFreqAbility Succeed.");
@@ -112,7 +116,8 @@ int GetCpuFreqRange(PWR_CPU_FreqRange *freqRange)
     input.dataLen = 0;
     input.data = NULL;
     RspOutputParam output;
-    uint32_t size = sizeof(PWR_CPU_FreqRange);
+    size_t s = sizeof(PWR_CPU_FreqRange);
+    uint32_t size = s;
     output.rspBuffSize = &size;
     output.rspData = (void *)freqRange;
     int ret = SendReqAndWaitForRsp(input, output);
@@ -128,7 +133,8 @@ int SetCpuFreqRange(const PWR_CPU_FreqRange *freqRange)
 {
     ReqInputParam input;
     input.optType = CPU_SET_FREQ_RANGE;
-    input.dataLen = sizeof(PWR_CPU_FreqRange);
+    size_t dataLen = sizeof(PWR_CPU_FreqRange);
+    input.dataLen = dataLen;
     input.data = (char *)freqRange;
     RspOutputParam output;
     output.rspBuffSize = NULL;
@@ -193,7 +199,8 @@ int GetCpuCurFreq(PWR_CPU_CurFreq curFreq[], uint32_t *len, int spec)
         PwrLog(ERROR, "GetCpuCurFreq failed. ret:%d", ERR_INPUT_OVERSIZE);
         return ERR_INPUT_OVERSIZE;
     }
-    uint32_t size = sizeof(PWR_CPU_CurFreq) * (*len);
+    size_t s = sizeof(PWR_CPU_CurFreq) * (*len);
+    uint32_t size = s;
     ReqInputParam input;
     input.optType = CPU_GET_CUR_FREQ;
     if (spec) {
@@ -209,7 +216,8 @@ int GetCpuCurFreq(PWR_CPU_CurFreq curFreq[], uint32_t *len, int spec)
     output.rspData = (void *)curFreq;
 
     int ret = SendReqAndWaitForRsp(input, output);
-    *len = size / sizeof(PWR_CPU_CurFreq);
+    size_t curLen = size / sizeof(PWR_CPU_CurFreq);
+    *len = curLen;
     if (ret != SUCCESS) {
         PwrLog(ERROR, "GetCpuCurFreq failed. ret:%d", ret);
     } else {
@@ -222,7 +230,8 @@ int SetCpuCurFreq(const PWR_CPU_CurFreq curFreq[], uint32_t len)
 {
     ReqInputParam input;
     input.optType = CPU_SET_CUR_FREQ;
-    input.dataLen = sizeof(PWR_CPU_CurFreq) * len;
+    size_t dataLen = sizeof(PWR_CPU_CurFreq) * len;
+    input.dataLen = dataLen;
     input.data = (char *)curFreq;
     RspOutputParam output;
     output.rspBuffSize = NULL;
@@ -244,7 +253,8 @@ int GetCpuDmaLatency(int *latency)
     input.dataLen = 0;
     input.data = NULL;
     RspOutputParam output;
-    uint32_t size = sizeof(int);
+    size_t s = sizeof(int);
+    uint32_t size = s;
     output.rspBuffSize = &size;
     output.rspData = (void *)latency;
     int ret = SendReqAndWaitForRsp(input, output);
@@ -260,7 +270,8 @@ int SetCpuDmaLatency(int latency)
 {
     ReqInputParam input;
     input.optType = CPU_SET_DMA_LATENCY;
-    input.dataLen = sizeof(int);
+    size_t dataLen = sizeof(int);
+    input.dataLen = dataLen;
     input.data = (char *)&latency;
     RspOutputParam output;
     output.rspBuffSize = NULL;

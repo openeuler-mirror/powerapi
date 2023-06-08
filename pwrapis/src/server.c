@@ -203,11 +203,11 @@ static void ProcessRecvMsgFromClient(int clientIdx)
     pthread_mutex_unlock((pthread_mutex_t *)&g_waitMsgMutex);
 }
 
-static int WriteMsg(const void *pData, int len, int dstFd)
+static int WriteMsg(const void *pData, size_t len, int dstFd)
 {
-    int leftLen;
-    int sendLen;
-    int wrLen = 0;
+    size_t leftLen;
+    size_t sendLen;
+    size_t wrLen = 0;
 
     leftLen = len;
     while (leftLen > 0) {
@@ -247,7 +247,7 @@ static void ProcessSendMsgToClient(void)
             ReleasePwrMsg(&msg);
             continue;
         }
-        int len = sizeof(PwrMsg) + msg->head.dataLen;
+        size_t len = sizeof(PwrMsg) + msg->head.dataLen;
 
         if (len <= MAX_DATA_SIZE) {
             memcpy(data, msg, sizeof(PwrMsg));
@@ -257,8 +257,8 @@ static void ProcessSendMsgToClient(void)
             memcpy(data, msg, sizeof(PwrMsg));
             memcpy(data + sizeof(PwrMsg), msg->data, MAX_DATA_SIZE - sizeof(PwrMsg));
             WriteMsg(data, MAX_DATA_SIZE, dstFd);
-            int datasent = MAX_DATA_SIZE - sizeof(PwrMsg);
-            int leftLen = len - MAX_DATA_SIZE;
+            size_t datasent = MAX_DATA_SIZE - sizeof(PwrMsg);
+            size_t leftLen = len - MAX_DATA_SIZE;
             while (leftLen > MAX_DATA_SIZE) {
                 memcpy(data, msg->data + datasent, MAX_DATA_SIZE);
                 WriteMsg(data, MAX_DATA_SIZE, dstFd);
