@@ -1,4 +1,4 @@
-cmake_minimum_required (VERSION 3.19)
+cmake_minimum_required (VERSION 3.16)
 project (pwrapis C)
 set ( CMAKE_INCLUDE_CURRENT_DIR ON)
 set ( CMAKE_INSTALL_PREFIX "/usr")
@@ -14,6 +14,7 @@ set(PWRAPIS_SRC ${COMMON_SRC} ${PWRAPIS_SRC_DIR})
 # Set compiling policy
 set (PG_NAME ${PROJECT_NAME})
 add_executable (${PG_NAME} ${PWRAPIS_SRC})
+target_link_libraries(${PG_NAME} -lpthread)
 set (CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # Set installaltion path

@@ -6,6 +6,9 @@ PWRAPIS="server"
 mkdir build
 cd build
 cmake ..
+if [ $? -ne 0 ]; then
+    exit 1
+fi
 
 if [[ "$1" == "$PWRAPIC" ]]
 then
@@ -16,6 +19,10 @@ then
     make pwrapis
 else
     make all
+fi
+
+if [ $? -ne 0 ]; then
+    exit 1
 fi
 
 cd ..
@@ -44,3 +51,4 @@ cp -r ./pwrapis/conf  ./release/pwrapis/
 #make clean
 #cd ..
 #rm -rf build
+exit 0
