@@ -1,4 +1,4 @@
-cmake_minimum_required (VERSION 3.19)
+cmake_minimum_required (VERSION 3.16)
 project (gtest_test C CXX)
 set ( CMAKE_INCLUDE_CURRENT_DIR ON)
 

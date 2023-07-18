@@ -1,4 +1,4 @@
-cmake_minimum_required (VERSION 3.19)
+cmake_minimum_required (VERSION 3.16)
 project (pwrapic_demo C)
 set ( CMAKE_INCLUDE_CURRENT_DIR ON)
 
@@ -12,7 +12,7 @@ link_directories( ${PROJECT_SOURCE_DIR}/../../build/pwrapic/src )
 # Set compile policy
 set (PG_NAME ${PROJECT_NAME})
 add_executable (${PG_NAME} demo_main.c)
-target_link_libraries(${PG_NAME} -lpwrapi)
+target_link_libraries(${PG_NAME} -lpwrapi -lpthread)
 set (CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # Set installation path
