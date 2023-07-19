@@ -293,8 +293,9 @@ static int LoadConfigFile(void)
         char key[MAX_KEY_LEN] = {0};
         char value[MAX_LINE_LENGTH] = {0};
         char *index = strchr(line, '=');
-        if (index == NULL) continue;
-
+        if (index == NULL) {
+            continue;
+        }
         strncpy(key, line, index - line);
         strncpy(value, index + 1, MAX_LINE_LENGTH - 1);
         LRtrim(key);
