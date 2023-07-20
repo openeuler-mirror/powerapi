@@ -111,7 +111,35 @@ static void DoDataCallback(PwrMsg *msg)
         ReleasePwrMsg(&msg);
         return;
     }
+    if (g_metadata_callback == NULL) {
+        PwrLog(ERROR, "No metadata callback.");
+        ReleasePwrMsg(&msg);
+        return;
+    }
     g_metadata_callback(callBackData);
+    ReleasePwrMsg(&msg);
+}
+
+static void (*g_event_callback)(const PWR_COM_EventInfo *) = NULL;
+static void DoEventCallback(PwrMsg *msg)
+{
+    if (msg->head.dataLen < sizeof(PWR_COM_EventInfo)) {
+        PwrLog(DEBUG, "DoEventCallback. msg data len error. len:%d", msg->head.dataLen);
+        ReleasePwrMsg(&msg);
+        return;
+    }
+    PWR_COM_EventInfo *callbackEvent = (PWR_COM_EventInfo *)msg->data;
+    if (callbackEvent->infoLen <= 0) {
+        PwrLog(DEBUG, "DoEventCallback. data empty. len:%d", callbackEvent->infoLen);
+        ReleasePwrMsg(&msg);
+        return;
+    }
+    if (g_event_callback == NULL) {
+        PwrLog(ERROR, "No event callback.");
+        ReleasePwrMsg(&msg);
+        return;
+    }
+    g_event_callback(callbackEvent);
     ReleasePwrMsg(&msg);
 }
 
@@ -128,7 +156,17 @@ static void ProcessRspMsg(PwrMsg *rsp)
         return;
     }
 }
-
+static void ProcessEvtMsg(PwrMsg *msg)
+{
+    switch (msg->head.optType) {
+        case COM_CALLBACK_EVENT:
+            DoEventCallback(msg);
+            break;
+        default:
+            ReleasePwrMsg(&msg);
+            break;
+    }
+}
 static void ProcessOtherMsg(PwrMsg *msg)
 {
     /* if (AddToBufferTail(&g_recvBuff, msg) != SUCCESS) {
@@ -163,10 +201,16 @@ static void RecvMsgFromSocket(void)
         msg->data = NULL;
     }
 
-    if (msg->head.msgType == MT_RSP) {
-        ProcessRspMsg(msg);
-    } else {
-        ProcessOtherMsg(msg);
+    switch (msg->head.msgType) {
+        case MT_RSP:
+            ProcessRspMsg(msg);
+            break;
+        case MT_EVT:
+            ProcessEvtMsg(msg);
+            break;
+        default:
+            ProcessOtherMsg(msg);
+            break;
     }
 }
 
@@ -388,6 +432,15 @@ int SetMetaDataCallback(void(MetaDataCallback)(const PWR_COM_CallbackData *))
 {
     if (MetaDataCallback) {
         g_metadata_callback = MetaDataCallback;
+        return SUCCESS;
+    }
+    return ERR_NULL_POINTER;
+}
+
+int SetEventCallback(void(EventCallback)(const PWR_COM_EventInfo *))
+{
+    if (EventCallback) {
+        g_event_callback = EventCallback;
         return SUCCESS;
     }
     return ERR_NULL_POINTER;

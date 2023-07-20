@@ -131,6 +131,14 @@ int PWR_DeleteDcTask(PWR_COM_COL_DATATYPE dataType)
     return DeleteDcTask(dataType);
 }
 
+int PWR_SetEventCallback(void(EventCallback)(const PWR_COM_EventInfo *))
+{
+    if (EventCallback) {
+        return SetEventCallback(EventCallback);
+    }
+    return ERR_NULL_POINTER;
+}
+
 int PWR_RequestControlAuth(void)
 {
     CHECK_STATUS(STATUS_REGISTERTED);

@@ -2,7 +2,7 @@
 Description= Power API Service. 
 
 [Service]
-ExecStart=/usr/sbin/pwrapis  /etc/sysconfig/pwrapis_config.ini
+ExecStart=/usr/sbin/pwrapis /etc/sysconfig/pwrapis/pwrapis_config.ini
 Restart=always
 RestartSec=5
 User=root

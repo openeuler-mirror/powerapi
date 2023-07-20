@@ -850,7 +850,7 @@ const char *StrJoin(char **strArr, int itemNum, const char *joinStr, char *buf, 
 
 const char *StrReplace(const char *src, const char *old, const char *new, char *dest, int destLen)
 {
-    int maxNum;
+    size_t maxNum;
     char **res = NULL;
     char *buf = NULL;
     const char *pStrRes = NULL;
@@ -1000,7 +1000,6 @@ int GetMd5(const char *filename, char *md5)
     strncat(md5Cmd, s2, strlen(s2));
     FILE *fp = popen(md5Cmd, "r");
     if (fp == NULL) {
-        pclose(fp);
         return ERR_NULL_POINTER;
     }
     char buf[MD5_LEN] = {0};
@@ -1027,5 +1026,56 @@ int NormalizeAndVerifyFilepath(const char *filename, char *realpathRes)
     }
     free(path);
     path = NULL;
+    return SUCCESS;
+}
+
+int GetSockoptFromOS(const pid_t pid, UnixCredOS *credOS)
+{
+    char credCmd[MAX_NAME_LEN];
+    const char s[] = "ps -eo pid,uid,gid,user | grep ";
+    if (sprintf(credCmd, "%s%d", s, pid) < 0) return ERR_COMMON;
+    FILE *fp = popen(credCmd, "r");
+    if (fp == NULL) {
+        return ERR_NULL_POINTER;
+    }
+    char buf[MAX_NAME_LEN] = {0};
+    if (fgets(buf, sizeof(buf), fp) == NULL) {
+        pclose(fp);
+        return ERR_COMMON;
+    }
+    pclose(fp);
+
+    size_t maxNum;
+    char **res = NULL;
+    maxNum = strlen(buf);
+    if (maxNum == 0) {
+        return ERR_COMMON;
+    }
+    res = calloc(maxNum, sizeof(char *));
+    if (res == NULL) {
+        return ERR_NULL_POINTER;
+    }
+
+    if (StrSplit(buf, " ", res, &maxNum) == NULL) {
+        free(res);
+        return ERR_COMMON;
+    }
+    /**
+     * credOS->user will be release after being used by the function that created it.
+     * 3 is the index of 'user' in res
+    */
+    LRtrim(res[3]);
+    memset(credOS, 0, sizeof(UnixCredOS));
+    strncpy(credOS->user, res[3], MAX_ELEMENT_NAME_LEN - 1);
+    /**
+     * 0 is the index of 'pid' in res
+     * 1 is the index of 'uid' in res
+     * 2 is the index of 'gid' in res
+    */
+    credOS->pid = atoi(res[0]);
+    credOS->uid = atoi(res[1]);
+    credOS->gid = atoi(res[2]);
+
+    free(res);
     return SUCCESS;
 }

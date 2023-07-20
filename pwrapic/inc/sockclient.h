@@ -33,6 +33,7 @@ int SetServerInfo(const char* socketPath);
 int InitSockClient(void);
 int FiniSockClient(void);
 int SetMetaDataCallback(void(MetaDataCallback)(const PWR_COM_CallbackData *));
+int SetEventCallback(void(EventCallback)(const PWR_COM_EventInfo *));
 int HasSetDataCallback(void);
 int SendReqAndWaitForRsp(const ReqInputParam input, RspOutputParam output);
 #endif

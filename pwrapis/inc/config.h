@@ -17,6 +17,7 @@
 #include <stdint.h>
 #include "common.h"
 #include "list.h"
+#include "pwrerr.h"
 
 #define DEFAULT_SERVER_ADDR "pwrserver.sock"
 #define DEFAULT_LOG_PATH "/opt/os_data/log"
@@ -45,6 +46,8 @@ enum CnfItemType {
     E_CFG_IT_PFX,
     E_CFG_IT_SVP,
     E_CFG_IT_SKF,
+    E_CFG_IT_ADM,
+    E_CFG_IT_OBSER,
 };
 
 typedef struct LogCfg {
@@ -74,4 +77,8 @@ int InitConfig(void);
 LogCfg *GetLogCfg(void);
 ServCfg *GetServCfg(void);
 int CheckAndUpdateConfig(void);
+int IsAdmin(const char* user);
+int IsObserver(const char* user);
+void ReleaseWhiteList(void);
+
 #endif
