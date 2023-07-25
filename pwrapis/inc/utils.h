@@ -40,7 +40,7 @@ typedef struct _UnixCredOS {
     pid_t pid;
     uid_t uid;
     gid_t gid;
-    char user[MAX_ELEMENT_NAME_LEN];
+    char user[PWR_MAX_ELEMENT_NAME_LEN];
 } UnixCredOS;
 /**
  * GetCurSec - returns the current time as the number of seconds

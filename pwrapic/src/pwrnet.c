@@ -30,7 +30,7 @@ int GetNetInfo(PWR_NET_Info *netInfo, uint32_t bufferSize)
     output.rspData = (void *)netInfo;
 
     int ret = SendReqAndWaitForRsp(input, output);
-    if (ret != SUCCESS) {
+    if (ret != PWR_SUCCESS) {
         PwrLog(ERROR, "GetNetInfo failed. ret:%d", ret);
         return ret;
     }
@@ -39,7 +39,7 @@ int GetNetInfo(PWR_NET_Info *netInfo, uint32_t bufferSize)
     size_t ethNum = (size - sizeof(PWR_NET_Info)) / sizeof(PWR_NET_Eth);
     netInfo->ethNum = ethNum;
     PwrLog(DEBUG, "GetNetInfo succeed.");
-    return SUCCESS;
+    return PWR_SUCCESS;
 }
 
 int GetNetThrough(char ethName[], PWR_NET_Through *ethThrough)
@@ -56,7 +56,7 @@ int GetNetThrough(char ethName[], PWR_NET_Through *ethThrough)
     output.rspData = (void *)ethThrough;
 
     int ret = SendReqAndWaitForRsp(input, output);
-    if (ret != SUCCESS) {
+    if (ret != PWR_SUCCESS) {
         PwrLog(ERROR, "GetNetThrough failed. ret:%d", ret);
     } else {
         PwrLog(DEBUG, "GetNetThrough Succeed.");
@@ -78,7 +78,7 @@ int GetNetSpeedMod(char ethName[], uint32_t *speedMod)
     output.rspData = (void *)speedMod;
 
     int ret = SendReqAndWaitForRsp(input, output);
-    if (ret != SUCCESS) {
+    if (ret != PWR_SUCCESS) {
         PwrLog(ERROR, "GetNetSpeedMod failed. ret:%d", ret);
     } else {
         PwrLog(DEBUG, "GetNetSpeedMod Succeed.");
@@ -94,7 +94,7 @@ int SetNetSpeedMod(char ethName[], uint32_t speedMod)
     input.dataLen = dlen;
     input.data = (char *)malloc(dlen);
     if (!input.data) {
-        return ERR_SYS_EXCEPTION;
+        return PWR_ERR_SYS_EXCEPTION;
     }
     bzero(input.data, dlen);
     memcpy(input.data, &speedMod, sizeof(speedMod));
@@ -105,7 +105,7 @@ int SetNetSpeedMod(char ethName[], uint32_t speedMod)
     output.rspData = NULL;
 
     int ret = SendReqAndWaitForRsp(input, output);
-    if (ret != SUCCESS) {
+    if (ret != PWR_SUCCESS) {
         PwrLog(ERROR, "SetNetSpeedMod failed. ret:%d", ret);
     } else {
         PwrLog(DEBUG, "SetNetSpeedMod Succeed.");

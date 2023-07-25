@@ -25,14 +25,14 @@
 static int PowerSet(char *powerState)
 {
     FILE *fp = NULL;
-    char *stateStr = malloc(strlen(powerState) + MAX_NAME_LEN);
+    char *stateStr = malloc(strlen(powerState) + PWR_MAX_NAME_LEN);
     if (stateStr == NULL) {
         Logger(ERROR, MD_NM_SVR_SYS, "Malloc failed.");
         return 1;
     }
     static const char s1[] = "sleep 10 && echo ";
     static const char s2[] = "> /sys/power/state &";
-    StrCopy(stateStr, s1, strlen(powerState) + MAX_NAME_LEN);
+    StrCopy(stateStr, s1, strlen(powerState) + PWR_MAX_NAME_LEN);
     strncat(stateStr, powerState, strlen(powerState));
     strncat(stateStr, s2, strlen(s2));
     fp = popen(stateStr, "r");
@@ -40,7 +40,7 @@ static int PowerSet(char *powerState)
         return 1;
     }
     pclose(fp);
-    return SUCCESS;
+    return PWR_SUCCESS;
 }
 
 static int IpmiRead(const char *componentInfo, double *result)
@@ -48,17 +48,17 @@ static int IpmiRead(const char *componentInfo, double *result)
     FILE *fp = NULL;
     fp = popen(componentInfo, "r");
     if (fp == NULL) {
-        return ERR_COMMON;
+        return PWR_ERR_COMMON;
     }
-    char buf[MAX_STRING_LEN];
+    char buf[PWR_MAX_STRING_LEN];
     if (fgets(buf, sizeof(buf) - 1, fp) == NULL) {
-        return ERR_COMMON;
+        return PWR_ERR_COMMON;
     }
     DeleteChar(buf, '\n');
     DeleteChar(buf, ' ');
     *result = atof(buf);
     pclose(fp);
-    return SUCCESS;
+    return PWR_SUCCESS;
 }
 
 static int SysRtPowerRead(PWR_SYS_PowerInfo *rstData)
@@ -71,18 +71,18 @@ static int SysRtPowerRead(PWR_SYS_PowerInfo *rstData)
         "printf \"%d\" 0x$(ipmitool raw 0x30 0x93 0xdb 0x07 0x00 0x11 0x5 | awk \'{print $5$4}\')";
     double sysPower;
     if (IpmiRead(sysPowerInfo, &sysPower)) {
-        return ERR_COMMON;
+        return PWR_ERR_COMMON;
     }
     rstData->sysPower = sysPower;
     if (GetArch() == 1) {
         double cpuPower, memPower;
         if (IpmiRead(cpuPowerInfo, &cpuPower) || IpmiRead(memPowerInfo, &memPower)) {
-            return ERR_COMMON;
+            return PWR_ERR_COMMON;
         }
         rstData->cpuPower = cpuPower;
         rstData->memPower = memPower;
     }
-    return SUCCESS;
+    return PWR_SUCCESS;
 }
 
 void SetSysPowerState(PwrMsg *req)
@@ -99,7 +99,7 @@ void SetSysPowerState(PwrMsg *req)
     }
     bzero(rsp, sizeof(PwrMsg));
     GenerateRspMsg(req, rsp, rspCode, NULL, 0);
-    if (SendRspMsg(rsp) != SUCCESS) {
+    if (SendRspMsg(rsp) != PWR_SUCCESS) {
         ReleasePwrMsg(&rsp);
     }
 }

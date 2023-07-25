@@ -33,7 +33,7 @@ int CreateDcTask(const PWR_COM_BasicDcTaskInfo *basicDcTaskInfo)
     output.rspData = NULL;
 
     int ret = SendReqAndWaitForRsp(input, output);
-    if (ret != SUCCESS) {
+    if (ret != PWR_SUCCESS) {
         PwrLog(ERROR, "CreateDcTask failed. ret:%d", ret);
     } else {
         PwrLog(DEBUG, "CreateDcTask Succeed.");
@@ -53,7 +53,7 @@ int DeleteDcTask(PWR_COM_COL_DATATYPE dataType)
     output.rspData = NULL;
 
     int ret = SendReqAndWaitForRsp(input, output);
-    if (ret != SUCCESS) {
+    if (ret != PWR_SUCCESS) {
         PwrLog(ERROR, "DeleteDcTask failed. ret:%d", ret);
     } else {
         PwrLog(DEBUG, "DeleteDcTask Succeed.");

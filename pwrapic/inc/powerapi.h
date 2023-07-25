@@ -50,7 +50,7 @@ PWR_API int PWR_CPU_GetPerfData(PWR_CPU_PerfData *perfData);
 PWR_API int PWR_CPU_GetFreqAbility(PWR_CPU_FreqAbility *freqAbi, uint32_t bufferSize);
 PWR_API int PWR_CPU_GetFreqRange(PWR_CPU_FreqRange *freqRange);
 PWR_API int PWR_CPU_SetFreqRange(const PWR_CPU_FreqRange *freqRange);
-PWR_API int PWR_CPU_GetFreqGovernor(char gov[], uint32_t size); // len: MAX_ELEMENT_NAME_LEN
+PWR_API int PWR_CPU_GetFreqGovernor(char gov[], uint32_t size); // len: PWR_MAX_ELEMENT_NAME_LEN
 PWR_API int PWR_CPU_SetFreqGovernor(const char gov[]);
 PWR_API int PWR_CPU_GetFreq(PWR_CPU_CurFreq curFreq[], uint32_t *len, int spec);
 PWR_API int PWR_CPU_SetFreq(const PWR_CPU_CurFreq curFreq[], uint32_t len);
@@ -58,7 +58,7 @@ PWR_API int PWR_CPU_DmaGetLatency(int *latency); // unit: us
 PWR_API int PWR_CPU_DmaSetLatency(int latency);
 
 // Disk
-PWR_API int PWR_DISK_GetList(char diskList[][MAX_ELEMENT_NAME_LEN], uint32_t *len);
+PWR_API int PWR_DISK_GetList(char diskList[][PWR_MAX_ELEMENT_NAME_LEN], uint32_t *len);
 PWR_API int PWR_DISK_GetLoad(PWR_DISK_Load load[], uint32_t *len, int spec);
 PWR_API int PWR_DISK_GetPwrLevel(PWR_DISK_PwrLevel pwrLevel[], uint32_t *len, int spec);
 PWR_API int PWR_DISK_SetPwrLevel(PWR_DISK_PwrLevel pwrLevel[], uint32_t len);

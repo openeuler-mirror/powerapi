@@ -19,7 +19,7 @@
 #include "pwrerr.h"
 #include "sockclient.h"
 
-int GetDiskList(char diskList[][MAX_ELEMENT_NAME_LEN], uint32_t *len)
+int GetDiskList(char diskList[][PWR_MAX_ELEMENT_NAME_LEN], uint32_t *len)
 {
     ReqInputParam input;
     input.optType = DISK_GET_LIST;
@@ -27,14 +27,14 @@ int GetDiskList(char diskList[][MAX_ELEMENT_NAME_LEN], uint32_t *len)
     input.data = NULL;
 
     RspOutputParam output;
-    uint32_t size = MAX_ELEMENT_NAME_LEN * (*len);
+    uint32_t size = PWR_MAX_ELEMENT_NAME_LEN * (*len);
     output.rspBuffSize = &size;
     output.rspData = (void *)diskList;
 
     int ret = SendReqAndWaitForRsp(input, output);
-    if (ret != SUCCESS) {
+    if (ret != PWR_SUCCESS) {
         PwrLog(ERROR, "GetDiskList failed. ret:%d", ret);
-        *len = size / MAX_ELEMENT_NAME_LEN;
+        *len = size / PWR_MAX_ELEMENT_NAME_LEN;
     } else {
         PwrLog(DEBUG, "GetDiskList Succeed.");
     }
@@ -59,7 +59,7 @@ int GetDiskLoad(PWR_DISK_Load load[], uint32_t *len, int spec)
     output.rspData = (void *)load;
 
     int ret = SendReqAndWaitForRsp(input, output);
-    if (ret != SUCCESS) {
+    if (ret != PWR_SUCCESS) {
         PwrLog(ERROR, "GetDiskLoad failed. ret:%d", ret);
         size_t curLen = size / sizeof(PWR_DISK_Load);
         *len = curLen;
@@ -87,7 +87,7 @@ int GetDiskPwrLevel(PWR_DISK_PwrLevel pwrLevel[], uint32_t *len, int spec)
     output.rspData = (void *)pwrLevel;
 
     int ret = SendReqAndWaitForRsp(input, output);
-    if (ret != SUCCESS) {
+    if (ret != PWR_SUCCESS) {
         PwrLog(ERROR, "GetDiskPwrLevel failed. ret:%d", ret);
         size_t curLen = size / sizeof(PWR_DISK_PwrLevel);
         *len = curLen;
@@ -109,7 +109,7 @@ int SetDiskPwrLevel(PWR_DISK_PwrLevel pwrLevel[], uint32_t len)
     output.rspData = NULL;
 
     int ret = SendReqAndWaitForRsp(input, output);
-    if (ret != SUCCESS) {
+    if (ret != PWR_SUCCESS) {
         PwrLog(ERROR, "SetDiskPwrLevel failed. ret:%d", ret);
     } else {
         PwrLog(DEBUG, "SetDiskPwrLevel Succeed.");
@@ -135,7 +135,7 @@ int GetDiskScsiPolicy(PWR_DISK_ScsiPolicy scsiPolicy[], uint32_t *len, int spec)
     output.rspData = (void *)scsiPolicy;
 
     int ret = SendReqAndWaitForRsp(input, output);
-    if (ret != SUCCESS) {
+    if (ret != PWR_SUCCESS) {
         PwrLog(ERROR, "GetDiskScsiPolicy failed. ret:%d", ret);
         size_t curLen = size / sizeof(PWR_DISK_ScsiPolicy);
         *len = curLen;
@@ -157,7 +157,7 @@ int SetDiskScsiPolicy(PWR_DISK_ScsiPolicy scsiPolicy[], uint32_t len)
     output.rspData = NULL;
 
     int ret = SendReqAndWaitForRsp(input, output);
-    if (ret != SUCCESS) {
+    if (ret != PWR_SUCCESS) {
         PwrLog(ERROR, "SetDiskScsiPolicy failed. ret:%d", ret);
     } else {
         PwrLog(DEBUG, "SetDiskScsiPolicy Succeed.");

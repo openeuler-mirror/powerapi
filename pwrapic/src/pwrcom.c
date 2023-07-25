@@ -30,7 +30,7 @@ int RequestControlAuth(void)
     output.rspData = NULL;
 
     int ret = SendReqAndWaitForRsp(input, output);
-    if (ret != SUCCESS) {
+    if (ret != PWR_SUCCESS) {
         PwrLog(ERROR, "RequestControlAuth failed. ret:%d", ret);
     } else {
         PwrLog(DEBUG, "RequestControlAuth Succeed.");
@@ -50,7 +50,7 @@ int ReleaseControlAuth(void)
     output.rspData = NULL;
 
     int ret = SendReqAndWaitForRsp(input, output);
-    if (ret != SUCCESS) {
+    if (ret != PWR_SUCCESS) {
         PwrLog(ERROR, "ReleaseControlAuth failed. ret:%d", ret);
     } else {
         PwrLog(DEBUG, "ReleaseControlAuth Succeed.");

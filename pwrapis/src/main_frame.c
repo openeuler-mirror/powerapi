@@ -31,19 +31,19 @@ static void PrintUsage(const char *args[])
 
 static int BaseInit(void)
 {
-    int ret = SUCCESS;
+    int ret = PWR_SUCCESS;
     ret = InitConfig();
-    if (ret != SUCCESS) {
+    if (ret != PWR_SUCCESS) {
         return ret;
     }
 
     ret = InitLogger();
-    if (ret != SUCCESS) {
+    if (ret != PWR_SUCCESS) {
         return ret;
     }
 
     // todo 其他必要的初始化
-    return SUCCESS;
+    return PWR_SUCCESS;
 }
 
 static void ClearEnv(void)
@@ -74,20 +74,20 @@ int main(int argc, const char *args[])
         PrintUsage(args);
     } else {
         ret = UpdateConfigPath(args[1]);
-        if (ret != SUCCESS) {
+        if (ret != PWR_SUCCESS) {
             Logger(ERROR, MD_NM_MAN, "Update config path failed. ret:%d", ret);
             exit(-1);
         }
     }
 
     ret = BaseInit();
-    if (ret != SUCCESS) {
+    if (ret != PWR_SUCCESS) {
         Logger(ERROR, MD_NM_MAN, "BaseInit failed. ret:%d", ret);
         exit(-1);
     }
 
     ret = StartServer();
-    if (ret != SUCCESS) {
+    if (ret != PWR_SUCCESS) {
         Logger(ERROR, MD_NM_MAN, "Start Server failed. ret:%d", ret);
         exit(-1);
     }

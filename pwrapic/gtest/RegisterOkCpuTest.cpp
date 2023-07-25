@@ -31,15 +31,15 @@ class RegisterOkCpuTest : public ::testing::Test {
         virtual void SetUp()
         {
             EXPECT_EQ(0, StartService());
-            EXPECT_EQ(SUCCESS, PWR_SetLogCallback(LogCallback));
-            EXPECT_EQ(SUCCESS, PWR_Register());
-            EXPECT_EQ(SUCCESS, PWR_RequestControlAuth());
+            EXPECT_EQ(PWR_SUCCESS, PWR_SetLogCallback(LogCallback));
+            EXPECT_EQ(PWR_SUCCESS, PWR_Register());
+            EXPECT_EQ(PWR_SUCCESS, PWR_RequestControlAuth());
         }
         // 每个用例执行后调用
         virtual void TearDown()
         {
-            EXPECT_EQ(SUCCESS, PWR_ReleaseControlAuth());
-            EXPECT_EQ(SUCCESS, PWR_UnRegister());
+            EXPECT_EQ(PWR_SUCCESS, PWR_ReleaseControlAuth());
+            EXPECT_EQ(PWR_SUCCESS, PWR_UnRegister());
             EXPECT_EQ(0, StopService());
         }
 };
@@ -49,13 +49,13 @@ class RegisterOkCpuTest : public ::testing::Test {
  */
 TEST_F(RegisterOkCpuTest, PWR_SYS_SetPowerState_Test_001)
 {
-    EXPECT_NE(SUCCESS, PWR_SYS_SetPowerState(3));
+    EXPECT_NE(PWR_SUCCESS, PWR_SYS_SetPowerState(3));
 }
 
 TEST_F(RegisterOkCpuTest, PWR_SYS_GetRtPowerInfo_Test_001)
 {
     PWR_SYS_PowerInfo powerInfo;
-    EXPECT_EQ(SUCCESS, PWR_SYS_GetRtPowerInfo(&powerInfo));
+    EXPECT_EQ(PWR_SUCCESS, PWR_SYS_GetRtPowerInfo(&powerInfo));
     printf("sysPower:%02lf, cpuPower:%02lf, memPower:%02lf\n",
         powerInfo.sysPower, powerInfo.cpuPower, powerInfo.memPower);
     EXPECT_LT(0, powerInfo.sysPower);
@@ -63,7 +63,7 @@ TEST_F(RegisterOkCpuTest, PWR_SYS_GetRtPowerInfo_Test_001)
 
 TEST_F(RegisterOkCpuTest, PWR_SYS_GetRtPowerInfo_Test_002)
 {
-    EXPECT_NE(SUCCESS, PWR_SYS_GetRtPowerInfo(NULL));
+    EXPECT_NE(PWR_SUCCESS, PWR_SYS_GetRtPowerInfo(NULL));
 }
 
 /*
@@ -72,7 +72,7 @@ TEST_F(RegisterOkCpuTest, PWR_SYS_GetRtPowerInfo_Test_002)
 TEST_F(RegisterOkCpuTest, PWR_CPU_GetInfo_Test_001)
 {
     PWR_CPU_Info cpuInfo;
-    EXPECT_EQ(SUCCESS, PWR_CPU_GetInfo(&cpuInfo));
+    EXPECT_EQ(PWR_SUCCESS, PWR_CPU_GetInfo(&cpuInfo));
     PWR_CPU_Info *info = &cpuInfo;
     printf("PWR_CPU_GetInfo arch:%s\n coreNum: %d\n maxFreq:%f\n minFreq:%f\n modelName: %s\n numaNum: %d\n "
         "threadsPerCore:%d\n", info->arch, info->coreNum, info->maxFreq, info->minFreq, info->modelName,
@@ -98,7 +98,7 @@ TEST_F(RegisterOkCpuTest, PWR_CPU_GetInfo_Test_001)
 
 TEST_F(RegisterOkCpuTest, PWR_CPU_GetInfo_Test_002)
 {
-    EXPECT_NE(SUCCESS, PWR_CPU_GetInfo(NULL));
+    EXPECT_NE(PWR_SUCCESS, PWR_CPU_GetInfo(NULL));
 }
 
 /*
@@ -112,7 +112,7 @@ TEST_F(RegisterOkCpuTest, PWR_CPU_GetUsage_Test_001)
     int buffSize = sizeof(PWR_CPU_Usage) + cpuNum * sizeof(PWR_CPU_CoreUsage);
     PWR_CPU_Usage *usage = (PWR_CPU_Usage *)malloc(buffSize);
     EXPECT_FALSE(usage == NULL);
-    EXPECT_EQ(SUCCESS, PWR_CPU_GetUsage(usage, buffSize));
+    EXPECT_EQ(PWR_SUCCESS, PWR_CPU_GetUsage(usage, buffSize));
     printf("PWR_CPU_GetUsage, CPU avgUsage:%f, coreNum: %d \n", usage->avgUsage, usage->coreNum);
     EXPECT_EQ(cpuNum, usage->coreNum);
     EXPECT_TRUE(!(usage->avgUsage < 0) && !(usage->avgUsage > 1));
@@ -136,18 +136,18 @@ TEST_F(RegisterOkCpuTest, PWR_CPU_GetUsage_Test_001)
 
 TEST_F(RegisterOkCpuTest, PWR_CPU_GetUsage_Test_002)
 {
-    EXPECT_NE(SUCCESS, PWR_CPU_GetUsage(NULL, 1));
+    EXPECT_NE(PWR_SUCCESS, PWR_CPU_GetUsage(NULL, 1));
 }
 
 TEST_F(RegisterOkCpuTest, PWR_CPU_GetPerfData_Test_001)
 {
     PWR_CPU_PerfData perfData;
-    EXPECT_EQ(SUCCESS, PWR_CPU_GetPerfData(&perfData));
+    EXPECT_EQ(PWR_SUCCESS, PWR_CPU_GetPerfData(&perfData));
 }
 
 TEST_F(RegisterOkCpuTest, PWR_CPU_GetPerfData_Test_002)
 {
-    EXPECT_NE(SUCCESS, PWR_CPU_GetPerfData(NULL));
+    EXPECT_NE(PWR_SUCCESS, PWR_CPU_GetPerfData(NULL));
 }
 
 /*
@@ -161,10 +161,10 @@ TEST_F(RegisterOkCpuTest, PWR_CPU_GetFreqAbility_Test_001)
     PWR_CPU_FreqAbility *freqAbi = (PWR_CPU_FreqAbility *)malloc(len);
     EXPECT_TRUE(freqAbi != NULL);
     memset(freqAbi, 0, len);
-    EXPECT_EQ(SUCCESS, PWR_CPU_GetFreqAbility(freqAbi, len));
+    EXPECT_EQ(PWR_SUCCESS, PWR_CPU_GetFreqAbility(freqAbi, len));
     printf("curDriver is %s\n", freqAbi->curDriver);
     printf("available governor is: \n");
-    for (int i = 0; i < MAX_GOV_NUM; i++) {
+    for (int i = 0; i < PWR_MAX_GOV_NUM; i++) {
         if (strlen(freqAbi->avGovList[i]) > 0) {
             printf("%s\n", freqAbi->avGovList[i]);
         }
@@ -199,7 +199,7 @@ TEST_F(RegisterOkCpuTest, PWR_CPU_GetFreqAbility_Test_001)
  */
 TEST_F(RegisterOkCpuTest, PWR_CPU_GetFreqAbility_Test_002)
 {
-    EXPECT_NE(SUCCESS, PWR_CPU_GetFreqAbility(NULL, 0));
+    EXPECT_NE(PWR_SUCCESS, PWR_CPU_GetFreqAbility(NULL, 0));
 }
 
 /*
@@ -209,14 +209,14 @@ TEST_F(RegisterOkCpuTest, PWR_CPU_GetFreqAbility_Test_002)
 TEST_F(RegisterOkCpuTest, PWR_CPU_GetFreqRange_Test_001)
 {
     PWR_CPU_FreqRange freqRange;
-    EXPECT_EQ(SUCCESS, PWR_CPU_GetFreqRange(&freqRange));
+    EXPECT_EQ(PWR_SUCCESS, PWR_CPU_GetFreqRange(&freqRange));
     EXPECT_LT(10, freqRange.maxFreq);
     EXPECT_TRUE(freqRange.minFreq <= freqRange.maxFreq);
 }
 
 TEST_F(RegisterOkCpuTest, PWR_CPU_GetFreqRange_Test_002)
 {
-    EXPECT_NE(SUCCESS, PWR_CPU_GetFreqRange(NULL));
+    EXPECT_NE(PWR_SUCCESS, PWR_CPU_GetFreqRange(NULL));
 }
 
 /*
@@ -227,9 +227,9 @@ TEST_F(RegisterOkCpuTest, PWR_CPU_SetFreqRange_Test_001)
 {
     // governor设置为userspace
     char governor[] = "userspace";
-    EXPECT_EQ(SUCCESS, PWR_CPU_SetFreqGovernor(governor));
-    char gov[MAX_ELEMENT_NAME_LEN] = {0};
-    EXPECT_EQ(SUCCESS, PWR_CPU_GetFreqGovernor(gov, MAX_ELEMENT_NAME_LEN));
+    EXPECT_EQ(PWR_SUCCESS, PWR_CPU_SetFreqGovernor(governor));
+    char gov[PWR_MAX_ELEMENT_NAME_LEN] = {0};
+    EXPECT_EQ(PWR_SUCCESS, PWR_CPU_GetFreqGovernor(gov, PWR_MAX_ELEMENT_NAME_LEN));
     EXPECT_STREQ(governor, gov);
 
     int coreNum = sysconf(_SC_NPROCESSORS_CONF);
@@ -238,33 +238,33 @@ TEST_F(RegisterOkCpuTest, PWR_CPU_SetFreqRange_Test_001)
     PWR_CPU_FreqAbility *freqAbi = (PWR_CPU_FreqAbility *)malloc(len);
     EXPECT_TRUE(freqAbi != NULL);
     memset(freqAbi, 0, len);
-    EXPECT_EQ(SUCCESS, PWR_CPU_GetFreqAbility(freqAbi, len));
+    EXPECT_EQ(PWR_SUCCESS, PWR_CPU_GetFreqAbility(freqAbi, len));
 
     // 仅对cpufreq driver为cppc_cpufreq的环境做PWR_CPU_SetFreqRange接口的检测
     if (std::string(freqAbi->curDriver) == std::string("cppc_cpufreq")) {
         printf("cpufreq driver is %s\n", freqAbi->curDriver);
         PWR_CPU_Info cpuInfo;
         PWR_CPU_FreqRange freqRange;
-        EXPECT_EQ(SUCCESS, PWR_CPU_GetInfo(&cpuInfo));
+        EXPECT_EQ(PWR_SUCCESS, PWR_CPU_GetInfo(&cpuInfo));
         freqRange.maxFreq = (cpuInfo.maxFreq < 2000) ? cpuInfo.maxFreq : 2000;
         freqRange.minFreq = (cpuInfo.minFreq > 1000) ? cpuInfo.minFreq : 1000;
-        EXPECT_EQ(SUCCESS,  PWR_CPU_SetFreqRange(&freqRange));
+        EXPECT_EQ(PWR_SUCCESS,  PWR_CPU_SetFreqRange(&freqRange));
         PWR_CPU_FreqRange actualFreqRange;
-        EXPECT_EQ(SUCCESS, PWR_CPU_GetFreqRange(&actualFreqRange));
+        EXPECT_EQ(PWR_SUCCESS, PWR_CPU_GetFreqRange(&actualFreqRange));
         EXPECT_EQ(actualFreqRange.maxFreq, freqRange.maxFreq);
         EXPECT_EQ(actualFreqRange.minFreq, freqRange.minFreq);
 
         // 将最大频率恢复为硬件支持的最大频率
         freqRange.maxFreq = (int)cpuInfo.maxFreq;
-        EXPECT_EQ(SUCCESS, PWR_CPU_SetFreqRange(&freqRange));
-        EXPECT_EQ(SUCCESS, PWR_CPU_GetFreqRange(&actualFreqRange));
+        EXPECT_EQ(PWR_SUCCESS, PWR_CPU_SetFreqRange(&freqRange));
+        EXPECT_EQ(PWR_SUCCESS, PWR_CPU_GetFreqRange(&actualFreqRange));
         EXPECT_EQ(actualFreqRange.maxFreq, freqRange.maxFreq);
     }
 
     // 将governor恢复为performance
     char govPerformance[] = "performance";
-    EXPECT_EQ(SUCCESS, PWR_CPU_SetFreqGovernor(govPerformance));
-    EXPECT_EQ(SUCCESS, PWR_CPU_GetFreqGovernor(gov, MAX_ELEMENT_NAME_LEN));
+    EXPECT_EQ(PWR_SUCCESS, PWR_CPU_SetFreqGovernor(govPerformance));
+    EXPECT_EQ(PWR_SUCCESS, PWR_CPU_GetFreqGovernor(gov, PWR_MAX_ELEMENT_NAME_LEN));
     EXPECT_STREQ(govPerformance, gov);
 
     free(freqAbi);
@@ -272,7 +272,7 @@ TEST_F(RegisterOkCpuTest, PWR_CPU_SetFreqRange_Test_001)
 
 TEST_F(RegisterOkCpuTest, PWR_CPU_SetFreqRange_Test_002)
 {
-    EXPECT_NE(SUCCESS, PWR_CPU_SetFreqRange(NULL));
+    EXPECT_NE(PWR_SUCCESS, PWR_CPU_SetFreqRange(NULL));
 }
 
 /*
@@ -282,14 +282,14 @@ TEST_F(RegisterOkCpuTest, PWR_CPU_SetFreqRange_Test_002)
 TEST_F(RegisterOkCpuTest, PWR_CPU_SetFreqGovernor_Test_001)
 {
     char governor[] = "schedutil";
-    EXPECT_EQ(SUCCESS, PWR_CPU_SetFreqGovernor(governor));
-    char gov[MAX_ELEMENT_NAME_LEN] = {0};
-    EXPECT_EQ(SUCCESS, PWR_CPU_GetFreqGovernor(gov, MAX_ELEMENT_NAME_LEN));
+    EXPECT_EQ(PWR_SUCCESS, PWR_CPU_SetFreqGovernor(governor));
+    char gov[PWR_MAX_ELEMENT_NAME_LEN] = {0};
+    EXPECT_EQ(PWR_SUCCESS, PWR_CPU_GetFreqGovernor(gov, PWR_MAX_ELEMENT_NAME_LEN));
     EXPECT_STREQ(governor, gov);
 
     char govPerformance[] = "performance";
-    EXPECT_EQ(SUCCESS, PWR_CPU_SetFreqGovernor(govPerformance));
-    EXPECT_EQ(SUCCESS, PWR_CPU_GetFreqGovernor(gov, MAX_ELEMENT_NAME_LEN));
+    EXPECT_EQ(PWR_SUCCESS, PWR_CPU_SetFreqGovernor(govPerformance));
+    EXPECT_EQ(PWR_SUCCESS, PWR_CPU_GetFreqGovernor(gov, PWR_MAX_ELEMENT_NAME_LEN));
     EXPECT_STREQ(govPerformance, gov);
 }
 
@@ -298,9 +298,9 @@ TEST_F(RegisterOkCpuTest, PWR_CPU_SetFreqGovernor_Test_001)
  */
 TEST_F(RegisterOkCpuTest, PWR_CPU_SetFreqGovernor_Test_002)
 {
-    EXPECT_NE(SUCCESS, PWR_CPU_SetFreqGovernor(NULL));
+    EXPECT_NE(PWR_SUCCESS, PWR_CPU_SetFreqGovernor(NULL));
     char gov[] = "fake";
-    EXPECT_NE(SUCCESS, PWR_CPU_SetFreqGovernor(gov));
+    EXPECT_NE(PWR_SUCCESS, PWR_CPU_SetFreqGovernor(gov));
 }
 
 /*
@@ -309,7 +309,7 @@ TEST_F(RegisterOkCpuTest, PWR_CPU_SetFreqGovernor_Test_002)
 TEST_F(RegisterOkCpuTest, PWR_CPU_GetFreqGovernor_Test_001)
 {
     char gov[3] = {0};
-    EXPECT_NE(SUCCESS, PWR_CPU_GetFreqGovernor(gov, 3));
+    EXPECT_NE(PWR_SUCCESS, PWR_CPU_GetFreqGovernor(gov, 3));
 }
 
 /*
@@ -324,11 +324,11 @@ TEST_F(RegisterOkCpuTest, PWR_CPU_GetFreq_Test_001)
     PWR_CPU_FreqAbility *freqAbi = (PWR_CPU_FreqAbility *)malloc(len);
     EXPECT_TRUE(freqAbi != NULL);
     memset(freqAbi, 0, len);
-    EXPECT_EQ(SUCCESS, PWR_CPU_GetFreqAbility(freqAbi, len));
+    EXPECT_EQ(PWR_SUCCESS, PWR_CPU_GetFreqAbility(freqAbi, len));
 
     unsigned int policyNum = (unsigned int)freqAbi->freqDomainNum + 1;
     PWR_CPU_CurFreq *curFreq = (PWR_CPU_CurFreq *)calloc(policyNum, sizeof(PWR_CPU_CurFreq));
-    EXPECT_EQ(SUCCESS, PWR_CPU_GetFreq(curFreq, &policyNum, 0));
+    EXPECT_EQ(PWR_SUCCESS, PWR_CPU_GetFreq(curFreq, &policyNum, 0));
     EXPECT_EQ(policyNum, freqAbi->freqDomainNum);
     for (unsigned int i = 0; i < policyNum; i++) {
         EXPECT_LT(10, (unsigned int)curFreq[i].curFreq);
@@ -350,7 +350,7 @@ TEST_F(RegisterOkCpuTest, PWR_CPU_GetFreq_Test_002)
     PWR_CPU_FreqAbility *freqAbi = (PWR_CPU_FreqAbility *)malloc(len);
     EXPECT_TRUE(freqAbi != NULL);
     memset(freqAbi, 0, len);
-    EXPECT_EQ(SUCCESS, PWR_CPU_GetFreqAbility(freqAbi, len));
+    EXPECT_EQ(PWR_SUCCESS, PWR_CPU_GetFreqAbility(freqAbi, len));
 
     // 3: 申请3倍的内存用于验证spec为1的场景
     unsigned int policyNum = (unsigned int)(freqAbi->freqDomainNum * 3);
@@ -358,7 +358,7 @@ TEST_F(RegisterOkCpuTest, PWR_CPU_GetFreq_Test_002)
     for (unsigned int i = 0; i < policyNum; i++) {
         curFreq[i].policyId = (int)freqAbi->freqDomain[(i % freqAbi->freqDomainNum) * freqAbi->freqDomainStep];
     }
-    EXPECT_EQ(SUCCESS, PWR_CPU_GetFreq(curFreq, &policyNum, 1));
+    EXPECT_EQ(PWR_SUCCESS, PWR_CPU_GetFreq(curFreq, &policyNum, 1));
     EXPECT_EQ(policyNum, freqAbi->freqDomainNum);
     for (unsigned int i = 0; i < policyNum; i++) {
         // 10: 获取到的频率至少要大于10MHz
@@ -381,7 +381,7 @@ TEST_F(RegisterOkCpuTest, PWR_CPU_GetFreq_Test_003)
     PWR_CPU_FreqAbility *freqAbi = (PWR_CPU_FreqAbility *)malloc(len);
     EXPECT_TRUE(freqAbi != NULL);
     memset(freqAbi, 0, len);
-    EXPECT_EQ(SUCCESS, PWR_CPU_GetFreqAbility(freqAbi, len));
+    EXPECT_EQ(PWR_SUCCESS, PWR_CPU_GetFreqAbility(freqAbi, len));
 
     // 3: 申请3倍的内存用于验证spec为1的场景
     unsigned int policyNum = (unsigned int)(freqAbi->freqDomainNum * 3);
@@ -389,7 +389,7 @@ TEST_F(RegisterOkCpuTest, PWR_CPU_GetFreq_Test_003)
     for (unsigned int i = 0; i < policyNum; i++) {
         curFreq[i].policyId = (int)freqAbi->freqDomain[(i % (freqAbi->freqDomainNum - 1)) * freqAbi->freqDomainStep];
     }
-    EXPECT_EQ(SUCCESS, PWR_CPU_GetFreq(curFreq, &policyNum, 1));
+    EXPECT_EQ(PWR_SUCCESS, PWR_CPU_GetFreq(curFreq, &policyNum, 1));
     EXPECT_EQ(policyNum, freqAbi->freqDomainNum - 1);
     for (unsigned int i = 0; i < policyNum; i++) {
         // 10: 获取到的频率至少要大于10MHz
@@ -405,7 +405,7 @@ TEST_F(RegisterOkCpuTest, PWR_CPU_GetFreq_Test_003)
  */
 TEST_F(RegisterOkCpuTest, PWR_CPU_GetFreq_Test_004)
 {
-    EXPECT_NE(SUCCESS, PWR_CPU_GetFreq(NULL, 0, 0));
+    EXPECT_NE(PWR_SUCCESS, PWR_CPU_GetFreq(NULL, 0, 0));
 }
 
 /*
@@ -421,13 +421,13 @@ TEST_F(RegisterOkCpuTest, PWR_CPU_SetFreq_Test_001)
     PWR_CPU_FreqAbility *freqAbi = (PWR_CPU_FreqAbility *)malloc(len);
     EXPECT_TRUE(freqAbi != NULL);
     memset(freqAbi, 0, len);
-    EXPECT_EQ(SUCCESS, PWR_CPU_GetFreqAbility(freqAbi, len));
+    EXPECT_EQ(PWR_SUCCESS, PWR_CPU_GetFreqAbility(freqAbi, len));
 
     // governor设置为userspace
     char governor[] = "userspace";
-    EXPECT_EQ(SUCCESS, PWR_CPU_SetFreqGovernor(governor));
-    char gov[MAX_ELEMENT_NAME_LEN] = {0};
-    EXPECT_EQ(SUCCESS, PWR_CPU_GetFreqGovernor(gov, MAX_ELEMENT_NAME_LEN));
+    EXPECT_EQ(PWR_SUCCESS, PWR_CPU_SetFreqGovernor(governor));
+    char gov[PWR_MAX_ELEMENT_NAME_LEN] = {0};
+    EXPECT_EQ(PWR_SUCCESS, PWR_CPU_GetFreqGovernor(gov, PWR_MAX_ELEMENT_NAME_LEN));
     EXPECT_STREQ(governor, gov);
 
     // 将每个policy的频率都设置为2000MHz, 并调用函数PWR_CPU_GetFreq检查设置成功
@@ -439,9 +439,9 @@ TEST_F(RegisterOkCpuTest, PWR_CPU_SetFreq_Test_001)
     }
 
     if (std::string(freqAbi->curDriver) == std::string("cppc_cpufreq")) {
-        EXPECT_EQ(SUCCESS, PWR_CPU_SetFreq(curFreq, policyNum));
+        EXPECT_EQ(PWR_SUCCESS, PWR_CPU_SetFreq(curFreq, policyNum));
         printf("check frequency, if cpufreq driver is cppc_cpufreq\n");
-        EXPECT_EQ(SUCCESS, PWR_CPU_GetFreq(curFreq, &policyNum, 0));
+        EXPECT_EQ(PWR_SUCCESS, PWR_CPU_GetFreq(curFreq, &policyNum, 0));
         for (unsigned int i = 0; i < policyNum; i++) {
             EXPECT_EQ(2000, (int)curFreq[i].curFreq);
         }
@@ -449,8 +449,8 @@ TEST_F(RegisterOkCpuTest, PWR_CPU_SetFreq_Test_001)
 
     // governor恢复为performance
     char govPerformance[] = "performance";
-    EXPECT_EQ(SUCCESS, PWR_CPU_SetFreqGovernor(govPerformance));
-    EXPECT_EQ(SUCCESS, PWR_CPU_GetFreqGovernor(gov, MAX_ELEMENT_NAME_LEN));
+    EXPECT_EQ(PWR_SUCCESS, PWR_CPU_SetFreqGovernor(govPerformance));
+    EXPECT_EQ(PWR_SUCCESS, PWR_CPU_GetFreqGovernor(gov, PWR_MAX_ELEMENT_NAME_LEN));
     EXPECT_STREQ(govPerformance, gov);
 
     free(curFreq);
@@ -469,13 +469,13 @@ TEST_F(RegisterOkCpuTest, PWR_CPU_SetFreq_Test_002)
     PWR_CPU_FreqAbility *freqAbi = (PWR_CPU_FreqAbility *)malloc(len);
     EXPECT_TRUE(freqAbi != NULL);
     memset(freqAbi, 0, len);
-    EXPECT_EQ(SUCCESS, PWR_CPU_GetFreqAbility(freqAbi, len));
+    EXPECT_EQ(PWR_SUCCESS, PWR_CPU_GetFreqAbility(freqAbi, len));
 
     // governor设置为performance
     char govPerformance[] = "performance";
-    EXPECT_EQ(SUCCESS, PWR_CPU_SetFreqGovernor(govPerformance));
-    char gov[MAX_ELEMENT_NAME_LEN] = {0};
-    EXPECT_EQ(SUCCESS, PWR_CPU_GetFreqGovernor(gov, MAX_ELEMENT_NAME_LEN));
+    EXPECT_EQ(PWR_SUCCESS, PWR_CPU_SetFreqGovernor(govPerformance));
+    char gov[PWR_MAX_ELEMENT_NAME_LEN] = {0};
+    EXPECT_EQ(PWR_SUCCESS, PWR_CPU_GetFreqGovernor(gov, PWR_MAX_ELEMENT_NAME_LEN));
     EXPECT_STREQ(govPerformance, gov);
 
     unsigned int policyNum = (unsigned int)freqAbi->freqDomainNum;
@@ -484,7 +484,7 @@ TEST_F(RegisterOkCpuTest, PWR_CPU_SetFreq_Test_002)
         curFreq[i].policyId = int(freqAbi->freqDomain[i * freqAbi->freqDomainStep]);
         curFreq[i].curFreq = 2000.0;
     }
-    EXPECT_NE(SUCCESS, PWR_CPU_SetFreq(curFreq, policyNum));
+    EXPECT_NE(PWR_SUCCESS, PWR_CPU_SetFreq(curFreq, policyNum));
 
     free(curFreq);
     free(freqAbi);
@@ -495,5 +495,5 @@ TEST_F(RegisterOkCpuTest, PWR_CPU_SetFreq_Test_002)
  */
 TEST_F(RegisterOkCpuTest, PWR_CPU_SetFreq_Test_003)
 {
-    EXPECT_NE(SUCCESS, PWR_CPU_SetFreq(NULL, 0));
+    EXPECT_NE(PWR_SUCCESS, PWR_CPU_SetFreq(NULL, 0));
 }

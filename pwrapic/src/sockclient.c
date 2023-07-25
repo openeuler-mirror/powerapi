@@ -48,7 +48,7 @@ static char SERVER_ADDR[MAX_PATH_LEN] = "/etc/sysconfig/pwrapis/pwrserver.sock";
 #define CHECK_SOCKET_STATUS()                         \
     if (g_sockFd == INVALID_FD) {                     \
         PwrLog(ERROR, "check socket status failed."); \
-        return ERR_DISCONNECTED;                      \
+        return PWR_ERR_DISCONNECTED;                      \
     }
 
 static int ReadMsg(void *pData, int len)
@@ -64,16 +64,16 @@ static int ReadMsg(void *pData, int len)
             PwrLog(ERROR, "recv error %s errno:%d", strerror(errno), errno);
             close(g_sockFd);
             g_sockFd = INVALID_FD;
-            return ERR_SYS_EXCEPTION;
+            return PWR_ERR_SYS_EXCEPTION;
         } else if (recvLen == 0) {
             PwrLog(ERROR, "connection closed !");
             g_sockFd = INVALID_FD;
-            return ERR_DISCONNECTED;
+            return PWR_ERR_DISCONNECTED;
         }
         readLen += recvLen;
         leftLen -= recvLen;
     }
-    return SUCCESS;
+    return PWR_SUCCESS;
 }
 
 static int WriteMsg(const void *pData, size_t len)
@@ -89,12 +89,12 @@ static int WriteMsg(const void *pData, size_t len)
             PwrLog(ERROR, "send error %s errno:%d", strerror(errno), errno);
             close(g_sockFd);
             g_sockFd = INVALID_FD;
-            return ERR_SYS_EXCEPTION;
+            return PWR_ERR_SYS_EXCEPTION;
         }
         leftLen -= sendLen;
         wrLen += sendLen;
     }
-    return SUCCESS;
+    return PWR_SUCCESS;
 }
 
 static void (*g_metadata_callback)(const PWR_COM_CallbackData *) = NULL;
@@ -151,7 +151,7 @@ static void ProcessRspMsg(PwrMsg *rsp)
         return; // drop this msg
     }
     rwm->rspMsg = rsp;
-    if (DoRspToWaitingMsg(rwm) != SUCCESS) {
+    if (DoRspToWaitingMsg(rwm) != PWR_SUCCESS) {
         ReleasePwrMsg(&rsp);
         return;
     }
@@ -169,7 +169,7 @@ static void ProcessEvtMsg(PwrMsg *msg)
 }
 static void ProcessOtherMsg(PwrMsg *msg)
 {
-    /* if (AddToBufferTail(&g_recvBuff, msg) != SUCCESS) {
+    /* if (AddToBufferTail(&g_recvBuff, msg) != PWR_SUCCESS) {
         ReleasePwrMsg(&msg);
     } */
     switch (msg->head.optType) {
@@ -185,14 +185,14 @@ static void ProcessOtherMsg(PwrMsg *msg)
 static void RecvMsgFromSocket(void)
 {
     PwrMsg *msg = (PwrMsg *)malloc(sizeof(PwrMsg));
-    if (!msg || ReadMsg(msg, sizeof(PwrMsg)) != SUCCESS) {
+    if (!msg || ReadMsg(msg, sizeof(PwrMsg)) != PWR_SUCCESS) {
         ReleasePwrMsg(&msg);
         return;
     }
 
     if (msg->head.dataLen != 0) {
         char *msgcontent = malloc(msg->head.dataLen);
-        if (!msgcontent || ReadMsg(msgcontent, msg->head.dataLen) != SUCCESS) {
+        if (!msgcontent || ReadMsg(msgcontent, msg->head.dataLen) != PWR_SUCCESS) {
             ReleasePwrMsg(&msg);
             return;
         }
@@ -256,7 +256,7 @@ static int CreateConnection(void)
     clientFd = socket(AF_UNIX, SOCK_STREAM, 0);
     if (clientFd < 0) {
         PwrLog(ERROR, "create socket failed. ret:%d", clientFd);
-        return ERR_COMMON;
+        return PWR_ERR_COMMON;
     }
     // bind
     struct sockaddr_un clientAddr;
@@ -266,7 +266,7 @@ static int CreateConnection(void)
     pid_t pid = getpid();
     if (sprintf(pidStr, "%d", pid) < 0) {
         close(clientFd);
-        return ERR_SYS_EXCEPTION;
+        return PWR_ERR_SYS_EXCEPTION;
     }
     strncpy(clientAddr.sun_path, CLIENT_ADDR, sizeof(clientAddr.sun_path) - 1);
     // socket file "pwrclient.sock.{$pid}"
@@ -276,7 +276,7 @@ static int CreateConnection(void)
     if (bind(clientFd, (struct sockaddr *)&clientAddr, clen) < 0) {
         PwrLog(ERROR, "bind socket failed.");
         close(clientFd);
-        return ERR_COMMON;
+        return PWR_ERR_COMMON;
     }
     // connect
     struct sockaddr_un serverAddr;
@@ -287,12 +287,12 @@ static int CreateConnection(void)
     if (connect(clientFd, (struct sockaddr *)&serverAddr, slen) < 0) {
         PwrLog(ERROR, "connect to server failed.");
         close(clientFd);
-        return ERR_COMMON;
+        return PWR_ERR_COMMON;
     }
 
     g_sockFd = clientFd;
     PwrLog(INFO, "connect to server succeed. fd:%d", g_sockFd);
-    return SUCCESS;
+    return PWR_SUCCESS;
 }
 
 static void *RunSocketProcess(void *none)
@@ -328,7 +328,7 @@ static void *RunSocketProcess(void *none)
 static int SendMsgSyn(PwrMsg *msg, PwrMsg **rsp)
 {
     if (!msg || !rsp) {
-        return ERR_NULL_POINTER;
+        return PWR_ERR_NULL_POINTER;
     }
     CHECK_SOCKET_STATUS();
 
@@ -344,12 +344,12 @@ static int SendMsgSyn(PwrMsg *msg, PwrMsg **rsp)
     if (!node) {
         PwrLog(ERROR, "Malloc failed.");
         ReleasePwrMsg(&msg);
-        return ERR_SYS_EXCEPTION;
+        return PWR_ERR_SYS_EXCEPTION;
     }
     node->reqMsg = msg;
     AddToWaitingListTail(&g_waitList, node);
     int ret = WaitingForResponse(node);
-    if (ret != SUCCESS) {
+    if (ret != PWR_SUCCESS) {
         // timeout or error scenario. the msg still waiting in the list. need to move out.
         MoveOutWaitingMsg(&g_waitList, node);
     }
@@ -357,37 +357,37 @@ static int SendMsgSyn(PwrMsg *msg, PwrMsg **rsp)
     node->reqMsg = NULL;
     node->rspMsg = NULL;
     ReleaseResultWaitingMsgNode(node);
-    return SUCCESS;
+    return PWR_SUCCESS;
 }
 
 static int SendReqMsgAndWaitForRsp(PwrMsg *req, PwrMsg **rsp)
 {
     if (!req || !rsp) {
-        return ERR_NULL_POINTER;
+        return PWR_ERR_NULL_POINTER;
     }
     CHECK_SOCKET_STATUS();
 
-    if (SendMsgSyn(req, rsp) != SUCCESS) {
+    if (SendMsgSyn(req, rsp) != PWR_SUCCESS) {
         PwrLog(ERROR, "send msg to server failed. optType: %d, seqId:%u", req->head.optType, req->head.seqId);
-        return ERR_SYS_EXCEPTION;
+        return PWR_ERR_SYS_EXCEPTION;
     }
 
-    if (*rsp == NULL || (*rsp)->head.rspCode != SUCCESS) {
+    if (*rsp == NULL || (*rsp)->head.rspCode != PWR_SUCCESS) {
         PwrLog(ERROR, "rsp error. optType: %d, seqId:%u", req->head.optType, req->head.seqId);
-        return *rsp == NULL ? ERR_COMMON : (*rsp)->head.rspCode;
+        return *rsp == NULL ? PWR_ERR_COMMON : (*rsp)->head.rspCode;
     }
-    return SUCCESS;
+    return PWR_SUCCESS;
 }
 
 // public****************************************************************************************/
 int SetServerInfo(const char* socketPath)
 {
     if (!socketPath) {
-        return ERR_NULL_POINTER;
+        return PWR_ERR_NULL_POINTER;
     }
     
     strncpy(SERVER_ADDR, socketPath, sizeof(SERVER_ADDR) - 1);
-    return SUCCESS;
+    return PWR_SUCCESS;
 }
 
 int InitSockClient(void)
@@ -397,20 +397,20 @@ int InitSockClient(void)
     InitResultWaitingList(&g_waitList);
     InitMsgFactory();
     InitThreadInfo(&g_sockThread);
-    int ret = SUCCESS;
+    int ret = PWR_SUCCESS;
     do {
-        if (CreateConnection() != SUCCESS) {
-            ret = ERR_COMMON;
+        if (CreateConnection() != PWR_SUCCESS) {
+            ret = PWR_ERR_COMMON;
             break;
         }
         int r = CreateThread(&g_sockThread, RunSocketProcess, NULL);
-        if (r != SUCCESS) {
+        if (r != PWR_SUCCESS) {
             PwrLog(ERROR, "Create recv thread failed. ret[%d]", r);
-            ret = ERR_COMMON;
+            ret = PWR_ERR_COMMON;
             break;
         }
     } while (0);
-    if (ret != SUCCESS) {
+    if (ret != PWR_SUCCESS) {
         FiniSockClient();
     }
     return ret;
@@ -425,25 +425,25 @@ int FiniSockClient(void)
     ResetPwrMsgBuffer(&g_recvBuff);
     ResetResultWaitingList(&g_waitList);
     DestroyMsgFactory();
-    return SUCCESS;
+    return PWR_SUCCESS;
 }
 
 int SetMetaDataCallback(void(MetaDataCallback)(const PWR_COM_CallbackData *))
 {
     if (MetaDataCallback) {
         g_metadata_callback = MetaDataCallback;
-        return SUCCESS;
+        return PWR_SUCCESS;
     }
-    return ERR_NULL_POINTER;
+    return PWR_ERR_NULL_POINTER;
 }
 
 int SetEventCallback(void(EventCallback)(const PWR_COM_EventInfo *))
 {
     if (EventCallback) {
         g_event_callback = EventCallback;
-        return SUCCESS;
+        return PWR_SUCCESS;
     }
-    return ERR_NULL_POINTER;
+    return PWR_ERR_NULL_POINTER;
 }
 
 int HasSetDataCallback(void)
@@ -454,7 +454,7 @@ int HasSetDataCallback(void)
 int SendReqAndWaitForRsp(const ReqInputParam input, RspOutputParam output)
 {
     if ((output.rspData && (!output.rspBuffSize || *output.rspBuffSize == 0))) {
-        return ERR_INVALIDE_PARAM;
+        return PWR_ERR_INVALIDE_PARAM;
     }
 
     char *inputData = NULL;
@@ -468,12 +468,12 @@ int SendReqAndWaitForRsp(const ReqInputParam input, RspOutputParam output)
     if (!req) {
         PwrLog(ERROR, "Create req msg failed. optType:%d", input.optType);
         free(inputData);
-        return ERR_SYS_EXCEPTION;
+        return PWR_ERR_SYS_EXCEPTION;
     }
 
     PwrMsg *rsp = NULL;
     int ret = SendReqMsgAndWaitForRsp(req, &rsp);
-    if (ret != SUCCESS) {
+    if (ret != PWR_SUCCESS) {
         PwrLog(ERROR, "Send req failed. optType:%d, ret:%d", input.optType, ret);
         ReleasePwrMsg(&req);
         ReleasePwrMsg(&rsp);
@@ -489,12 +489,12 @@ int SendReqAndWaitForRsp(const ReqInputParam input, RspOutputParam output)
         } else {
             ReleasePwrMsg(&req);
             ReleasePwrMsg(&rsp);
-            return ERR_WRONG_RESPONSE_FROM_SERVER;
+            return PWR_ERR_WRONG_RESPONSE_FROM_SERVER;
         }
     }
 
     PwrLog(DEBUG, "Request Succeed. optType:%d", input.optType);
     ReleasePwrMsg(&req);
     ReleasePwrMsg(&rsp);
-    return SUCCESS;
+    return PWR_SUCCESS;
 }

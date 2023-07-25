@@ -55,12 +55,12 @@ static int ListenStart(int sockFd, const struct sockaddr_un *addr)
     ret = setsockopt(sockFd, SOL_SOCKET, SO_REUSEADDR, (char *)&reuse, sizeof(int));
     if (ret < 0) {
         Logger(ERROR, MD_NM_SVR, "set reuse socket error %s errno: %d\n", strerror(errno), errno);
-        return ERR_SYS_EXCEPTION;
+        return PWR_ERR_SYS_EXCEPTION;
     }
     ret = bind(sockFd, addr, sizeof(struct sockaddr_un));
     if (ret < 0) {
         Logger(ERROR, MD_NM_SVR, "bind socket error %s errno: %d\n", strerror(errno), errno);
-        return ERR_SYS_EXCEPTION;
+        return PWR_ERR_SYS_EXCEPTION;
     }
 
     /* Set the permissions of the pwrserver.sock to 722 */
@@ -68,17 +68,17 @@ static int ListenStart(int sockFd, const struct sockaddr_un *addr)
     ret = chmod(addr->sun_path, mode);
     if (ret == -1) {
         Logger(ERROR, MD_NM_SVR, "set permission error");
-        return ERR_SYS_EXCEPTION;
+        return PWR_ERR_SYS_EXCEPTION;
     }
 
     ret = listen(sockFd, MAX_PEDDING_SOCKS);
     if (ret < 0) {
         Logger(ERROR, MD_NM_SVR, "listen error %s errno: %d\n", strerror(errno), errno);
-        return ERR_SYS_EXCEPTION;
+        return PWR_ERR_SYS_EXCEPTION;
     }
     g_listenFd = sockFd;
 
-    return SUCCESS;
+    return PWR_SUCCESS;
 }
 
 static int StartUnxListen(const char *localFileName)
@@ -96,7 +96,7 @@ static int StartUnxListen(const char *localFileName)
     sockFd = socket(AF_UNIX, SOCK_STREAM, 0);
     if (sockFd < 0) {
         Logger(ERROR, MD_NM_SVR, "socket error %s errno: %d\n", strerror(errno), errno);
-        return ERR_SYS_EXCEPTION;
+        return PWR_ERR_SYS_EXCEPTION;
     }
     return ListenStart(sockFd, (struct sockaddr_un *)&tSockaddr);
 }
@@ -121,27 +121,27 @@ static int PassCredVerification(const int sockfd, pid_t *pid)
     socklen_t socklen = sizeof(struct ucred);
     if (getsockopt(sockfd, SOL_SOCKET, SO_PEERCRED, &credSocket, &socklen) < 0) {
         Logger(ERROR, MD_NM_SVR, "get sock opt failed");
-        return ERR_COMMON;
+        return PWR_ERR_COMMON;
     }
 
     ret = GetSockoptFromOS(*pid, &credOS);
-    if (ret != SUCCESS) {
+    if (ret != PWR_SUCCESS) {
         Logger(ERROR, MD_NM_SVR, "get sockopt from OS failed, ret : %d", ret);
-        return ERR_COMMON;
+        return PWR_ERR_COMMON;
     }
 
     if (credSocket.uid != credOS.uid || credSocket.gid != credOS.gid) {
         Logger(ERROR, MD_NM_SVR, "uid or gid from socket and OS are different");
-        return ERR_COMMON;
+        return PWR_ERR_COMMON;
     }
 
     if (!IsAdmin(credOS.user) && !IsObserver(credOS.user)) {
         Logger(ERROR, MD_NM_SVR, "the client <%s> is not in white list", credOS.user);
-        return ERR_COMMON;
+        return PWR_ERR_COMMON;
     }
 
     *pid = credOS.pid;
-    return SUCCESS;
+    return PWR_SUCCESS;
 }
 
 static PWR_COM_EventInfo* CreateEventInfo(char *info, PWR_COM_EVT_TYPE eventType)
@@ -153,7 +153,7 @@ static PWR_COM_EventInfo* CreateEventInfo(char *info, PWR_COM_EVT_TYPE eventType
     }
 
     bzero(eventInfo, sizeof(PWR_COM_EventInfo));
-    GetCurFullTime(eventInfo->ctime, MAX_TIME_LEN);
+    GetCurFullTime(eventInfo->ctime, PWR_MAX_TIME_LEN);
     eventInfo->eventType = eventType;
     eventInfo->infoLen = strlen(info);
     strcpy(eventInfo->info, info);
@@ -183,7 +183,7 @@ static void AcceptConnection(void)
     strncpy(strSysId, clientAddr.sun_path + strlen(CLIENT_ADDR), MAX_SYSID_LEN - 1);
     client.sysId = atoi(strSysId);
 
-    if (PassCredVerification(newClientFd, &client.sysId) != SUCCESS) {
+    if (PassCredVerification(newClientFd, &client.sysId) != PWR_SUCCESS) {
         Logger(ERROR, MD_NM_CRED, "credentials verification failed");
         const char *info = "Server has closed connection. This client is not in white list";
         /* eventData should be release in the function that uses it */
@@ -200,7 +200,7 @@ static void AcceptConnection(void)
         return;
     }
 
-    if (AddToClientList(g_pwrClients, client) != SUCCESS) {
+    if (AddToClientList(g_pwrClients, client) != PWR_SUCCESS) {
         Logger(ERROR, MD_NM_SVR, "Reach maximum connections or client existed : %d ", MAX_CLIENT_NUM);
         close(newClientFd);
         return;
@@ -231,16 +231,16 @@ static int ReadMsg(void *pData, int len, int dstFd, int idx)
             }
             Logger(ERROR, MD_NM_SVR, "recv error %s errno:%d", strerror(errno), errno);
             CleanClientResource(g_pwrClients, idx);
-            return ERR_SYS_EXCEPTION;
+            return PWR_ERR_SYS_EXCEPTION;
         } else if (recvLen == 0) {
             Logger(ERROR, MD_NM_SVR, "connection closed !");
             CleanClientResource(g_pwrClients, idx);
-            return ERR_DISCONNECTED;
+            return PWR_ERR_DISCONNECTED;
         }
         readLen += recvLen;
         leftLen -= recvLen;
     }
-    return SUCCESS;
+    return PWR_SUCCESS;
 }
 
 static void ProcessRecvMsgFromClient(int clientIdx)
@@ -248,7 +248,7 @@ static void ProcessRecvMsgFromClient(int clientIdx)
     // Get msg from connFd, send to service queue and waiting for processing
     int dstFd = g_pwrClients[clientIdx].fd;
     PwrMsg *msg = (PwrMsg *)malloc(sizeof(PwrMsg));
-    if (!msg || ReadMsg(msg, sizeof(PwrMsg), dstFd, clientIdx) != SUCCESS) {
+    if (!msg || ReadMsg(msg, sizeof(PwrMsg), dstFd, clientIdx) != PWR_SUCCESS) {
         ReleasePwrMsg(&msg);
         return;
     }
@@ -260,7 +260,7 @@ static void ProcessRecvMsgFromClient(int clientIdx)
 
     if (msg->head.dataLen > 0) {
         char *msgcontent = malloc(msg->head.dataLen);
-        if (!msgcontent || ReadMsg(msgcontent, msg->head.dataLen, dstFd, clientIdx) != SUCCESS) {
+        if (!msgcontent || ReadMsg(msgcontent, msg->head.dataLen, dstFd, clientIdx) != PWR_SUCCESS) {
             ReleasePwrMsg(&msg);
             return;
         }
@@ -274,7 +274,7 @@ static void ProcessRecvMsgFromClient(int clientIdx)
         return;
     }
 
-    if (AddToBufferTail(&g_recvBuff, msg) != SUCCESS) {
+    if (AddToBufferTail(&g_recvBuff, msg) != PWR_SUCCESS) {
         ReleasePwrMsg(&msg);
     }
     // activate RunServiceProcess
@@ -298,16 +298,16 @@ static int WriteMsg(const void *pData, size_t len, int dstFd)
             }
             Logger(ERROR, MD_NM_SVR, "send error %s errno:%d", strerror(errno), errno);
             CleanClientResource(g_pwrClients, GetIdxByFd(g_pwrClients, dstFd));
-            return ERR_SYS_EXCEPTION;
+            return PWR_ERR_SYS_EXCEPTION;
         } else if (sendLen == 0) {
             Logger(ERROR, MD_NM_SVR, "connection closed !");
             CleanClientResource(g_pwrClients, GetIdxByFd(g_pwrClients, dstFd));
-            return ERR_DISCONNECTED;
+            return PWR_ERR_DISCONNECTED;
         }
         leftLen -= sendLen;
         wrLen += sendLen;
     }
-    return SUCCESS;
+    return PWR_SUCCESS;
 }
 
 static void SendMsgToClientAction(int dstFd, PwrMsg *msg)
@@ -510,24 +510,24 @@ int StartServer(void)
     pthread_cond_init((pthread_cond_t *)&g_waitMsgCond, NULL);
     int ret;
     ret = StartUnxListen(GetServCfg()->sockFile);
-    if (ret != SUCCESS) {
+    if (ret != PWR_SUCCESS) {
         Logger(ERROR, MD_NM_SVR, "%s Listen failed! ret[%d]", GetServCfg(), ret);
-        return ERR_SYS_EXCEPTION;
+        return PWR_ERR_SYS_EXCEPTION;
     }
 
     ret = CreateThread(&g_serviceThread, RunServiceProcess, NULL);
-    if (ret != SUCCESS) {
+    if (ret != PWR_SUCCESS) {
         Logger(ERROR, MD_NM_SVR, "Create service thread failed! ret[%d]", ret);
-        return ERR_SYS_EXCEPTION;
+        return PWR_ERR_SYS_EXCEPTION;
     }
 
     ret = CreateThread(&g_sockProcThread, RunServerSocketProcess, NULL);
-    if (ret != SUCCESS) {
+    if (ret != PWR_SUCCESS) {
         Logger(ERROR, MD_NM_SVR, "Create ServerSocketProcess thread failed! ret[%d]", ret);
-        return ERR_SYS_EXCEPTION;
+        return PWR_ERR_SYS_EXCEPTION;
     }
     InitTaskService();
-    return SUCCESS;
+    return PWR_SUCCESS;
 }
 
 void StopServer(void)
@@ -562,7 +562,7 @@ void SendRspToClient(const PwrMsg *req, int rspCode, char *data, uint32_t len)
     }
     bzero(rsp, sizeof(PwrMsg));
     GenerateRspMsg(req, rsp, rspCode, data, len);
-    if (SendRspMsg(rsp) != SUCCESS) {
+    if (SendRspMsg(rsp) != PWR_SUCCESS) {
         ReleasePwrMsg(&rsp);
     }
 }
@@ -570,13 +570,13 @@ void SendRspToClient(const PwrMsg *req, int rspCode, char *data, uint32_t len)
 int SendMetadataToClient(uint32_t sysId, char *data, uint32_t len)
 {
     if (!data && len != 0) {
-        return ERR_INVALIDE_PARAM;
+        return PWR_ERR_INVALIDE_PARAM;
     }
     PwrMsg *metadata = (PwrMsg *)malloc(sizeof(PwrMsg));
     if (!metadata) {
         Logger(ERROR, MD_NM_SVR, "Malloc failed.");
         free(data);
-        return ERR_SYS_EXCEPTION;
+        return PWR_ERR_SYS_EXCEPTION;
     }
     bzero(metadata, sizeof(PwrMsg));
     GenerateMetadataMsg(metadata, sysId, data, len);
@@ -593,7 +593,7 @@ int SendRspMsg(PwrMsg *rsp)
 int SendEventToClient(const int dstFd, const uint32_t sysId, char *data, uint32_t len)
 {
     if (!data && len != 0) {
-        return ERR_INVALIDE_PARAM;
+        return PWR_ERR_INVALIDE_PARAM;
     }
 
     PwrMsg *event = (PwrMsg *)malloc(sizeof(PwrMsg));
@@ -601,14 +601,14 @@ int SendEventToClient(const int dstFd, const uint32_t sysId, char *data, uint32_
     if (!event || !dataCpy) {
         Logger(ERROR, MD_NM_SVR, "Malloc failed");
         free(data);
-        return ERR_SYS_EXCEPTION;
+        return PWR_ERR_SYS_EXCEPTION;
     }
 
     bzero(event, sizeof(PwrMsg));
     memset(dataCpy, 0, len);
     memcpy(dataCpy, data, len);
     int res = GenerateEventMsg(event, sysId, dataCpy, len);
-    if (res != SUCCESS) {
+    if (res != PWR_SUCCESS) {
         Logger(ERROR, MD_NM_SVR, "Generate event msg failed, result:%d", res);
         free(data);
         data = NULL;
@@ -621,5 +621,5 @@ int SendEventToClient(const int dstFd, const uint32_t sysId, char *data, uint32_
     free(data);
     data = NULL;
     ReleasePwrMsg(&event);
-    return SUCCESS;
+    return PWR_SUCCESS;
 }

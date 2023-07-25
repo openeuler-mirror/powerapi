@@ -50,35 +50,35 @@ void InitPwrClient(PwrClient clients[])
 int AddToClientList(PwrClient clients[], PwrClient newClient)
 {
     if (newClient.fd == INVALID_FD) {
-        return ERR_INVALIDE_PARAM;
+        return PWR_ERR_INVALIDE_PARAM;
     }
     // reconnect scenario, update the fd
     int existIdx = GetClientIdx(clients, newClient);
     if (existIdx != INVALID_INDEX) {
         close(clients[existIdx].fd);
         clients[existIdx].fd = newClient.fd;
-        return SUCCESS;
+        return PWR_SUCCESS;
     }
     // new client
     int index = FindAvailableSlot(clients);
     if (index == INVALID_INDEX) {
         Logger(ERROR, MD_NM_SVR, "Maximum client num : %d errno :%d\n", MAX_CLIENT_NUM, errno);
-        return ERR_OVER_MAX_CONNECTION;
+        return PWR_ERR_OVER_MAX_CONNECTION;
     } else {
         clients[index] = newClient;
-        return SUCCESS;
+        return PWR_SUCCESS;
     }
 }
 
 int DeleteFromClientList(PwrClient clients[], int idx)
 {
     if (idx < 0 || idx >= MAX_CLIENT_NUM) {
-        return ERR_INVALIDE_PARAM;
+        return PWR_ERR_INVALIDE_PARAM;
     }
     close(clients[idx].fd);
     clients[idx].fd = INVALID_FD;
     clients[idx].sysId = INVALID_INDEX;
-    return SUCCESS;
+    return PWR_SUCCESS;
 }
 
 void CloseAllConnections(PwrClient clients[])

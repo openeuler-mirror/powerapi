@@ -24,10 +24,10 @@ int SetSysPowerState(int powerState)
 {
     ReqInputParam input;
     input.optType = SYS_SET_POWER_STATE;
-    char state[MAX_NAME_LEN] = {0};
-    if (powerState == MEM) {
+    char state[PWR_MAX_NAME_LEN] = {0};
+    if (powerState == PWR_MEM) {
         strncpy(state, "mem", strlen("mem"));
-    } else if (powerState == DISK) {
+    } else if (powerState == PWR_DISK) {
         strncpy(state, "disk", strlen("disk"));
     }
     size_t dataLen = strlen(state);
@@ -38,7 +38,7 @@ int SetSysPowerState(int powerState)
     output.rspData = NULL;
 
     int ret = SendReqAndWaitForRsp(input, output);
-    if (ret != SUCCESS) {
+    if (ret != PWR_SUCCESS) {
         PwrLog(ERROR, "SetSysPowerState failed. ret:%d", ret);
     } else {
         PwrLog(DEBUG, "SetSysPowerState Succeed.");
@@ -59,7 +59,7 @@ int GetSysRtPowerInfo(PWR_SYS_PowerInfo *powerInfo)
     output.rspBuffSize = &size;
     output.rspData = (void *)powerInfo;
     int ret = SendReqAndWaitForRsp(input, output);
-    if (ret != SUCCESS) {
+    if (ret != PWR_SUCCESS) {
         PwrLog(ERROR, "GetSysRtPower failed. ret:%d", ret);
     } else {
         PwrLog(DEBUG, "GetSysRtPower Succeed.");

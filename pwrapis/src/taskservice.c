@@ -47,7 +47,7 @@ typedef struct CollTask {
 static CollTask *g_collTaskList[MAX_TASK_NUM];
 static int g_taskNum = 0;
 static pthread_mutex_t g_taskListMutex;
-static int g_hasInited = FALSE;
+static int g_hasInited = PWR_FALSE;
 
 static int FindCollTaskByType(PWR_COM_COL_DATATYPE dataType)
 {
@@ -94,7 +94,7 @@ static void UpdataTaskInterval(int index, int subIdx)
         return;
     }
 
-    int interval = MAX_DC_INTERVAL;
+    int interval = PWR_MAX_DC_INTERVAL;
     for (int i = 0; i < MAX_CLIENT_NUM; i++) {
         if (interval > g_collTaskList[index]->subscriberList[i].interval) {
             interval = g_collTaskList[index]->subscriberList[i].interval;
@@ -116,9 +116,9 @@ static int FindSubscriberById(int index, uint32_t subscriber)
 static int AddSubscriber(int index, const PWR_COM_BasicDcTaskInfo *taskInfo, uint32_t subscriber)
 {
     if (!g_collTaskList[index]) {
-        return ERR_TASK_NOT_EXISTS;
+        return PWR_ERR_TASK_NOT_EXISTS;
     }
-    int ret = SUCCESS;
+    int ret = PWR_SUCCESS;
     int subIdx = FindSubscriberById(index, subscriber);
     if (subIdx != INVALID_INDEX) {
         g_collTaskList[index]->subscriberList[subIdx].interval = taskInfo->interval;
@@ -136,7 +136,7 @@ static int AddSubscriber(int index, const PWR_COM_BasicDcTaskInfo *taskInfo, uin
             }
         }
         if (i == MAX_CLIENT_NUM) { // subscriber overflow
-            ret = ERR_SYS_EXCEPTION;
+            ret = PWR_ERR_SYS_EXCEPTION;
         }
     }
     return ret;
@@ -145,7 +145,7 @@ static int AddSubscriber(int index, const PWR_COM_BasicDcTaskInfo *taskInfo, uin
 static int DeleteSubscriber(int index, uint32_t subscriber)
 {
     if (!g_collTaskList[index]) {
-        return ERR_TASK_NOT_EXISTS;
+        return PWR_ERR_TASK_NOT_EXISTS;
     }
     for (int i = 0; i < MAX_CLIENT_NUM; i++) {
         if (g_collTaskList[index]->subscriberList[i].sysId == subscriber) {
@@ -160,7 +160,7 @@ static int DeleteSubscriber(int index, uint32_t subscriber)
     } else {
         UpdataTaskInterval(index, INVALID_INDEX);
     }
-    return SUCCESS;
+    return PWR_SUCCESS;
 }
 
 static void SendMetadataToSubscribers(CollTask *task, const char *data, size_t len, const struct timeval *startTime)
@@ -186,7 +186,7 @@ static PWR_COM_CallbackData *CreateMedataObject(size_t dataLen, PWR_COM_COL_DATA
         return NULL;
     }
     bzero(callbackData, dataLen);
-    GetCurFullTime(callbackData->ctime, MAX_TIME_LEN);
+    GetCurFullTime(callbackData->ctime, PWR_MAX_TIME_LEN);
     callbackData->dataType = dataType;
     size_t dLen = dataLen - sizeof(PWR_COM_CallbackData);
     callbackData->dataLen = dLen;
@@ -201,7 +201,7 @@ static void TaskProcessCpuPerf(CollTask *task, const struct timeval *startTime)
     if (!callbackData) {
         return;
     }
-    if (PerfDataRead((PWR_CPU_PerfData *)callbackData->data) != SUCCESS) {
+    if (PerfDataRead((PWR_CPU_PerfData *)callbackData->data) != PWR_SUCCESS) {
         free(callbackData);
         return;
     }
@@ -217,7 +217,7 @@ static void TaskProcessCpuUsage(CollTask *task, const struct timeval *startTime)
     if (!callbackData) {
         return;
     }
-    if (CPUUsageRead((PWR_CPU_Usage *)callbackData->data, coreNum) != SUCCESS) {
+    if (CPUUsageRead((PWR_CPU_Usage *)callbackData->data, coreNum) != PWR_SUCCESS) {
         free(callbackData);
         return;
     }
@@ -263,12 +263,12 @@ static int CreateNewTask(const PWR_COM_BasicDcTaskInfo *taskInfo, uint32_t subsc
 {
     int slot = FindAvailebleTaskSlot();
     if (slot == INVALID_INDEX) {
-        return ERR_OVER_MAX_TASK_NUM;
+        return PWR_ERR_OVER_MAX_TASK_NUM;
     }
 
     CollTask *task = (CollTask *)malloc(sizeof(CollTask));
     if (!task) {
-        return ERR_SYS_EXCEPTION;
+        return PWR_ERR_SYS_EXCEPTION;
     }
     bzero(task, sizeof(CollTask));
     task->dataType = taskInfo->dataType;
@@ -279,7 +279,7 @@ static int CreateNewTask(const PWR_COM_BasicDcTaskInfo *taskInfo, uint32_t subsc
     gettimeofday(&(task->subscriberList[0].lastSent), NULL);
     InitThreadInfo(&(task->collThread));
     int rspCode = CreateThread(&(task->collThread), RunDcTaskProcess, (void *)task);
-    if (rspCode != SUCCESS) {
+    if (rspCode != PWR_SUCCESS) {
         free(task);
         Logger(ERROR, MD_NM_SVR_TASK, "CreateNewTask failed. ret:%d type:%d, sysId:%d", rspCode, taskInfo->dataType,
             subscriber);
@@ -296,7 +296,7 @@ static int CreateNewTask(const PWR_COM_BasicDcTaskInfo *taskInfo, uint32_t subsc
 
 static int CreateTask(const PWR_COM_BasicDcTaskInfo *taskInfo, uint32_t subscriber)
 {
-    int rspCode = SUCCESS;
+    int rspCode = PWR_SUCCESS;
     pthread_mutex_lock(&g_taskListMutex);
 
     int index = FindCollTaskByType(taskInfo->dataType);
@@ -320,7 +320,7 @@ static int DeleteTask(PWR_COM_COL_DATATYPE dataType, uint32_t subscriber)
     }
     pthread_mutex_unlock(&g_taskListMutex);
     Logger(INFO, MD_NM_SVR_TASK, "DeleteTask. sysId:%d dataType:%d taskNum:%d", subscriber, dataType, g_taskNum);
-    return SUCCESS;
+    return PWR_SUCCESS;
 }
 
 static void FiniAllTask(void)
@@ -351,13 +351,13 @@ static int DeleteAllTaskByClient(uint32_t subscriber)
 int InitTaskService(void)
 {
     if (g_hasInited) {
-        return SUCCESS;
+        return PWR_SUCCESS;
     }
     bzero(g_collTaskList, MAX_TASK_NUM * sizeof(CollTask *));
     g_taskNum = 0;
     pthread_mutex_init((pthread_mutex_t *)&g_taskListMutex, NULL);
-    g_hasInited = TRUE;
-    return SUCCESS;
+    g_hasInited = PWR_TRUE;
+    return PWR_SUCCESS;
 }
 
 
@@ -366,7 +366,7 @@ void FiniTaskService(void)
     FiniAllTask();
     g_taskNum = 0;
     pthread_mutex_destroy((pthread_mutex_t *)&g_taskListMutex);
-    g_hasInited = FALSE;
+    g_hasInited = PWR_FALSE;
 }
 
 void CreateDataCollTask(const PwrMsg *req)

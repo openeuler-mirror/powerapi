@@ -19,12 +19,12 @@
 
 TEST(GTEST_BASE, PWR_SetLogCallback_Test_001)
 {
-    EXPECT_EQ(SUCCESS, PWR_SetLogCallback(LogCallback));
+    EXPECT_EQ(PWR_SUCCESS, PWR_SetLogCallback(LogCallback));
 }
 
 TEST(GTEST_BASE, PWR_SetLogCallback_Test_002)
 {
-    EXPECT_NE(SUCCESS, PWR_SetLogCallback(NULL));
+    EXPECT_NE(PWR_SUCCESS, PWR_SetLogCallback(NULL));
 }
 
 /*
@@ -33,8 +33,8 @@ TEST(GTEST_BASE, PWR_SetLogCallback_Test_002)
 TEST(GTEST_BASE, PWR_Register_Test_001)
 {
     EXPECT_EQ(0, StartService());
-    EXPECT_EQ(SUCCESS, PWR_Register());
-    EXPECT_EQ(SUCCESS, PWR_UnRegister());
+    EXPECT_EQ(PWR_SUCCESS, PWR_Register());
+    EXPECT_EQ(PWR_SUCCESS, PWR_UnRegister());
     EXPECT_EQ(0, StopService());
 }
 
@@ -43,7 +43,7 @@ TEST(GTEST_BASE, PWR_Register_Test_001)
  */
 TEST(GTEST_BASE, PWR_Register_Test_002)
 {
-    EXPECT_NE(SUCCESS, PWR_Register());
+    EXPECT_NE(PWR_SUCCESS, PWR_Register());
 }
 
 /*
@@ -51,7 +51,7 @@ TEST(GTEST_BASE, PWR_Register_Test_002)
  */
 TEST(GTEST_BASE, PWR_UnRegister_Test_001)
 {
-    EXPECT_EQ(SUCCESS, PWR_UnRegister());
+    EXPECT_EQ(PWR_SUCCESS, PWR_UnRegister());
 }
 
 /*
@@ -60,9 +60,9 @@ TEST(GTEST_BASE, PWR_UnRegister_Test_001)
 TEST(GTEST_BASE, PWR_UnRegister_Test_002)
 {
     EXPECT_EQ(0, StartService());
-    EXPECT_EQ(SUCCESS, PWR_Register());
+    EXPECT_EQ(PWR_SUCCESS, PWR_Register());
     EXPECT_EQ(0, StopService());
-    EXPECT_EQ(SUCCESS, PWR_UnRegister());
+    EXPECT_EQ(PWR_SUCCESS, PWR_UnRegister());
 }
 
 /*
@@ -72,8 +72,8 @@ TEST(GTEST_BASE, PWR_UnRegister_Test_003)
 {
     EXPECT_EQ(0, StartService());
     for (int i = 0; i < 10; i++) {
-        EXPECT_EQ(SUCCESS, PWR_Register());
-        EXPECT_EQ(SUCCESS, PWR_UnRegister());
+        EXPECT_EQ(PWR_SUCCESS, PWR_Register());
+        EXPECT_EQ(PWR_SUCCESS, PWR_UnRegister());
     }
     EXPECT_EQ(0, StopService());
 }
@@ -84,9 +84,9 @@ TEST(GTEST_BASE, PWR_UnRegister_Test_003)
 TEST(GTEST_BASE, PWR_UnRegister_Test_004)
 {
     EXPECT_EQ(0, StartService());
-    EXPECT_EQ(SUCCESS, PWR_Register());
-    EXPECT_EQ(SUCCESS, PWR_Register());
-    EXPECT_EQ(SUCCESS, PWR_UnRegister());
+    EXPECT_EQ(PWR_SUCCESS, PWR_Register());
+    EXPECT_EQ(PWR_SUCCESS, PWR_Register());
+    EXPECT_EQ(PWR_SUCCESS, PWR_UnRegister());
     EXPECT_EQ(0, StopService());
 }
 
