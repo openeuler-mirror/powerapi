@@ -42,7 +42,7 @@ static uint32_t GenerateCrcMagic()
 static int GenerateReqMsgHead(MsgHead *head, enum OperationType optType, uint32_t taskNo, uint32_t dataLen)
 {
     if (!head) {
-        return ERR_NULL_POINTER;
+        return PWR_ERR_NULL_POINTER;
     }
     bzero(head, sizeof(MsgHead));
     head->majorVer = MAJOR_VERSION;
@@ -56,7 +56,7 @@ static int GenerateReqMsgHead(MsgHead *head, enum OperationType optType, uint32_
     head->crcMagic = GenerateCrcMagic();
     head->dataLen = dataLen;
     head->sysId = (uint32_t)g_pid;
-    return SUCCESS;
+    return PWR_SUCCESS;
 }
 
 PwrMsg *CreateReqMsg(enum OperationType optType, uint32_t taskNo, uint32_t dataLen, char *data)
@@ -109,7 +109,7 @@ void DestroyMsgFactory(void)
 int GenerateMetadataMsg(PwrMsg *metadata, uint32_t sysId, char *data, uint32_t len)
 {
     if (!metadata || !data) {
-        return ERR_NULL_POINTER;
+        return PWR_ERR_NULL_POINTER;
     }
     bzero(metadata, sizeof(PwrMsg));
     metadata->head.majorVer = MAJOR_VERSION;
@@ -129,7 +129,7 @@ int GenerateMetadataMsg(PwrMsg *metadata, uint32_t sysId, char *data, uint32_t l
 int GenerateRspMsg(const PwrMsg *req, PwrMsg *rsp, int rspCode, char *data, int dataLen)
 {
     if (!req || !rsp) {
-        return ERR_NULL_POINTER;
+        return PWR_ERR_NULL_POINTER;
     }
 
     bzero(rsp, sizeof(PwrMsg));
@@ -145,13 +145,13 @@ int GenerateRspMsg(const PwrMsg *req, PwrMsg *rsp, int rspCode, char *data, int 
     rsp->head.dataLen = dataLen;
     rsp->head.sysId = req->head.sysId;
     rsp->data = data;
-    return SUCCESS;
+    return PWR_SUCCESS;
 }
 
 int GenerateEventMsg(PwrMsg *event, uint32_t sysId, const char *data, uint32_t len)
 {
     if (!event || !data) {
-        return ERR_NULL_POINTER;
+        return PWR_ERR_NULL_POINTER;
     }
 
     bzero(event, sizeof(PwrMsg));
@@ -168,7 +168,7 @@ int GenerateEventMsg(PwrMsg *event, uint32_t sysId, const char *data, uint32_t l
     event->head.sysId = sysId;
     event->data = data;
 
-    return SUCCESS;
+    return PWR_SUCCESS;
 }
 
 void InitThreadInfo(ThreadInfo *threadInfo)
@@ -176,22 +176,22 @@ void InitThreadInfo(ThreadInfo *threadInfo)
     if (!threadInfo) {
         return;
     }
-    threadInfo->keepRunning = TRUE;
-    threadInfo->created = FALSE;
+    threadInfo->keepRunning = PWR_TRUE;
+    threadInfo->created = PWR_FALSE;
     threadInfo->tid = 0;
 }
 
 int CreateThread(ThreadInfo *threadInfo, void *(*thread_proc)(void *), void *arg)
 {
     if (!threadInfo || !thread_proc) {
-        return ERR_NULL_POINTER;
+        return PWR_ERR_NULL_POINTER;
     }
-    threadInfo->keepRunning = TRUE;
-    if (pthread_create(&threadInfo->tid, NULL, thread_proc, arg) != SUCCESS) {
-        return ERR_SYS_EXCEPTION;
+    threadInfo->keepRunning = PWR_TRUE;
+    if (pthread_create(&threadInfo->tid, NULL, thread_proc, arg) != PWR_SUCCESS) {
+        return PWR_ERR_SYS_EXCEPTION;
     }
-    threadInfo->created = TRUE;
-    return SUCCESS;
+    threadInfo->created = PWR_TRUE;
+    return PWR_SUCCESS;
 }
 
 void FiniThreadInfo(ThreadInfo *threadInfo)
@@ -199,9 +199,9 @@ void FiniThreadInfo(ThreadInfo *threadInfo)
     if (!threadInfo) {
         return;
     }
-    threadInfo->keepRunning = FALSE;
-    if (threadInfo->created == TRUE) {
+    threadInfo->keepRunning = PWR_FALSE;
+    if (threadInfo->created == PWR_TRUE) {
         pthread_join(threadInfo->tid, NULL);
     }
-    threadInfo->created = FALSE;
+    threadInfo->created = PWR_FALSE;
 }

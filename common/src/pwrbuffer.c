@@ -57,7 +57,7 @@ void ResetPwrMsgBuffer(PwrMsgBuffer *smb)
 int AddToBufferTail(PwrMsgBuffer *smb, PwrMsg *newMsg)
 {
     if (!smb || !newMsg) {
-        return ERR_NULL_POINTER;
+        return PWR_ERR_NULL_POINTER;
     }
     pthread_mutex_lock((pthread_mutex_t *)&(smb->mutex));
     int t = (smb->tail + 1) % PWR_BUFFER_SIZE;
@@ -229,7 +229,7 @@ void MoveOutWaitingMsg(ResultWaitingMsgList *rwm, ResultWaitingMsgNode *node)
 int WaitingForResponse(const ResultWaitingMsgNode *node)
 {
     if (!node) {
-        return ERR_NULL_POINTER;
+        return PWR_ERR_NULL_POINTER;
     }
     struct timeval now;
     struct timespec outTime;
@@ -241,19 +241,19 @@ int WaitingForResponse(const ResultWaitingMsgNode *node)
         pthread_cond_timedwait((pthread_cond_t *)&(node->waitCond), (pthread_mutex_t *)&(node->waitMutex), &outTime);
     pthread_mutex_unlock((pthread_mutex_t *)&(node->waitMutex));
     if (ret == ETIMEDOUT) {
-        return ERR_TIMEOUT;
+        return PWR_ERR_TIMEOUT;
     } else if (ret != 0) {
-        return ERR_SYS_EXCEPTION;
+        return PWR_ERR_SYS_EXCEPTION;
     }
-    return SUCCESS;
+    return PWR_SUCCESS;
 }
 int DoRspToWaitingMsg(const ResultWaitingMsgNode *node)
 {
     if (!node) {
-        return ERR_NULL_POINTER;
+        return PWR_ERR_NULL_POINTER;
     }
     pthread_mutex_lock((pthread_mutex_t *)&(node->waitMutex));
     pthread_cond_signal((pthread_cond_t *)&(node->waitCond));
     pthread_mutex_unlock((pthread_mutex_t *)&(node->waitMutex));
-    return SUCCESS;
+    return PWR_SUCCESS;
 }

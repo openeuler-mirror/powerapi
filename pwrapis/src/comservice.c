@@ -24,46 +24,46 @@
 #include "config.h"
 #include "pwrerr.h"
 
-static int g_authed = FALSE;
+static int g_authed = PWR_FALSE;
 static uint32_t g_authOwner = 0;
 
 static int DoAuthRequest(uint32_t client)
 {
     UnixCredOS credOS;
     int ret = GetSockoptFromOS(client, &credOS);
-    if (ret != SUCCESS) {
+    if (ret != PWR_SUCCESS) {
         Logger(ERROR, MD_NM_SVR_TASK, "get sockopt from OS failed, ret : %d", ret);
-        return ERR_COMMON;
+        return PWR_ERR_COMMON;
     }
     if (!IsAdmin(credOS.user)) {
         Logger(ERROR, MD_NM_SVR_TASK, "the client <%s> is not an admin", credOS.user);
-        return ERR_CONTROL_AUTH_NO_PERMISSION;
+        return PWR_ERR_CONTROL_AUTH_NO_PERMISSION;
     }
 
     if (g_authed) {
         if (g_authOwner != client) { // Control has been granted to other app
-            return ERR_CONTROL_AUTH_REQUESTED;
+            return PWR_ERR_CONTROL_AUTH_REQUESTED;
         }
-        return SUCCESS;
+        return PWR_SUCCESS;
     }
     g_authOwner = client;
-    g_authed = TRUE;
-    return SUCCESS;
+    g_authed = PWR_TRUE;
+    return PWR_SUCCESS;
 }
 
 static int DoAuthRelease(uint32_t client)
 {
     if (g_authed && g_authOwner == client) {
         g_authOwner = 0;
-        g_authed = FALSE;
-        return SUCCESS;
+        g_authed = PWR_FALSE;
+        return PWR_SUCCESS;
     }
 
     if (!g_authed) {
         g_authOwner = 0;
-        return SUCCESS;
+        return PWR_SUCCESS;
     }
-    return ERR_CONTROL_AUTH_OWNERED_BY_OTHERS;
+    return PWR_ERR_CONTROL_AUTH_OWNERED_BY_OTHERS;
 }
 
 // public===========================================================================================

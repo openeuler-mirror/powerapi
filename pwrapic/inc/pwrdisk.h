@@ -17,7 +17,7 @@
 #include <stdint.h>
 #include "pwrdata.h"
 
-int GetDiskList(char diskList[][MAX_ELEMENT_NAME_LEN], uint32_t *len);
+int GetDiskList(char diskList[][PWR_MAX_ELEMENT_NAME_LEN], uint32_t *len);
 int GetDiskLoad(PWR_DISK_Load load[], uint32_t *len, int spec);
 int GetDiskPwrLevel(PWR_DISK_PwrLevel pwrLevel[], uint32_t *len, int spec);
 int SetDiskPwrLevel(PWR_DISK_PwrLevel pwrLevel[], uint32_t len);

@@ -44,29 +44,29 @@ int UpdateConfigPath(const char* configPath)
 {
     if (!configPath) {
         Logger(ERROR, MD_NM_CFG, "Update config path failed.");
-        return ERR_NULL_POINTER;
+        return PWR_ERR_NULL_POINTER;
     }
     if (access(configPath, F_OK) != 0) {
         Logger(ERROR, MD_NM_CFG, "The specified configuration file does not exist");
-        return ERR_INVALIDE_PARAM;
+        return PWR_ERR_INVALIDE_PARAM;
     }
     
     strncpy(g_configPath, configPath, sizeof(g_configPath) - 1);
-    return SUCCESS;
+    return PWR_SUCCESS;
 }
 
 static int UpdateLogLevel(enum LogLevel logLevel)
 {
     // Need mutex....
     g_logCfg.logLevel = logLevel;
-    return SUCCESS;
+    return PWR_SUCCESS;
 }
 
 static int UpdateLogCfg(enum CnfItemType type, char *value)
 {
     int actualValue;
     if (strlen(value) == 0) {
-        return ERR_INVALIDE_PARAM;
+        return PWR_ERR_INVALIDE_PARAM;
     }
 
     switch (type) {
@@ -74,7 +74,7 @@ static int UpdateLogCfg(enum CnfItemType type, char *value)
             actualValue = atoi(value);
             if (!IsNumStr(value) || actualValue <= 0) {
                 Logger(ERROR, MD_NM_CFG, "File_size in config is invalid");
-                return ERR_INVALIDE_PARAM;
+                return PWR_ERR_INVALIDE_PARAM;
             }
         
             g_logCfg.maxFileSize = actualValue * UNIT_FACTOR - MAX_LINE_LENGTH;
@@ -83,7 +83,7 @@ static int UpdateLogCfg(enum CnfItemType type, char *value)
             actualValue = atoi(value);
             if (!IsNumStr(value) || actualValue <= 0) {
                 Logger(ERROR, MD_NM_CFG, "Cmp_cnt in config is invalid");
-                return ERR_INVALIDE_PARAM;
+                return PWR_ERR_INVALIDE_PARAM;
             }
 
             g_logCfg.maxCmpCnt = actualValue;
@@ -92,7 +92,7 @@ static int UpdateLogCfg(enum CnfItemType type, char *value)
             actualValue = atoi(value);
             if (!IsNumStr(value) || actualValue < 0) {
                 Logger(ERROR, MD_NM_CFG, "Log_level in config is invalid");
-                return ERR_INVALIDE_PARAM;
+                return PWR_ERR_INVALIDE_PARAM;
             }
         
             UpdateLogLevel(actualValue);
@@ -107,20 +107,20 @@ static int UpdateLogCfg(enum CnfItemType type, char *value)
             strncpy(g_logCfg.logPfx, value, sizeof(g_logCfg.logPfx) - 1);
             char strFlRgx[MAX_NAME] = {0};
             if (sprintf(strFlRgx, "^%s-[[:digit:]]{14}.tar.gz$", g_logCfg.logPfx) < 0) {
-                return ERR_SYS_EXCEPTION;
+                return PWR_ERR_SYS_EXCEPTION;
             }
             break;
         default:
             break;
     }
-    return SUCCESS;
+    return PWR_SUCCESS;
 }
 
 static int UpdateServCfg(enum CnfItemType type, char *value)
 {
     int actualValue;
     if (strlen(value) == 0) {
-        return ERR_INVALIDE_PARAM;
+        return PWR_ERR_INVALIDE_PARAM;
     }
 
     switch (type) {
@@ -128,7 +128,7 @@ static int UpdateServCfg(enum CnfItemType type, char *value)
             actualValue = atoi(value);
             if (!IsNumStr(value) || actualValue < 0 || actualValue > MAX_SERVER_PORT) {
                 Logger(ERROR, MD_NM_CFG, "Port in config is invalid");
-                return ERR_INVALIDE_PARAM;
+                return PWR_ERR_INVALIDE_PARAM;
             }
 
             g_servCfg.port = actualValue;
@@ -139,7 +139,7 @@ static int UpdateServCfg(enum CnfItemType type, char *value)
         default:
             break;
     }
-    return SUCCESS;
+    return PWR_SUCCESS;
 }
 
 static char** UpdateRoleArrayAction(const char *value)
@@ -183,12 +183,12 @@ static int UpdateRoleArray(enum CnfItemType type, const char *value)
             if (value == NULL) {
                 DoReleaseWhiteList(g_adminArray);
                 g_adminArray = NULL;
-                return SUCCESS;
+                return PWR_SUCCESS;
             }
 
             if (tempRoleArray == NULL) {
                 Logger(INFO, MD_NM_CFG, "Admin in config is meaningless!%s", value);
-                return ERR_INVALIDE_PARAM;
+                return PWR_ERR_INVALIDE_PARAM;
             }
 
             oldRoleArray = g_adminArray;
@@ -202,12 +202,12 @@ static int UpdateRoleArray(enum CnfItemType type, const char *value)
                 DoReleaseWhiteList(g_observerArray);
                 g_observerArray = NULL;
                 Logger(INFO, MD_NM_CFG, "Observer in config has been modified to null");
-                return SUCCESS;
+                return PWR_SUCCESS;
             }
 
             if (tempRoleArray == NULL) {
                 Logger(INFO, MD_NM_CFG, "Observer in config is meaningless!%s", value);
-                return ERR_INVALIDE_PARAM;
+                return PWR_ERR_INVALIDE_PARAM;
             }
 
             oldRoleArray = g_observerArray;
@@ -221,7 +221,7 @@ static int UpdateRoleArray(enum CnfItemType type, const char *value)
             break;
     }
     tempRoleArray = NULL;
-    return SUCCESS;
+    return PWR_SUCCESS;
 }
 
 static int InitLogCfg(void)
@@ -236,16 +236,16 @@ static int InitLogCfg(void)
 
     char strFlRgx[MAX_NAME] = {0};
     if (sprintf(strFlRgx, "^%s-[[:digit:]]{14}.tar.gz$", g_logCfg.logPfx) < 0) {
-        return ERR_SYS_EXCEPTION;
+        return PWR_ERR_SYS_EXCEPTION;
     }
-    return SUCCESS;
+    return PWR_SUCCESS;
 }
 
 static int InitServCfg(void)
 {
     strncpy(g_servCfg.sockFile, DEFAULT_SERVER_ADDR, sizeof(g_servCfg.sockFile) - 1);
     g_servCfg.port = 0;
-    return SUCCESS;
+    return PWR_SUCCESS;
 }
 
 static enum CnfItemType StringToEnum(char *str)
@@ -279,11 +279,11 @@ static int LoadConfigFile(void)
     char realpathRes[MAX_FULL_NAME] = {0};
 
     int ret = NormalizeAndVerifyFilepath(g_configPath, realpathRes);
-    if (ret != SUCCESS) return ret;
-    if (access(realpathRes, R_OK) != 0) return ERR_COMMON;
+    if (ret != PWR_SUCCESS) return ret;
+    if (access(realpathRes, R_OK) != 0) return PWR_ERR_COMMON;
 
     FILE *fp = fopen(realpathRes, "r");
-    if (fp == NULL) return ERR_NULL_POINTER;
+    if (fp == NULL) return PWR_ERR_NULL_POINTER;
     while (fgets(line, sizeof(line) - 1, fp) != NULL) {
         // Skip invalid lines such as empty lines、comment lines
         if (strlen(line) <= 1 || line[0] == '#' || line[0] == '[') {
@@ -327,8 +327,8 @@ static int LoadConfigFile(void)
                 break;
         }
     }
-    if (fclose(fp) < 0) return ERR_COMMON;
-    return SUCCESS;
+    if (fclose(fp) < 0) return PWR_ERR_COMMON;
+    return PWR_SUCCESS;
 }
 
 int InitConfig(void)
@@ -341,27 +341,27 @@ int InitConfig(void)
         return FAILED;
     }
 
-    int ret = SUCCESS;
+    int ret = PWR_SUCCESS;
     // Init by default values
     ret = InitLogCfg();
-    if (ret != SUCCESS) {
+    if (ret != PWR_SUCCESS) {
         Logger(ERROR, MD_NM_CFG, "Init log config failed. ret:%d", ret);
         return ret;
     }
 
     ret = InitServCfg();
-    if (ret != SUCCESS) {
+    if (ret != PWR_SUCCESS) {
         Logger(ERROR, MD_NM_CFG, "Init server config failed. ret:%d", ret);
         return ret;
     }
 
     // load config file
     ret = LoadConfigFile();
-    if (ret != SUCCESS) {
+    if (ret != PWR_SUCCESS) {
         Logger(ERROR, MD_NM_CFG, "Handle config file failed. ret:%d", ret);
         return ret;
     }
-    return SUCCESS;
+    return PWR_SUCCESS;
 }
 
 static int HandleInvalidUpdate(char *key, char *value)
@@ -371,29 +371,29 @@ static int HandleInvalidUpdate(char *key, char *value)
         case E_CFG_IT_LGP:
             if (strcmp(value, g_logCfg.logPath) != 0) {
                 Logger(ERROR, MD_NM_CFG, "%s cannot be dynamically configured to take effect", key);
-                return ERR_COMMON;
+                return PWR_ERR_COMMON;
             }
             break;
         case E_CFG_IT_BKP:
             if (strcmp(value, g_logCfg.logBkp) != 0) {
                 Logger(ERROR, MD_NM_CFG, "%s cannot be dynamically configured to take effect", key);
-                return ERR_COMMON;
+                return PWR_ERR_COMMON;
             }
             break;
         case E_CFG_IT_PFX:
             if (strcmp(value, g_logCfg.logPfx) != 0) {
                 Logger(ERROR, MD_NM_CFG, "%s cannot be dynamically configured to take effect", key);
-                return ERR_COMMON;
+                return PWR_ERR_COMMON;
             }
             break;
         case E_CFG_IT_SKF:
             if (strcmp(value, g_servCfg.sockFile) != 0) {
                 Logger(ERROR, MD_NM_CFG, "%s cannot be dynamically configured to take effect", key);
-                return ERR_COMMON;
+                return PWR_ERR_COMMON;
             }
             break;
     }
-    return SUCCESS;
+    return PWR_SUCCESS;
 }
 
 int UpdateConfig(char *key, char *value)
@@ -407,7 +407,7 @@ int UpdateConfig(char *key, char *value)
             if (!IsNumStr(value) || actualValue < 0) {
                 int curFileSize = (g_logCfg.maxFileSize + MAX_LINE_LENGTH) / UNIT_FACTOR;
                 Logger(ERROR, MD_NM_CFG, "File_size in config is invalid, current valid value is %d", curFileSize);
-                return ERR_INVALIDE_PARAM;
+                return PWR_ERR_INVALIDE_PARAM;
             }
             int maxFileSize = actualValue * UNIT_FACTOR - MAX_LINE_LENGTH;
             if (maxFileSize != g_logCfg.maxFileSize) {
@@ -419,7 +419,7 @@ int UpdateConfig(char *key, char *value)
             actualValue = atoi(value);
             if (!IsNumStr(value) || actualValue < 0) {
                 Logger(ERROR, MD_NM_CFG, "Cmp_cnt in config is invalid, current valid value is %d", g_logCfg.maxCmpCnt);
-                return ERR_INVALIDE_PARAM;
+                return PWR_ERR_INVALIDE_PARAM;
             }
             if (actualValue != g_logCfg.maxCmpCnt) {
                 g_logCfg.maxCmpCnt = actualValue;
@@ -431,7 +431,7 @@ int UpdateConfig(char *key, char *value)
             if (!IsNumStr(value) || actualValue < 0) {
                 enum LogLevel curLogLevel = g_logCfg.logLevel;
                 Logger(ERROR, MD_NM_CFG, "Log_level in config is invalid, current valid value is %d", curLogLevel);
-                return ERR_INVALIDE_PARAM;
+                return PWR_ERR_INVALIDE_PARAM;
             }
             if (actualValue != g_logCfg.logLevel) {
                 UpdateLogLevel(actualValue);
@@ -445,7 +445,7 @@ int UpdateConfig(char *key, char *value)
         default:
             return HandleInvalidUpdate(key, value);
     }
-    return SUCCESS;
+    return PWR_SUCCESS;
 }
 
 int CheckAndUpdateConfig(void)
@@ -453,7 +453,7 @@ int CheckAndUpdateConfig(void)
     char curMd5[MD5_LEN] = {0};
     GetMd5(g_configPath, curMd5);
     if (strlen(curMd5) == 0 || strcmp(curMd5, g_lastMd5) == 0) {
-        return SUCCESS;
+        return PWR_SUCCESS;
     }
 
     int invalidUpdateSum = 0;   // The number of invalid updates
@@ -462,11 +462,11 @@ int CheckAndUpdateConfig(void)
     char realpathRes[MAX_FULL_NAME] = {0};
 
     int ret = NormalizeAndVerifyFilepath(g_configPath, realpathRes);
-    if (ret != SUCCESS) return ret;
-    if (access(realpathRes, R_OK) != 0) return ERR_COMMON;
+    if (ret != PWR_SUCCESS) return ret;
+    if (access(realpathRes, R_OK) != 0) return PWR_ERR_COMMON;
 
     FILE *fp = fopen(realpathRes, "r");
-    if (fp == NULL) return ERR_NULL_POINTER;
+    if (fp == NULL) return PWR_ERR_NULL_POINTER;
 
     while (fgets(line, sizeof(line) - 1, fp) != NULL) {
         if (strlen(line) <= 1 || line[0] == '#' || line[0] == '[') continue;
@@ -484,29 +484,29 @@ int CheckAndUpdateConfig(void)
             continue;
         }
         switch (UpdateConfig(key, value)) {
-            case ERR_INVALIDE_PARAM:
+            case PWR_ERR_INVALIDE_PARAM:
                 invalidUpdateSum++;
                 break;
-            case ERR_COMMON:
+            case PWR_ERR_COMMON:
                 nonDynamicSum++;
                 break;
         }
     }
-    if (fclose(fp) < 0) return ERR_COMMON;
+    if (fclose(fp) < 0) return PWR_ERR_COMMON;
     strncpy(g_lastMd5, curMd5, sizeof(g_lastMd5));
     /**
      * The file has been confirmed to be modified now.
-     * 1. Error modifying attrs, return ERR_INVALIDE_PARAM;
-     * 2. Undynamically validated attrs have been modified, return ERR_MODIFY_BAN_UPDATE_ATTR_CURRENTLY;
-     * 3. Return SUCCESS.
+     * 1. Error modifying attrs, return PWR_ERR_INVALIDE_PARAM;
+     * 2. Undynamically validated attrs have been modified, return PWR_ERR_MODIFY_BAN_UPDATE_ATTR_CURRENTLY;
+     * 3. Return PWR_SUCCESS.
      */
     if (invalidUpdateSum != 0) {
-        return ERR_INVALIDE_PARAM;
+        return PWR_ERR_INVALIDE_PARAM;
     } else {
         if (nonDynamicSum != 0) {
-            return ERR_MODIFY_BAN_UPDATE_ATTR_CURRENTLY;
+            return PWR_ERR_MODIFY_BAN_UPDATE_ATTR_CURRENTLY;
         } else {
-            return SUCCESS;
+            return PWR_SUCCESS;
         }
     }
 }
@@ -540,19 +540,19 @@ int IsAdmin(const char* user)
     int i = 0;
 
     if (strcmp(user, "root") == 0) {
-        return TRUE;
+        return PWR_TRUE;
     }
     if (g_adminArray == NULL) {
-        return FALSE;
+        return PWR_FALSE;
     }
     while (g_adminArray[i] != NULL) {
         if (strcmp(user, g_adminArray[i]) == 0) {
-            return TRUE;
+            return PWR_TRUE;
         }
         i++;
     }
 
-    return FALSE;
+    return PWR_FALSE;
 }
 
 int IsObserver(const char* user)
@@ -560,16 +560,16 @@ int IsObserver(const char* user)
     int i = 0;
 
     if (g_observerArray == NULL) {
-        return FALSE;
+        return PWR_FALSE;
     }
     while (g_observerArray[i] != NULL) {
         if (strcmp(user, g_observerArray[i]) == 0) {
-            return TRUE;
+            return PWR_TRUE;
         }
         i++;
     }
 
-    return FALSE;
+    return PWR_FALSE;
 }
 
 void DoReleaseWhiteList(char** whiteList)

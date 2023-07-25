@@ -33,8 +33,6 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
-#define SUCCESS 0
-
 static struct timeval GetCurTv(void)
 {
     struct timeval curTime;
@@ -175,15 +173,15 @@ int GetFileLines(const char *file, int *num)
     int *p = num;
 
     if (file == NULL) {
-        return ERR_INVALIDE_PARAM;
+        return PWR_ERR_INVALIDE_PARAM;
     }
     if (access(file, F_OK | R_OK) != 0) {
-        return ERR_COMMON;
+        return PWR_ERR_COMMON;
     }
 
     fp = fopen(file, "r");
     if (fp == NULL) {
-        return ERR_NULL_POINTER;
+        return PWR_ERR_NULL_POINTER;
     }
 
     *p = 0;
@@ -195,9 +193,9 @@ int GetFileLines(const char *file, int *num)
         free(line);
     }
     if (fclose(fp) < 0) {
-        return ERR_COMMON;
+        return PWR_ERR_COMMON;
     }
-    return SUCCESS;
+    return PWR_SUCCESS;
 }
 
 static int Strptime(const char *strTime, struct tm *pTm)
@@ -213,7 +211,7 @@ static int Strptime(const char *strTime, struct tm *pTm)
     }
     pTm->tm_year -= STC_TM_S_YEAR;
     pTm->tm_mon -= 1;
-    return SUCCESS;
+    return PWR_SUCCESS;
 }
 /**
  * StrTime2Sec - Convert strTime with format(20201206134723) to seconds
@@ -226,7 +224,7 @@ time_t StrTime2Sec(const char *strTime)
         return 0;
     }
     bzero(&tmpTm, sizeof(struct tm));
-    if (Strptime(strTime, &tmpTm) != SUCCESS) {
+    if (Strptime(strTime, &tmpTm) != PWR_SUCCESS) {
         return 0;
     }
     return mktime(&tmpTm);
@@ -433,7 +431,7 @@ int RemoveDir(const char *dirName, int dpth)
 
     // The directory name does not exist, return directly
     if (dirName == NULL || access(dirName, F_OK) != 0) {
-        return SUCCESS;
+        return PWR_SUCCESS;
     }
 
     if (stat(dirName, &dirStat) < 0) {
@@ -458,7 +456,7 @@ int RemoveDir(const char *dirName, int dpth)
     } else {
         return FAILED;
     }
-    return SUCCESS;
+    return PWR_SUCCESS;
 }
 
 int NormalDirFiler(const struct dirent *item)
@@ -585,7 +583,7 @@ int MkDirs(const char *sDirName)
             DirName[i] = PATH_SEP_CHAR;
         }
     }
-    return SUCCESS;
+    return PWR_SUCCESS;
 }
 
 unsigned int Crc32(unsigned int crc, const void *buff, unsigned int size)
@@ -635,7 +633,7 @@ int GetFileCrc32Val(const char *fileName, unsigned int *fileCrc)
         return FAILED;
     }
     *fileCrc = crc ^ CRC_FACTOR;
-    return SUCCESS;
+    return PWR_SUCCESS;
 }
 
 int IsNumStr(const char *pStr)
@@ -980,8 +978,8 @@ int WriteFileAndCheck(const char *strInfo, char *buf, int bufLen)
     if (WriteFile(strInfo, buf, bufLen) != 0) {
         return 1;
     }
-    char checkBuf[MAX_ELEMENT_NAME_LEN] = {0};
-    if (ReadFile(strInfo, checkBuf, MAX_ELEMENT_NAME_LEN) != 0) {
+    char checkBuf[PWR_MAX_ELEMENT_NAME_LEN] = {0};
+    if (ReadFile(strInfo, checkBuf, PWR_MAX_ELEMENT_NAME_LEN) != 0) {
         return 1;
     }
     if (strcmp(buf, checkBuf) != 0) {
@@ -992,24 +990,24 @@ int WriteFileAndCheck(const char *strInfo, char *buf, int bufLen)
 
 int GetMd5(const char *filename, char *md5)
 {
-    char md5Cmd[MAX_NAME_LEN];
+    char md5Cmd[PWR_MAX_NAME_LEN];
     const char s1[] = "md5sum ";
     const char s2[] = " | awk '{print $1}'";
-    StrCopy(md5Cmd, s1, MAX_NAME_LEN);
+    StrCopy(md5Cmd, s1, PWR_MAX_NAME_LEN);
     strncat(md5Cmd, filename, strlen(filename));
     strncat(md5Cmd, s2, strlen(s2));
     FILE *fp = popen(md5Cmd, "r");
     if (fp == NULL) {
-        return ERR_NULL_POINTER;
+        return PWR_ERR_NULL_POINTER;
     }
     char buf[MD5_LEN] = {0};
     if (fgets(buf, sizeof(buf), fp) == NULL) {
         pclose(fp);
-        return ERR_COMMON;
+        return PWR_ERR_COMMON;
     }
     strncpy(md5, buf, sizeof(buf));
     pclose(fp);
-    return SUCCESS;
+    return PWR_SUCCESS;
 }
 
 int NormalizeAndVerifyFilepath(const char *filename, char *realpathRes)
@@ -1018,30 +1016,30 @@ int NormalizeAndVerifyFilepath(const char *filename, char *realpathRes)
     path = realpath(filename, NULL);
     strncpy(realpathRes, path, strlen(path));
     if (realpathRes == NULL) {
-        return ERR_PATH_NORMALIZE;
+        return PWR_ERR_PATH_NORMALIZE;
     }
     // Verify file path
     if (access(realpathRes, F_OK) != 0) {
-        return ERR_PATH_VERIFY;
+        return PWR_ERR_PATH_VERIFY;
     }
     free(path);
     path = NULL;
-    return SUCCESS;
+    return PWR_SUCCESS;
 }
 
 int GetSockoptFromOS(const pid_t pid, UnixCredOS *credOS)
 {
-    char credCmd[MAX_NAME_LEN];
+    char credCmd[PWR_MAX_NAME_LEN];
     const char s[] = "ps -eo pid,uid,gid,user | grep ";
-    if (sprintf(credCmd, "%s%d", s, pid) < 0) return ERR_COMMON;
+    if (sprintf(credCmd, "%s%d", s, pid) < 0) return PWR_ERR_COMMON;
     FILE *fp = popen(credCmd, "r");
     if (fp == NULL) {
-        return ERR_NULL_POINTER;
+        return PWR_ERR_NULL_POINTER;
     }
-    char buf[MAX_NAME_LEN] = {0};
+    char buf[PWR_MAX_NAME_LEN] = {0};
     if (fgets(buf, sizeof(buf), fp) == NULL) {
         pclose(fp);
-        return ERR_COMMON;
+        return PWR_ERR_COMMON;
     }
     pclose(fp);
 
@@ -1049,16 +1047,16 @@ int GetSockoptFromOS(const pid_t pid, UnixCredOS *credOS)
     char **res = NULL;
     maxNum = strlen(buf);
     if (maxNum == 0) {
-        return ERR_COMMON;
+        return PWR_ERR_COMMON;
     }
     res = calloc(maxNum, sizeof(char *));
     if (res == NULL) {
-        return ERR_NULL_POINTER;
+        return PWR_ERR_NULL_POINTER;
     }
 
     if (StrSplit(buf, " ", res, &maxNum) == NULL) {
         free(res);
-        return ERR_COMMON;
+        return PWR_ERR_COMMON;
     }
     /**
      * credOS->user will be release after being used by the function that created it.
@@ -1066,7 +1064,7 @@ int GetSockoptFromOS(const pid_t pid, UnixCredOS *credOS)
     */
     LRtrim(res[3]);
     memset(credOS, 0, sizeof(UnixCredOS));
-    strncpy(credOS->user, res[3], MAX_ELEMENT_NAME_LEN - 1);
+    strncpy(credOS->user, res[3], PWR_MAX_ELEMENT_NAME_LEN - 1);
     /**
      * 0 is the index of 'pid' in res
      * 1 is the index of 'uid' in res
@@ -1077,5 +1075,5 @@ int GetSockoptFromOS(const pid_t pid, UnixCredOS *credOS)
     credOS->gid = atoi(res[2]);
 
     free(res);
-    return SUCCESS;
+    return PWR_SUCCESS;
 }

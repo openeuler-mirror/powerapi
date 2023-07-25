@@ -224,14 +224,14 @@ static void TEST_PWR_CPU_GetAndSetFreqRange(void)
 static void TEST_PWR_CPU_SetAndGetFreqGov(void)
 {
     int ret = 0;
-    char gov[MAX_ELEMENT_NAME_LEN] = {0};
-    ret = PWR_CPU_GetFreqGovernor(gov, MAX_ELEMENT_NAME_LEN);
+    char gov[PWR_MAX_ELEMENT_NAME_LEN] = {0};
+    ret = PWR_CPU_GetFreqGovernor(gov, PWR_MAX_ELEMENT_NAME_LEN);
     printf("PWR_CPU_GetFreqGovernor ret: %d, gov:%s\n", ret, gov);
-    strncpy(gov, "userspace", MAX_ELEMENT_NAME_LEN - 1);
+    strncpy(gov, "userspace", PWR_MAX_ELEMENT_NAME_LEN - 1);
     ret = PWR_CPU_SetFreqGovernor(gov);
     printf("PWR_CPU_SetFreqGovernor ret: %d\n", ret);
-    bzero(gov, MAX_ELEMENT_NAME_LEN);
-    ret = PWR_CPU_GetFreqGovernor(gov, MAX_ELEMENT_NAME_LEN);
+    bzero(gov, PWR_MAX_ELEMENT_NAME_LEN);
+    ret = PWR_CPU_GetFreqGovernor(gov, PWR_MAX_ELEMENT_NAME_LEN);
     printf("PWR_CPU_GetFreqGovernor ret: %d, gov:%s\n", ret, gov);
 }
 
@@ -278,7 +278,7 @@ static void TEST_PWR_CPU_DmaSetAndGetLatency(void)
 
 static void TEST_PWR_COM_DcTaskMgr(void)
 {
-    int ret = SUCCESS;
+    int ret = PWR_SUCCESS;
     ret = PWR_SetMetaDataCallback(MetaDataCallback);
     printf("PWR_SetMetaDataCallback ret: %d\n", ret);
 
@@ -301,7 +301,7 @@ static void TEST_PWR_COM_DcTaskMgr(void)
 static void TEST_PWR_SetServerInfo(void)
 {
     char str[] = "/etc/sysconfig/pwrapis/pwrserver.sock";
-    if (PWR_SetServerInfo(str) != SUCCESS) {
+    if (PWR_SetServerInfo(str) != PWR_SUCCESS) {
         printf("PWR_SetServerInfo. failed");
     }
     printf("success");
@@ -326,14 +326,14 @@ int main(int argc, const char *args[])
     TEST_PWR_SetServerInfo();
     PWR_SetLogCallback(LogCallback);
     PWR_SetEventCallback(EventCallback);
-    while (PWR_Register() != SUCCESS) {
+    while (PWR_Register() != PWR_SUCCESS) {
         sleep(MAIN_LOOP_INTERVAL);
         printf("main registed failed!\n");
         continue;
     }
     printf("main regist succeed.\n");
     int ret = PWR_RequestControlAuth();
-    if (ret != SUCCESS) {
+    if (ret != PWR_SUCCESS) {
         printf("Request Control Auth failed.\n");
     } else {
         printf("Request Control Auth succeed.\n");

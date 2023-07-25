@@ -15,50 +15,50 @@
 #ifndef POWERAPI_DATA_H__
 #define POWERAPI_DATA_H__
 #include <stdint.h>
-#define MAX_ELEMENT_NAME_LEN 32
-#define MAX_ARRRIBUTES 11
-#define MAX_NAME_LEN 128
-#define MAX_CPU_LIST_LEN 248
-#define MAX_NUMA_NODE_NUM 16
-#define MAX_GOV_NUM 16
-#define MAX_STRING_LEN 1000
-#define MAX_TIME_LEN 25
-#define MAX_DC_INTERVAL 100000000
-#define MIN_DC_INTERVAL 1000
-#define CPU_USAGE_COLUMN 8
-#define CPUS_WIDTH 6
-#define LATENCY 500000
-#define CPU_IDLE_COLUMN 4
-#define DECIMAL 10
-#define CONVERSION 1000
-#define MAX_CPU_ID_WIDTH 5
-#define MAX_INPUT_NUM 512
+#define PWR_MAX_ELEMENT_NAME_LEN 32
+#define PWR_MAX_ARRRIBUTES 11
+#define PWR_MAX_NAME_LEN 128
+#define PWR_MAX_CPU_LIST_LEN 248
+#define PWR_MAX_NUMA_NODE_NUM 16
+#define PWR_MAX_GOV_NUM 16
+#define PWR_MAX_STRING_LEN 1000
+#define PWR_MAX_TIME_LEN 25
+#define PWR_MAX_DC_INTERVAL 100000000
+#define PWR_MIN_DC_INTERVAL 1000
+#define PWR_CPU_USAGE_COLUMN 8
+#define PWR_CPUS_WIDTH 6
+#define PWR_LATENCY 500000
+#define PWR_CPU_IDLE_COLUMN 4
+#define PWR_DECIMAL 10
+#define PWR_CONVERSION 1000
+#define PWR_MAX_CPU_ID_WIDTH 5
+#define PWR_MAX_INPUT_NUM 512
 
-#define MAX_CPU_DMA_LATENCY 2000000000
-#define MAX_DISK_LIST_LEN 128
+#define PWR_MAX_CPU_DMA_LATENCY 2000000000
+#define PWR_MAX_DISK_LIST_LEN 128
 
-enum Arch {
-    AARCH_64 = 0,
-    X86_64 = 1,
+enum PWR_Arch {
+    PWR_AARCH_64 = 0,
+    PWR_X86_64 = 1,
 };
 
-enum SysPowerState {
-    MEM = 1,
-    DISK = 2,
+enum PWR_SysPowerState {
+    PWR_MEM = 1,
+    PWR_DISK = 2,
 };
 
-enum CpuAttType {
-    ARCH = 0,
-    MODEL_NAME,
-    BYTE_OR,
-    NUMA_NUMBER,
-    NUMA_NODE,
-    CPU_NUMBER,
-    ONLINE_CPU,
-    THREADS_PER_CORE,
-    CORES_PER_SOCKET,
-    MAX_MHZ,
-    MIN_MHZ,
+enum PWR_CpuAttType {
+    PWR_ARCH = 0,
+    PWR_MODEL_NAME,
+    PWR_BYTE_OR,
+    PWR_NUMA_NUMBER,
+    PWR_NUMA_NODE,
+    PWR_CPU_NUMBER,
+    PWR_ONLINE_CPU,
+    PWR_THREADS_PER_CORE,
+    PWR_CORES_PER_SOCKET,
+    PWR_MAX_MHZ,
+    PWR_MIN_MHZ,
 };
 
 typedef enum PWR_COM_COL_DATATYPE {
@@ -68,7 +68,7 @@ typedef enum PWR_COM_COL_DATATYPE {
 } PWR_COM_COL_DATATYPE;
 
 typedef struct PWR_COM_CallbackData {
-    char ctime[MAX_TIME_LEN];
+    char ctime[PWR_MAX_TIME_LEN];
     PWR_COM_COL_DATATYPE dataType;
     int dataLen;
     char data[0];
@@ -87,7 +87,7 @@ typedef enum PWR_COM_EVT_TYPE {
 } PWR_COM_EVT_TYPE;
 
 typedef struct PWR_COM_EventInfo {
-    char ctime[MAX_TIME_LEN];
+    char ctime[PWR_MAX_TIME_LEN];
     PWR_COM_EVT_TYPE eventType;
     int infoLen;
     char info[0];
@@ -101,21 +101,21 @@ typedef struct PWR_SYS_PowerInfo {
 
 typedef struct PWR_CPU_NumaInfo {
     int nodeNo;
-    char cpuList[MAX_CPU_LIST_LEN];
+    char cpuList[PWR_MAX_CPU_LIST_LEN];
 } PWR_CPU_NumaInfo;
 
 typedef struct PWR_CPU_Info {
-    char arch[MAX_ELEMENT_NAME_LEN];
-    char modelName[MAX_NAME_LEN];
+    char arch[PWR_MAX_ELEMENT_NAME_LEN];
+    char modelName[PWR_MAX_NAME_LEN];
     int byteOrder;
     int coreNum;
-    char onlineList[MAX_CPU_LIST_LEN];
+    char onlineList[PWR_MAX_CPU_LIST_LEN];
     int threadsPerCore;
     int coresperSocket;
     double maxFreq;
     double minFreq;
     int numaNum;
-    PWR_CPU_NumaInfo numa[MAX_NUMA_NODE_NUM];
+    PWR_CPU_NumaInfo numa[PWR_MAX_NUMA_NODE_NUM];
 } PWR_CPU_Info;
 
 typedef struct PWR_CPU_CoreUsage {
@@ -153,9 +153,9 @@ typedef enum PWR_CPU_FREQ_GOV {
 
 
 typedef struct PWR_CPU_FreqAbility {
-    char curDriver[MAX_ELEMENT_NAME_LEN];
+    char curDriver[PWR_MAX_ELEMENT_NAME_LEN];
     int avGovNum;
-    char avGovList[MAX_GOV_NUM][MAX_ELEMENT_NAME_LEN];
+    char avGovList[PWR_MAX_GOV_NUM][PWR_MAX_ELEMENT_NAME_LEN];
     int freqDomainNum;
     int freqDomainStep;
     char freqDomain[0];
@@ -172,7 +172,7 @@ typedef struct PWR_CPU_CurFreq {
 } PWR_CPU_CurFreq;
 
 typedef struct PWR_NET_Eth {
-    char ethName[MAX_ELEMENT_NAME_LEN];
+    char ethName[PWR_MAX_ELEMENT_NAME_LEN];
     int ethMaxSpeed;
     int ethCurSpeed;
 } PWR_NET_Eth;
@@ -190,29 +190,29 @@ typedef struct PWR_NET_Through {
 // DISK
 
 typedef struct PWR_DISK_Info {
-    char diskId[MAX_ELEMENT_NAME_LEN];
+    char diskId[PWR_MAX_ELEMENT_NAME_LEN];
 } PWR_DISK_Info;
 
 typedef struct PWR_DISK_Load {
-    char diskId[MAX_ELEMENT_NAME_LEN];
+    char diskId[PWR_MAX_ELEMENT_NAME_LEN];
     uint32_t rLoad;
     uint32_t wLoad;
 } PWR_DISK_Load;
 
 typedef struct PWR_DISK_PwrLevel {
-    char diskId[MAX_ELEMENT_NAME_LEN];
+    char diskId[PWR_MAX_ELEMENT_NAME_LEN];
     uint16_t powerLevel;
     uint16_t spindownLevel;
 } PWR_DISK_PwrLevel;
 
 typedef struct PWR_DISK_ScsiPolicy {
-    char scsiId[MAX_ELEMENT_NAME_LEN];
+    char scsiId[PWR_MAX_ELEMENT_NAME_LEN];
     int alpm;
 } PWR_DISK_ScsiPolicy;
 
 // USB
 typedef struct PWR_USB_AutoSuspend {
-    char usbId[MAX_ELEMENT_NAME_LEN];
+    char usbId[PWR_MAX_ELEMENT_NAME_LEN];
     int control;
     int autoSuspendDelay;
     int wakeup;

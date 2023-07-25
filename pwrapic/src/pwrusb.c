@@ -33,7 +33,7 @@ int GetUsbAutoSuspend(PWR_USB_AutoSuspend usbAts[], uint32_t *len)
     output.rspData = (void *)usbAts;
 
     int ret = SendReqAndWaitForRsp(input, output);
-    if (ret != SUCCESS) {
+    if (ret != PWR_SUCCESS) {
         PwrLog(ERROR, "GetUsbAutoSuspend failed. ret:%d", ret);
         size_t curLen = size / sizeof(PWR_USB_AutoSuspend);
         *len = curLen;
@@ -55,7 +55,7 @@ int SetUsbAutoSuspend(PWR_USB_AutoSuspend usbAts[], uint32_t len)
     output.rspData = NULL;
 
     int ret = SendReqAndWaitForRsp(input, output);
-    if (ret != SUCCESS) {
+    if (ret != PWR_SUCCESS) {
         PwrLog(ERROR, "SetUsbAutoSuspend failed. ret:%d", ret);
     } else {
         PwrLog(DEBUG, "SetUsbAutoSuspend Succeed.");

@@ -49,7 +49,7 @@ static FILE *OpenLogFile(void)
     }
     
     int ret = NormalizeAndVerifyFilepath(fullName, realpathRes);
-    if (ret != SUCCESS) {
+    if (ret != PWR_SUCCESS) {
         return NULL;
     }
     if (access(realpathRes, W_OK) != 0) {
@@ -119,24 +119,24 @@ static int RotateFile(void)
 
     GetCurFmtTmStr("%Y%m%d%H%M%S", curTime, sizeof(curTime) - 1);
     if (sprintf(bakName, "%s-%s", GetLogCfg()->logPfx, curTime) < 0) {
-        return ERR_SYS_EXCEPTION;
+        return PWR_ERR_SYS_EXCEPTION;
     }
     // Compressed file
     if (sprintf(cmdLine, " cd %s && mv %s %s && tar zcvf %s.tar.gz %s && rm %s && mv %s.tar.gz %s",
         GetLogCfg()->logPath, GetLogCfg()->logPfx, bakName, bakName, bakName, bakName, bakName,
         GetLogCfg()->logBkp) < 0) {
-        return ERR_SYS_EXCEPTION;
+        return PWR_ERR_SYS_EXCEPTION;
     }
     ret = system(cmdLine);
     if (!(ret != -1 && WIFEXITED(ret) && WEXITSTATUS(ret) == 0)) {
-        return ERR_SYS_EXCEPTION;
+        return PWR_ERR_SYS_EXCEPTION;
     }
     SpaceChkAndDel();
     // Create new log file
     if (OpenLogFile() == NULL) {
-        return ERR_SYS_EXCEPTION;
+        return PWR_ERR_SYS_EXCEPTION;
     }
-    return SUCCESS;
+    return PWR_SUCCESS;
 }
 
 static const char *GetLevelName(enum LogLevel level)
@@ -164,22 +164,22 @@ int InitLogger(void)
     regcomp(&g_logCmpFlRgx, "^", REG_EXTENDED | REG_NOSUB);
 
     if (access(GetLogCfg()->logPath, F_OK) != 0) {
-        if (MkDirs(GetLogCfg()->logPath) != SUCCESS) {
+        if (MkDirs(GetLogCfg()->logPath) != PWR_SUCCESS) {
             perror("access log path failed.");
-            return ERR_SYS_EXCEPTION;
+            return PWR_ERR_SYS_EXCEPTION;
         }
     }
     if (access(GetLogCfg()->logBkp, F_OK) != 0) {
-        if (MkDirs(GetLogCfg()->logBkp) != SUCCESS) {
+        if (MkDirs(GetLogCfg()->logBkp) != PWR_SUCCESS) {
             perror("access log path failed.");
-            return ERR_SYS_EXCEPTION;
+            return PWR_ERR_SYS_EXCEPTION;
         }
     }
 
     if (OpenLogFile() == NULL) {
-        return ERR_COMMON;
+        return PWR_ERR_COMMON;
     }
-    return SUCCESS;
+    return PWR_SUCCESS;
 }
 
 void ClearLogger(void)
@@ -225,7 +225,7 @@ void Logger(enum LogLevel level, const char *moduleName, const char *format, ...
     logLen = strlen(logLine);
     g_curSize += logLen;
     if (g_curSize > GetLogCfg()->maxFileSize) {
-        if (RotateFile() != SUCCESS) {
+        if (RotateFile() != PWR_SUCCESS) {
             return;
         }
     }

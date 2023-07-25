@@ -53,7 +53,7 @@ TEST_F(RegisterOkTestCommon, PWR_CreateDcTask_Test_001)
     PWR_COM_BasicDcTaskInfo task = {};
     task.dataType = PWR_COM_DATATYPE_CPU_PERF;
     task.interval = TASK_INTERNAL;
-    EXPECT_NE(SUCCESS, PWR_CreateDcTask(&task));
+    EXPECT_NE(PWR_SUCCESS, PWR_CreateDcTask(&task));
 }
 
 /*
@@ -61,22 +61,22 @@ TEST_F(RegisterOkTestCommon, PWR_CreateDcTask_Test_001)
  */
 TEST_F(RegisterOkTestCommon, PWR_DeleteDcTask_Test_001)
 {
-    int ret = SUCCESS;
-    EXPECT_EQ(SUCCESS, PWR_SetMetaDataCallback(MetaDataCallback));
+    int ret = PWR_SUCCESS;
+    EXPECT_EQ(PWR_SUCCESS, PWR_SetMetaDataCallback(MetaDataCallback));
 
     PWR_COM_BasicDcTaskInfo task = {};
     task.dataType = PWR_COM_DATATYPE_CPU_PERF;
     task.interval = TASK_INTERNAL;
-    EXPECT_EQ(SUCCESS, PWR_CreateDcTask(&task));
+    EXPECT_EQ(PWR_SUCCESS, PWR_CreateDcTask(&task));
     printf("PWR_CreateDcTask. dataType:%d ret: %d\n", task.dataType, ret);
     task.dataType = PWR_COM_DATATYPE_CPU_USAGE;
-    EXPECT_EQ(SUCCESS, PWR_CreateDcTask(&task));
+    EXPECT_EQ(PWR_SUCCESS, PWR_CreateDcTask(&task));
     printf("PWR_CreateDcTask. dataType:%d ret: %d\n", task.dataType, ret);
 
     sleep(3);
-    EXPECT_EQ(SUCCESS, PWR_DeleteDcTask(PWR_COM_DATATYPE_CPU_PERF));
+    EXPECT_EQ(PWR_SUCCESS, PWR_DeleteDcTask(PWR_COM_DATATYPE_CPU_PERF));
     printf("PWR_DeleteDcTask. dataType:%d ret: %d\n", PWR_COM_DATATYPE_CPU_PERF, ret);
-    EXPECT_EQ(SUCCESS, PWR_DeleteDcTask(PWR_COM_DATATYPE_CPU_USAGE));
+    EXPECT_EQ(PWR_SUCCESS, PWR_DeleteDcTask(PWR_COM_DATATYPE_CPU_USAGE));
     printf("PWR_DeleteDcTask. dataType:%d ret: %d\n", PWR_COM_DATATYPE_CPU_USAGE, ret);
 }
 
@@ -85,7 +85,7 @@ TEST_F(RegisterOkTestCommon, PWR_DeleteDcTask_Test_001)
  */
 TEST_F(RegisterOkTestCommon, PWR_SetMetaDataCallback_Test_001)
 {
-    EXPECT_NE(SUCCESS, PWR_SetMetaDataCallback(NULL));
+    EXPECT_NE(PWR_SUCCESS, PWR_SetMetaDataCallback(NULL));
 }
 
 /*
@@ -94,7 +94,7 @@ TEST_F(RegisterOkTestCommon, PWR_SetMetaDataCallback_Test_001)
  */
 TEST_F(RegisterOkTestCommon, PWR_SetMetaDataCallback_Test_002)
 {
-    EXPECT_EQ(SUCCESS,
+    EXPECT_EQ(PWR_SUCCESS,
         PWR_SetMetaDataCallback([](const PWR_COM_CallbackData *callbackData) {
             EXPECT_EQ(PWR_COM_DATATYPE_CPU_PERF, callbackData->dataType);
             PWR_CPU_PerfData *perfData = (PWR_CPU_PerfData *)(callbackData->data);
@@ -120,9 +120,9 @@ TEST_F(RegisterOkTestCommon, PWR_SetMetaDataCallback_Test_002)
     PWR_COM_BasicDcTaskInfo task = {};
     task.dataType = PWR_COM_DATATYPE_CPU_PERF;
     task.interval = TASK_INTERNAL;
-    EXPECT_EQ(SUCCESS, PWR_CreateDcTask(&task));
+    EXPECT_EQ(PWR_SUCCESS, PWR_CreateDcTask(&task));
     sleep(3);
-    EXPECT_EQ(SUCCESS, PWR_DeleteDcTask(PWR_COM_DATATYPE_CPU_PERF));
+    EXPECT_EQ(PWR_SUCCESS, PWR_DeleteDcTask(PWR_COM_DATATYPE_CPU_PERF));
 }
 
 /*
@@ -131,29 +131,29 @@ TEST_F(RegisterOkTestCommon, PWR_SetMetaDataCallback_Test_002)
 TEST_F(RegisterOkTestCommon, PWR_RequestControlAuth_Test_001)
 {
     PWR_CPU_Info cpuInfo;
-    EXPECT_EQ(SUCCESS, PWR_CPU_GetInfo(&cpuInfo));
+    EXPECT_EQ(PWR_SUCCESS, PWR_CPU_GetInfo(&cpuInfo));
 
     int buffSize = sizeof(PWR_CPU_Usage) + TEST_CORE_NUM * sizeof(PWR_CPU_CoreUsage);
     PWR_CPU_Usage *u = (PWR_CPU_Usage *)malloc(buffSize);
     EXPECT_FALSE(u == NULL);
-    EXPECT_EQ(SUCCESS, PWR_CPU_GetUsage(u, buffSize));
+    EXPECT_EQ(PWR_SUCCESS, PWR_CPU_GetUsage(u, buffSize));
     free(u);
 
     PWR_CPU_PerfData perfData;
-    EXPECT_EQ(SUCCESS, PWR_CPU_GetPerfData(&perfData));
+    EXPECT_EQ(PWR_SUCCESS, PWR_CPU_GetPerfData(&perfData));
 
-    char gov[MAX_ELEMENT_NAME_LEN] = {0};
-    EXPECT_EQ(SUCCESS, PWR_CPU_GetFreqGovernor(gov, MAX_ELEMENT_NAME_LEN));
+    char gov[PWR_MAX_ELEMENT_NAME_LEN] = {0};
+    EXPECT_EQ(PWR_SUCCESS, PWR_CPU_GetFreqGovernor(gov, PWR_MAX_ELEMENT_NAME_LEN));
 
     uint32_t len = TEST_CORE_NUM;
     PWR_CPU_CurFreq curFreq[len];
     int spec = 0;
-    EXPECT_EQ(SUCCESS, PWR_CPU_GetFreq(curFreq, &len, spec));
+    EXPECT_EQ(PWR_SUCCESS, PWR_CPU_GetFreq(curFreq, &len, spec));
 
-    EXPECT_NE(SUCCESS, PWR_SYS_SetPowerState(1));
+    EXPECT_NE(PWR_SUCCESS, PWR_SYS_SetPowerState(1));
 
     char governor[] = "performance";
-    EXPECT_NE(SUCCESS, PWR_CPU_SetFreqGovernor(governor));
+    EXPECT_NE(PWR_SUCCESS, PWR_CPU_SetFreqGovernor(governor));
 }
 
 /*
@@ -163,9 +163,9 @@ TEST_F(RegisterOkTestCommon, PWR_RequestControlAuth_Test_001)
 TEST_F(RegisterOkTestCommon, PWR_ReleaseControlAuth_Test_001)
 {
     char governor[] = "performance";
-    EXPECT_EQ(SUCCESS, PWR_RequestControlAuth());
-    EXPECT_EQ(SUCCESS, PWR_RequestControlAuth());
-    EXPECT_EQ(SUCCESS, PWR_CPU_SetFreqGovernor(governor));
-    EXPECT_EQ(SUCCESS, PWR_ReleaseControlAuth());
-    EXPECT_NE(SUCCESS, PWR_CPU_SetFreqGovernor(governor));
+    EXPECT_EQ(PWR_SUCCESS, PWR_RequestControlAuth());
+    EXPECT_EQ(PWR_SUCCESS, PWR_RequestControlAuth());
+    EXPECT_EQ(PWR_SUCCESS, PWR_CPU_SetFreqGovernor(governor));
+    EXPECT_EQ(PWR_SUCCESS, PWR_ReleaseControlAuth());
+    EXPECT_NE(PWR_SUCCESS, PWR_CPU_SetFreqGovernor(governor));
 }

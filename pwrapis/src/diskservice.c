@@ -133,11 +133,11 @@ static int64_t GetFdVal(const char* dataName, int fdIdx)
 
     pRes = GetDskNm(dataName, dskNm, sizeof(dskNm) - 1);
     if (pRes == NULL) {
-        return ERR_NULL_POINTER;
+        return PWR_ERR_NULL_POINTER;
     }
     pRes = GetStatInfo(dskNm, line, sizeof(line) - 1);
     if (pRes == NULL) {
-        return ERR_NULL_POINTER;
+        return PWR_ERR_NULL_POINTER;
     }
     return GetStatField(line, fdIdx);
 }
@@ -498,10 +498,10 @@ void ClearIoColl(void)
 int RegIoColl(const struct ListHead* pCollCfg)
 {
     if (pCollCfg == NULL) {
-        return ERR_NULL_POINTER;
+        return PWR_ERR_NULL_POINTER;
     }
     DskRgst(pCollCfg);
-    return SUCCESS;
+    return PWR_SUCCESS;
 }
 
 int ReadDiskName(const char *file, PWR_DISK_Info disklist[], int diskNum)
@@ -513,18 +513,18 @@ int ReadDiskName(const char *file, PWR_DISK_Info disklist[], int diskNum)
     size_t len = 0;
     ssize_t read;
     const char* pRes = NULL;
-    char statVal[MAX_ELEMENT_NAME_LEN] = {0};
+    char statVal[PWR_MAX_ELEMENT_NAME_LEN] = {0};
 
     if (file == NULL) {
-        return ERR_INVALIDE_PARAM;
+        return PWR_ERR_INVALIDE_PARAM;
     }
     if (access(file, F_OK | R_OK) != 0) {
-        return ERR_COMMON;
+        return PWR_ERR_COMMON;
     }
 
     fp = fopen(file, "r");
     if (fp == NULL) {
-        return ERR_NULL_POINTER;
+        return PWR_ERR_NULL_POINTER;
     }
 
     for (i = 0; i < diskNum; i++) {
@@ -542,9 +542,9 @@ int ReadDiskName(const char *file, PWR_DISK_Info disklist[], int diskNum)
         free(line);
     }
     if (fclose(fp) < 0) {
-        return ERR_COMMON;
+        return PWR_ERR_COMMON;
     }
-    return SUCCESS;
+    return PWR_SUCCESS;
 }
 
 void GetDiskinfo(PwrMsg *req)
@@ -553,7 +553,7 @@ void GetDiskinfo(PwrMsg *req)
     if (!req) {
         return;
     }
-    Logger(DEBUG, MD_NM_SVR_DISK, "Get DISK info Req. seqId:%u, sysId:%d", req->head.seqId, req->head.sysId);
+    Logger(DEBUG, MD_NM_SVR_DISK, "Get PWR_DISK info Req. seqId:%u, sysId:%d", req->head.seqId, req->head.sysId);
     int diskNum;
     GetFileLines(statFile, &diskNum);
     PWR_DISK_Info *rstData = malloc(sizeof(PWR_DISK_Info) * diskNum);
@@ -569,7 +569,7 @@ void GetDiskinfo(PwrMsg *req)
     }
     bzero(rsp, sizeof(PwrMsg));
     GenerateRspMsg(req, rsp, rspCode, (char *)rstData, sizeof(PWR_DISK_Info) * diskNum);
-    if (SendRspMsg(rsp) != SUCCESS) {
+    if (SendRspMsg(rsp) != PWR_SUCCESS) {
         ReleasePwrMsg(&rsp);
     }
 }
