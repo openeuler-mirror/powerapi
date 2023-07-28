@@ -14,6 +14,7 @@
  * **************************************************************************** */
 #ifndef POWERAPI_DATA_H__
 #define POWERAPI_DATA_H__
+
 #include <stdint.h>
 #define PWR_MAX_ELEMENT_NAME_LEN 32
 #define PWR_MAX_ARRRIBUTES 11
@@ -42,7 +43,7 @@ enum PWR_Arch {
     PWR_X86_64 = 1,
 };
 
-enum PWR_SysPowerState {
+enum PWR_SYS_POWER_STATE {
     PWR_MEM = 1,
     PWR_DISK = 2,
 };
@@ -94,10 +95,18 @@ typedef struct PWR_COM_EventInfo {
 } PWR_COM_EventInfo;
 
 typedef struct PWR_SYS_PowerInfo {
-    double sysPower;
-    double cpuPower;
-    double memPower;
+    int sysPower;
+    int cpuPower;
+    int memPower;
 } PWR_SYS_PowerInfo;
+
+typedef struct PWR_SYS_StatisticPowerInfo {
+    int maxSysPower;
+    int avgSysPower;
+    double totalEnergy;
+    char maxSysPowerTime[PWR_MAX_TIME_LEN];
+    char startTime[PWR_MAX_TIME_LEN];
+} PWR_SYS_StatisticPowerInfo;
 
 typedef struct PWR_CPU_NumaInfo {
     int nodeNo;

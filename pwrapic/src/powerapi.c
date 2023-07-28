@@ -39,10 +39,10 @@ static PwrApiStatus g_status = STATUS_UNREGISTERED;
     {                                             \
         if ((s) > g_status) {                     \
             if ((s) == STATUS_REGISTERTED) {      \
-                PwrLog(ERROR, "Not Registed.");   \
+                PwrLog(ERROR, "Not registed.");   \
                 return PWR_ERR_NOT_REGISTED;          \
             } else {                              \
-                PwrLog(ERROR, "Not Authorized."); \
+                PwrLog(ERROR, "Not authorized."); \
                 return PWR_ERR_NOT_AUTHED;            \
             }                                     \
         }                                         \
@@ -159,20 +159,48 @@ int PWR_ReleaseControlAuth(void)
     return ret;
 }
 
-int PWR_SYS_SetPowerState(int powerState)
+int PWR_SYS_SetPowerState(const int powerState)
 {
     CHECK_STATUS(STATUS_AUTHED);
     if (powerState != PWR_MEM && powerState != PWR_DISK) {
         return PWR_ERR_INVALIDE_PARAM;
     }
+
     return SetSysPowerState(powerState);
+}
+
+int PWR_SYS_GetCappedPower(int *cappedPower)
+{
+    CHECK_STATUS(STATUS_REGISTERTED);
+    CHECK_NULL_POINTER(cappedPower);
+
+    return GetCappedPower(cappedPower);
+}
+
+int PWR_SYS_SetCappedPower(const int cappedPower)
+{
+    CHECK_STATUS(STATUS_AUTHED);
+    if (cappedPower <= 0) {
+        return PWR_ERR_INVALIDE_PARAM;
+    }
+
+    return SetCappedPower(cappedPower);
 }
 
 int PWR_SYS_GetRtPowerInfo(PWR_SYS_PowerInfo *powerInfo)
 {
     CHECK_STATUS(STATUS_REGISTERTED);
     CHECK_NULL_POINTER(powerInfo);
+
     return GetSysRtPowerInfo(powerInfo);
+}
+
+int PWR_SYS_GetStatisticPowerInfo(PWR_SYS_StatisticPowerInfo *stcPowerInfo)
+{
+    CHECK_STATUS(STATUS_REGISTERTED);
+    CHECK_NULL_POINTER(stcPowerInfo);
+
+    return GetStatisticPowerInfo(stcPowerInfo);
 }
 
 int PWR_CPU_GetInfo(PWR_CPU_Info *cpuInfo)
@@ -225,6 +253,9 @@ int PWR_CPU_SetFreqRange(const PWR_CPU_FreqRange *freqRange)
 {
     CHECK_STATUS(STATUS_AUTHED);
     CHECK_NULL_POINTER(freqRange);
+    if (freqRange->minFreq < 0 || freqRange->minFreq >= freqRange->maxFreq) {
+        return PWR_ERR_INVALIDE_PARAM;
+    }
 
     return SetCpuFreqRange(freqRange);
 }
@@ -251,26 +282,25 @@ int PWR_CPU_SetFreqGovernor(const char gov[])
     return SetCpuFreqGovernor(gov, strlen(gov) + 1);
 }
 
-int PWR_CPU_GetFreq(PWR_CPU_CurFreq curFreq[], uint32_t *len, int spec)
+int PWR_CPU_GetFreq(PWR_CPU_CurFreq curFreq[], uint32_t *num, int spec)
 {
     CHECK_STATUS(STATUS_REGISTERTED);
     CHECK_NULL_POINTER(curFreq);
-    if (!len || *len == 0 || (spec != PWR_TRUE && spec != PWR_FALSE)) {
+    if (!num || *num == 0 || (spec != PWR_TRUE && spec != PWR_FALSE)) {
         return PWR_ERR_INVALIDE_PARAM;
     }
-
-    return GetCpuCurFreq(curFreq, len, spec);
+    return GetCpuCurFreq(curFreq, num, spec);
 }
 
-int PWR_CPU_SetFreq(const PWR_CPU_CurFreq curFreq[], uint32_t len)
+int PWR_CPU_SetFreq(const PWR_CPU_CurFreq curFreq[], uint32_t num)
 {
     CHECK_STATUS(STATUS_AUTHED);
     CHECK_NULL_POINTER(curFreq);
-    if (len == 0) {
+    if (num == 0) {
         return PWR_ERR_INVALIDE_PARAM;
     }
 
-    return SetCpuCurFreq(curFreq, len);
+    return SetCpuCurFreq(curFreq, num);
 }
 
 int PWR_CPU_DmaGetLatency(int *latency)

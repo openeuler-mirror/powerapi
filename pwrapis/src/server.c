@@ -32,6 +32,7 @@
 #include "cpuservice.h"
 #include "taskservice.h"
 #include "comservice.h"
+#include "diskservice.h"
 #include "pwrerr.h"
 #include "utils.h"
 #define COUNT_MAX 5
@@ -468,6 +469,7 @@ static void ProcessReqMsg(PwrMsg *req)
             break;
         case CPU_SET_FREQ_RANGE:
             SetCpuFreqRange(req);
+            break;
         default:
             break;
     }

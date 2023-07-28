@@ -18,6 +18,9 @@
 #include <stdint.h>
 #include "pwrdata.h"
 
-int SetSysPowerState(int powerState);
+int SetSysPowerState(const int powerState);
+int GetCappedPower(int *cappedPower);
+int SetCappedPower(const int cappedPower);
 int GetSysRtPowerInfo(PWR_SYS_PowerInfo *powerInfo);
+int GetStatisticPowerInfo(PWR_SYS_StatisticPowerInfo *stcPowerInfo);
 #endif

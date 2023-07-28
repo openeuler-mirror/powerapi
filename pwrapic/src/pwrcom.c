@@ -33,7 +33,7 @@ int RequestControlAuth(void)
     if (ret != PWR_SUCCESS) {
         PwrLog(ERROR, "RequestControlAuth failed. ret:%d", ret);
     } else {
-        PwrLog(DEBUG, "RequestControlAuth Succeed.");
+        PwrLog(DEBUG, "RequestControlAuth succeed.");
     }
     return ret;
 }
@@ -53,7 +53,7 @@ int ReleaseControlAuth(void)
     if (ret != PWR_SUCCESS) {
         PwrLog(ERROR, "ReleaseControlAuth failed. ret:%d", ret);
     } else {
-        PwrLog(DEBUG, "ReleaseControlAuth Succeed.");
+        PwrLog(DEBUG, "ReleaseControlAuth succeed.");
     }
     return ret;
 }

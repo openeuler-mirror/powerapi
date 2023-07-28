@@ -19,7 +19,6 @@
 #include "list.h"
 #include "pwrerr.h"
 
-#define DEFAULT_SERVER_ADDR "pwrserver.sock"
 #define DEFAULT_LOG_PATH "/opt/os_data/log"
 #define DEFAULT_LOG_PATH_BAK "/opt/os_data/log/bak"
 #define DEFAULT_LOG_PFX "papis.log"
