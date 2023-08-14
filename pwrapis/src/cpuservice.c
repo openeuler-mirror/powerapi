@@ -207,7 +207,7 @@ static void CalculateUsage(PWR_CPU_Usage *rstData, unsigned long paras[2][PWR_CP
 int CPUUsageRead(PWR_CPU_Usage *rstData, int coreNum)
 {
     const char usage[] = "cat /proc/stat";
-    unsigned long paras[2][PWR_CPU_USAGE_COLUMN];
+    unsigned long paras[2][PWR_CPU_USAGE_COLUMN] = {0};
     FILE *fp1 = popen(usage, "r");
     if (fp1 == NULL) {
         return PWR_ERR_COMMON;
@@ -296,21 +296,33 @@ int PerfDataRead(PWR_CPU_PerfData *perfData)
 
 int GetPolicys(char (*policys)[PWR_MAX_ELEMENT_NAME_LEN], int *poNum)
 {
-    FILE *fp = NULL;
-    char policyInfo[] = "ls /sys/devices/system/cpu/cpufreq | grep policy";
-    fp = popen(policyInfo, "r");
-    if (fp == NULL) {
-        return 1;
+    const char *targetItem = "policy";
+    const size_t len = strlen(targetItem);
+    DIR *dir = NULL;
+    struct dirent *ent;
+    char policyInfo[] = "/sys/devices/system/cpu/cpufreq";
+    dir = opendir(policyInfo);
+    if (dir == NULL) {
+        Logger(ERROR, MD_NM_SVR_CPU, "Unable to open direct: %s", policyInfo);
+        return PWR_ERR_COMMON;
     }
+
     char buf[PWR_MAX_NAME_LEN];
-    bzero(buf, sizeof(buf));
+    bzero(buf, PWR_MAX_NAME_LEN);
     *poNum = 0;
-    while (fgets(buf, sizeof(buf) - 1, fp) != NULL) {
+    while ((ent = readdir(dir)) != NULL) {
+        if (strlen(ent->d_name) <= len || strncmp(ent->d_name, targetItem, len) != 0) {
+            continue;
+        }
+
+        bzero(buf, PWR_MAX_NAME_LEN);
+        strncpy(buf, ent->d_name, PWR_MAX_NAME_LEN);
         DeleteChar(buf, '\n');
         StrCopy(policys[*poNum], buf, PWR_MAX_ELEMENT_NAME_LEN);
         (*poNum)++;
     }
-    pclose(fp);
+
+    closedir(dir);
     return 0;
 }
 
@@ -380,18 +392,16 @@ static int InputTargetPolicys(PWR_CPU_CurFreq *target, char (*policys)[PWR_MAX_E
 
 static int AllGovernorsRead(char (*govList)[PWR_MAX_ELEMENT_NAME_LEN], int *govNum)
 {
-    char buf[PWR_MAX_ELEMENT_NAME_LEN * PWR_MAX_GOV_NUM] = {0};
+    int len = PWR_MAX_ELEMENT_NAME_LEN * PWR_MAX_GOV_NUM;
+    char buf[len];
     const char govInfo[] = "/sys/devices/system/cpu/cpufreq/policy0/scaling_available_governors";
-    int fd = open(govInfo, O_RDONLY);
-    if (fd == -1) {
-        return 1;
+
+    bzero(buf, len);
+    int ret = ReadFile(govInfo, buf, len);
+    if (ret != 0) {
+        return ret;
     }
-    if (read(fd, buf, PWR_MAX_ELEMENT_NAME_LEN * PWR_MAX_GOV_NUM - 1) <= 0) {
-        close(fd);
-        return 1;
-    }
-    close(fd);
-    DeleteChar(buf, '\n');
+
     char *temp = strtok(buf, " ");
     *govNum = 0;
     while (temp != NULL) {
@@ -409,54 +419,42 @@ static int CheckAvailableGovernor(char *gov, char *policys)
         Logger(ERROR, MD_NM_SVR_CPU, "Malloc failed.");
         return 1;
     }
-    const char s1[] = "cat /sys/devices/system/cpu/cpufreq/";
+    const char s1[] = "/sys/devices/system/cpu/cpufreq/";
     const char s2[] = "/scaling_available_governors";
     StrCopy(checkGovInfo, s1, strlen(gov) + PWR_MAX_NAME_LEN);
     strncat(checkGovInfo, policys, strlen(gov));
     strncat(checkGovInfo, s2, strlen(s2));
     char buf[PWR_MAX_STRING_LEN];
-    FILE *fp = popen(checkGovInfo, "r");
-    if (fp == NULL) {
+    int ret = ReadFile(checkGovInfo, buf, PWR_MAX_STRING_LEN);
+    if (ret != PWR_SUCCESS) {
         free(checkGovInfo);
-        return 1;
+        return ret;
     }
-    if (fgets(buf, sizeof(buf) - 1, fp) == NULL) {
-        free(checkGovInfo);
-        pclose(fp);
-        return 1;
-    }
-    DeleteChar(buf, '\n');
+
     char *temp = strtok(buf, " ");
     while (temp != NULL) {
         DeleteChar(temp, ' ');
         if (strcmp(temp, gov) == 0) {
             free(checkGovInfo);
-            pclose(fp);
             return 0;
         }
         temp = strtok(NULL, " ");
     }
-    pclose(fp);
+    free(checkGovInfo);
     return 1;
 }
 
 int CurrentGovernorRead(char *rstData)
 {
-    FILE *fp = NULL;
-    char govInfo[] = "cat /sys/devices/system/cpu/cpufreq/policy0/scaling_governor";
-    fp = popen(govInfo, "r");
-    if (fp == NULL) {
-        return 1;
-    }
+    char govInfo[] = "/sys/devices/system/cpu/cpufreq/policy0/scaling_governor";
     char buf[PWR_MAX_STRING_LEN];
-    if (fgets(buf, sizeof(buf) - 1, fp) == NULL) {
-        pclose(fp);
-        return PWR_ERR_COMMON;
+    int ret = ReadFile(govInfo, buf, PWR_MAX_STRING_LEN);
+    if (ret != PWR_SUCCESS) {
+        return ret;
     }
-    DeleteChar(buf, '\n');
+
     DeleteChar(buf, ' ');
     StrCopy(rstData, buf, PWR_MAX_ELEMENT_NAME_LEN);
-    pclose(fp);
     return PWR_SUCCESS;
 }
 
@@ -473,23 +471,21 @@ int GovernorSet(char *gov, char (*policys)[PWR_MAX_ELEMENT_NAME_LEN], int *poNum
         Logger(ERROR, MD_NM_SVR_CPU, "Malloc failed.");
         return 1;
     }
-    static const char s1[] = "echo ";
-    static const char s2[] = "> /sys/devices/system/cpu/cpufreq/";
-    static const char s3[] = "/scaling_governor";
+    bzero(govInfo, sizeof(govInfo));
+    static const char s1[] = "/sys/devices/system/cpu/cpufreq/";
+    static const char s2[] = "/scaling_governor";
     for (i = 0; i < (*poNum); i++) {
         StrCopy(govInfo, s1, strlen(gov) + PWR_MAX_NAME_LEN);
-        strncat(govInfo, gov, strlen(gov));
-        strncat(govInfo, s2, strlen(s2));
         strncat(govInfo, policys[i], strlen(policys[i]));
-        strncat(govInfo, s3, strlen(s3));
-        FILE *fp = popen(govInfo, "r");
-        if (fp == NULL) {
+        strncat(govInfo, s2, strlen(s2));
+        int ret = WriteFile(govInfo, gov, strlen(gov));
+        if (ret != 0) {
+            Logger(ERROR, MD_NM_SVR_CPU, "Change gov(%s) failed.", gov);
             free(govInfo);
-            return PWR_ERR_COMMON;
+            return ret;
         }
-        pclose(fp);
-        // todo: write back precious governor
     }
+    free(govInfo);
     return PWR_SUCCESS;
 }
 
@@ -502,7 +498,8 @@ static int FreqRead(PWR_CPU_CurFreq *rstData, char (*policys)[PWR_MAX_ELEMENT_NA
 {
     int m = GetArch();
     char freqInfo[PWR_MAX_NAME_LEN] = {0};
-    static const char s1[] = "cat /sys/devices/system/cpu/cpufreq/";
+    char buf[PWR_MAX_STRING_LEN] = {0};
+    static const char s1[] = "/sys/devices/system/cpu/cpufreq/";
     static const char s2Arm[] = "/cpuinfo_cur_freq";
     static const char s2X86[] = "/scaling_cur_freq";
     char s2[PWR_MAX_ELEMENT_NAME_LEN];
@@ -512,24 +509,18 @@ static int FreqRead(PWR_CPU_CurFreq *rstData, char (*policys)[PWR_MAX_ELEMENT_NA
     } else if (m == PWR_X86_64) {
         StrCopy(s2, s2X86, PWR_MAX_ELEMENT_NAME_LEN);
     }
-    char buf[PWR_MAX_STRING_LEN];
-    int i;
-    for (i = 0; i < (*poNum); i++) {
+
+    for (int i = 0; i < (*poNum); i++) {
         StrCopy(freqInfo, s1, PWR_MAX_NAME_LEN);
         strncat(freqInfo, policys[i], strlen(policys[i]));
         strncat(freqInfo, s2, strlen(s2));
-        FILE *fp = popen(freqInfo, "r");
-        if (fp == NULL) {
-            return 1;
+        int ret = ReadFile(freqInfo, buf, PWR_MAX_STRING_LEN);
+        if (ret != PWR_SUCCESS) {
+            return ret;
         }
-        if (fgets(buf, sizeof(buf) - 1, fp) == NULL) {
-            pclose(fp);
-            return PWR_ERR_COMMON;
-        }
-        DeleteChar(buf, '\n');
+
         DeleteChar(buf, ' ');
         DeleteSubstr(policys[i], "policy");
-        pclose(fp);
         rstData[i].policyId = atoi(policys[i]);
         rstData[i].curFreq = (double)strtoul(buf, NULL, PWR_DECIMAL) / PWR_CONVERSION;
     }
@@ -540,29 +531,26 @@ static int FreqRead(PWR_CPU_CurFreq *rstData, char (*policys)[PWR_MAX_ELEMENT_NA
 static int FreqSet(PWR_CPU_CurFreq *target, int num)
 {
     char setFreqInfo[PWR_MAX_NAME_LEN] = {0};
-    static const char s1[] = "echo ";
-    static const char s2[] = " > /sys/devices/system/cpu/cpufreq/policy";
-    static const char s3[] = "/scaling_setspeed";
-    int i, freq;
-    char buffer[PWR_MAX_ELEMENT_NAME_LEN] = {0};
+    static const char s1[] = "/sys/devices/system/cpu/cpufreq/policy";
+    static const char s2[] = "/scaling_setspeed";
+    int i, freq, ret;
+    char bufFreq[PWR_MAX_ELEMENT_NAME_LEN] = {0};
+    char bufPolicyId[PWR_MAX_ELEMENT_NAME_LEN] = {0};
     for (i = 0; i < num; i++) {
         StrCopy(setFreqInfo, s1, PWR_MAX_NAME_LEN);
         freq = (int)target[i].curFreq * THOUSAND;
-        if (snprintf(buffer, PWR_MAX_ELEMENT_NAME_LEN - 1, "%d", freq) < 0) {
-            return PWR_ERR_COMMON;
+        if (snprintf(bufFreq, PWR_MAX_ELEMENT_NAME_LEN - 1, "%d", freq) < 0) {
+            return PWR_ERR_FILE_SPRINTF_FIILED;
         }
-        strncat(setFreqInfo, buffer, strlen(buffer));
+        if (snprintf(bufPolicyId, PWR_MAX_ELEMENT_NAME_LEN - 1, "%d", target[i].policyId) < 0) {
+            return PWR_ERR_FILE_SPRINTF_FIILED;
+        }
+        strncat(setFreqInfo, bufPolicyId, strlen(bufPolicyId));
         strncat(setFreqInfo, s2, strlen(s2));
-        if (snprintf(buffer, PWR_MAX_ELEMENT_NAME_LEN - 1, "%d", target[i].policyId) < 0) {
-            return PWR_ERR_COMMON;
+        ret = WriteFile(setFreqInfo, bufFreq, strlen(bufFreq));
+        if (ret != 0) {
+            return ret;
         }
-        strncat(setFreqInfo, buffer, strlen(buffer));
-        strncat(setFreqInfo, s3, strlen(s3));
-        FILE *fp = popen(setFreqInfo, "r");
-        if (fp == NULL) {
-            return PWR_ERR_COMMON;
-        }
-        pclose(fp);
     }
     return PWR_SUCCESS;
 }
@@ -570,18 +558,7 @@ static int FreqSet(PWR_CPU_CurFreq *target, int num)
 static int FreqDriverRead(char *buf, int bufLen)
 {
     const char driverInfo[] = "/sys/devices/system/cpu/cpufreq/policy0/scaling_driver";
-    int fd = open(driverInfo, O_RDONLY);
-    if (fd == -1) {
-        return 1;
-    }
-    if (read(fd, buf, bufLen - 1) <= 0) {
-        close(fd);
-        return 1;
-    }
-    close(fd);
-    DeleteChar(buf, '\n');
-    buf[strlen(buf)] = '\0';
-    return 0;
+    return ReadFile(driverInfo, buf, bufLen);
 }
 
 static int FreqDomainRead(char *buf, char (*policys)[PWR_MAX_ELEMENT_NAME_LEN], int domainNum, int step)
@@ -591,22 +568,16 @@ static int FreqDomainRead(char *buf, char (*policys)[PWR_MAX_ELEMENT_NAME_LEN], 
     char temp[PWR_MAX_ELEMENT_NAME_LEN] = {0};
     char s1[] = "/sys/devices/system/cpu/cpufreq/";
     char s2[] = "/affected_cpus";
-    int i;
-    for (i = 0; i < domainNum; i++) {
+    for (int i = 0; i < domainNum; i++) {
         StrCopy(domainInfo, s1, PWR_MAX_NAME_LEN);
         strncat(domainInfo, policys[i], strlen(policys[i]));
         strncat(domainInfo, s2, strlen(s2));
-        int fd = open(domainInfo, O_RDONLY);
-        if (fd == -1) {
-            close(fd);
-            return 1;
+        bzero(domainbuf, PWR_MAX_CPU_LIST_LEN);
+        int ret = ReadFile(domainInfo, domainbuf, PWR_MAX_CPU_LIST_LEN);
+        if (ret != PWR_SUCCESS) {
+            return ret;
         }
-        if (read(fd, domainbuf, PWR_MAX_CPU_LIST_LEN - 1) <= 0) {
-            close(fd);
-            return 1;
-        }
-        close(fd);
-        DeleteChar(domainbuf, '\n');
+
         // convert policys to int
         StrCopy(temp, policys[i], PWR_MAX_ELEMENT_NAME_LEN);
         DeleteSubstr(temp, "policy");
@@ -643,14 +614,17 @@ static int CheckFreqInRange(PWR_CPU_CurFreq *target, int num, PWR_CPU_FreqRange 
 static int ScalingFreqRangeRead(PWR_CPU_FreqRange *rstData)
 {
     char buf[PWR_MAX_ELEMENT_NAME_LEN] = {0};
+    int ret = -1;
     const char minFreqInfo[] = "/sys/devices/system/cpu/cpufreq/policy0/scaling_min_freq";
     const char maxFreqInfo[] = "/sys/devices/system/cpu/cpufreq/policy0/scaling_max_freq";
-    if (ReadFile(minFreqInfo, buf, PWR_MAX_ELEMENT_NAME_LEN) != 0) {
-        return 1;
+    ret = ReadFile(minFreqInfo, buf, PWR_MAX_ELEMENT_NAME_LEN);
+    if (ret != PWR_SUCCESS) {
+        return ret;
     }
     rstData->minFreq = atoi(buf) / THOUSAND;
-    if (ReadFile(maxFreqInfo, buf, PWR_MAX_ELEMENT_NAME_LEN) != 0) {
-        return 1;
+    ret = ReadFile(maxFreqInfo, buf, PWR_MAX_ELEMENT_NAME_LEN);
+    if (ret != PWR_SUCCESS) {
+        return ret;
     }
     rstData->maxFreq = atoi(buf) / THOUSAND;
     return 0;
@@ -659,14 +633,17 @@ static int ScalingFreqRangeRead(PWR_CPU_FreqRange *rstData)
 static int CpuFreqRangeRead(PWR_CPU_FreqRange *cpuFreqRange)
 {
     char buf[PWR_MAX_ELEMENT_NAME_LEN] = {0};
+    int ret = -1;
     const char minFreqInfo[] = "/sys/devices/system/cpu/cpufreq/policy0/cpuinfo_min_freq";
     const char maxFreqInfo[] = "/sys/devices/system/cpu/cpufreq/policy0/cpuinfo_max_freq";
-    if (ReadFile(minFreqInfo, buf, PWR_MAX_ELEMENT_NAME_LEN) != 0) {
-        return 1;
+    ret = ReadFile(minFreqInfo, buf, PWR_MAX_ELEMENT_NAME_LEN);
+    if (ret != PWR_SUCCESS) {
+        return ret;
     }
     cpuFreqRange->minFreq = atoi(buf) / THOUSAND;
-    if (ReadFile(maxFreqInfo, buf, PWR_MAX_ELEMENT_NAME_LEN) != 0) {
-        return 1;
+    ret = ReadFile(maxFreqInfo, buf, PWR_MAX_ELEMENT_NAME_LEN);
+    if (ret != PWR_SUCCESS) {
+        return ret;
     }
     cpuFreqRange->maxFreq = atoi(buf) / THOUSAND;
     return 0;

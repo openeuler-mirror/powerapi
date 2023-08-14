@@ -937,7 +937,13 @@ int InIntRange(int *range, int len, int a)
 
 int ReadFile(const char *strInfo, char *buf, int bufLen)
 {
-    int fd = open(strInfo, O_RDONLY);
+    char realPath[MAX_FULL_NAME] = {0};
+    int ret = NormalizeAndVerifyFilepath(strInfo, realPath);
+    if (ret != PWR_SUCCESS) {
+        return ret;
+    }
+
+    int fd = open(realPath, O_RDONLY);
     if (fd == -1) {
         return 1;
     }
@@ -953,12 +959,18 @@ int ReadFile(const char *strInfo, char *buf, int bufLen)
 
 int WriteFile(const char *strInfo, char *buf, int bufLen)
 {
-    if (access(strInfo, F_OK | R_OK | W_OK) != 0) {
+    char realPath[MAX_FULL_NAME] = {0};
+    int ret = NormalizeAndVerifyFilepath(strInfo, realPath);
+    if (ret != PWR_SUCCESS) {
+        return ret;
+    }
+
+    if (access(realPath, F_OK | R_OK | W_OK) != 0) {
         return PWR_ERR_FILE_ACCESS_FAILED;
     }
-    FILE *fp = fopen(strInfo, "w+");
+    FILE *fp = fopen(realPath, "w+");
     if (fp == NULL) {
-        return PWR_ERR_FILE_FOPEN_FAILED;
+        return PWR_ERR_FILE_OPEN_FAILED;
     }
     if (fprintf(fp, "%s", buf) < 0) {
         fclose(fp);
@@ -1030,10 +1042,10 @@ int GetSockoptFromOS(const pid_t pid, UnixCredOS *credOS)
 {
     char credCmd[PWR_MAX_NAME_LEN];
     const char s[] = "ps -eo pid,uid,gid,user | grep ";
-    if (sprintf(credCmd, "%s%d", s, pid) < 0) return PWR_ERR_COMMON;
+    if (sprintf(credCmd, "%s%d", s, pid) < 0) return PWR_ERR_FILE_SPRINTF_FIILED;
     FILE *fp = popen(credCmd, "r");
     if (fp == NULL) {
-        return PWR_ERR_NULL_POINTER;
+        return PWR_ERR_FILE_OPEN_FAILED;
     }
     char buf[PWR_MAX_NAME_LEN] = {0};
     if (fgets(buf, sizeof(buf), fp) == NULL) {
