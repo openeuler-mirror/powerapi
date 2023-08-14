@@ -339,7 +339,10 @@ static void MergeDuplicatePolicys(PWR_CPU_CurFreq *target, int *len)
     free(validId);
 }
 
-static int CheckPolicys(PWR_CPU_CurFreq *target, int len)
+/**
+ * CheckPolicys - check if the target policy is valid
+*/
+static int CheckPolicys(PWR_CPU_CurFreq *target, int num)
 {
     char policys[PWR_MAX_CPU_LIST_LEN][PWR_MAX_ELEMENT_NAME_LEN];
     bzero(policys, sizeof(policys));
@@ -352,7 +355,7 @@ static int CheckPolicys(PWR_CPU_CurFreq *target, int len)
             policysId[i] = atoi(policys[i]);
         }
         // Determine whether the policyId is valid.
-        for (i = 0; i < len; i++) {
+        for (i = 0; i < num; i++) {
             if (InIntRange(policysId, poNum, target[i].policyId) == 1) {
                 return PWR_ERR_INVALIDE_PARAM;
             }
@@ -367,7 +370,7 @@ static int InputTargetPolicys(PWR_CPU_CurFreq *target, char (*policys)[PWR_MAX_E
     char buffer[PWR_MAX_ELEMENT_NAME_LEN] = {0};
     for (int i = 0; i < poNum; i++) {
         StrCopy(policys[i], "policy", PWR_MAX_ELEMENT_NAME_LEN);
-        if (snprintf(buffer, PWR_MAX_ELEMENT_NAME_LEN - 1, "%d", target->policyId) < 0) {
+        if (snprintf(buffer, PWR_MAX_ELEMENT_NAME_LEN - 1, "%d", target[i].policyId) < 0) {
             return 1;
         }
         strncat(policys[i], buffer, strlen(buffer));
@@ -490,6 +493,11 @@ int GovernorSet(char *gov, char (*policys)[PWR_MAX_ELEMENT_NAME_LEN], int *poNum
     return PWR_SUCCESS;
 }
 
+/**
+ * FreqRead - get target policy freq based on the given policys
+ * @policys: target policys
+ * @poNum:   valid policys num
+*/
 static int FreqRead(PWR_CPU_CurFreq *rstData, char (*policys)[PWR_MAX_ELEMENT_NAME_LEN], int *poNum)
 {
     int m = GetArch();
@@ -529,7 +537,7 @@ static int FreqRead(PWR_CPU_CurFreq *rstData, char (*policys)[PWR_MAX_ELEMENT_NA
     return PWR_SUCCESS;
 }
 
-static int FreqSet(PWR_CPU_CurFreq *target, int len)
+static int FreqSet(PWR_CPU_CurFreq *target, int num)
 {
     char setFreqInfo[PWR_MAX_NAME_LEN] = {0};
     static const char s1[] = "echo ";
@@ -537,7 +545,7 @@ static int FreqSet(PWR_CPU_CurFreq *target, int len)
     static const char s3[] = "/scaling_setspeed";
     int i, freq;
     char buffer[PWR_MAX_ELEMENT_NAME_LEN] = {0};
-    for (i = 0; i < len; i++) {
+    for (i = 0; i < num; i++) {
         StrCopy(setFreqInfo, s1, PWR_MAX_NAME_LEN);
         freq = (int)target[i].curFreq * THOUSAND;
         if (snprintf(buffer, PWR_MAX_ELEMENT_NAME_LEN - 1, "%d", freq) < 0) {
@@ -622,17 +630,17 @@ static int FreqAbilityRead(PWR_CPU_FreqAbility *rstData, char (*policys)[PWR_MAX
     }
 }
 
-static int CheckFreqInRange(PWR_CPU_CurFreq *target, int len, PWR_CPU_FreqRange freqRange)
+static int CheckFreqInRange(PWR_CPU_CurFreq *target, int num, PWR_CPU_FreqRange freqRange)
 {
-    for (int i = 0; i < len; i++) {
+    for (int i = 0; i < num; i++) {
         if (target[i].curFreq < freqRange.minFreq || target[i].curFreq > freqRange.maxFreq) {
-            return 1;
+            return PWR_ERR_INVALIDE_PARAM;
         }
     }
     return 0;
 }
 
-static int FreqRangeRead(PWR_CPU_FreqRange *rstData)
+static int ScalingFreqRangeRead(PWR_CPU_FreqRange *rstData)
 {
     char buf[PWR_MAX_ELEMENT_NAME_LEN] = {0};
     const char minFreqInfo[] = "/sys/devices/system/cpu/cpufreq/policy0/scaling_min_freq";
@@ -648,18 +656,47 @@ static int FreqRangeRead(PWR_CPU_FreqRange *rstData)
     return 0;
 }
 
+static int CpuFreqRangeRead(PWR_CPU_FreqRange *cpuFreqRange)
+{
+    char buf[PWR_MAX_ELEMENT_NAME_LEN] = {0};
+    const char minFreqInfo[] = "/sys/devices/system/cpu/cpufreq/policy0/cpuinfo_min_freq";
+    const char maxFreqInfo[] = "/sys/devices/system/cpu/cpufreq/policy0/cpuinfo_max_freq";
+    if (ReadFile(minFreqInfo, buf, PWR_MAX_ELEMENT_NAME_LEN) != 0) {
+        return 1;
+    }
+    cpuFreqRange->minFreq = atoi(buf) / THOUSAND;
+    if (ReadFile(maxFreqInfo, buf, PWR_MAX_ELEMENT_NAME_LEN) != 0) {
+        return 1;
+    }
+    cpuFreqRange->maxFreq = atoi(buf) / THOUSAND;
+    return 0;
+}
+
 static int FreqRangeSet(PWR_CPU_FreqRange *rstData)
 {
     char policys[PWR_MAX_CPU_LIST_LEN][PWR_MAX_ELEMENT_NAME_LEN] = {0};
+    int ret = -1;
     int poNum, i;
     if (GetPolicys(policys, &poNum) != 0) {
-        return 1;
+        return PWR_ERR_COMMON;
     }
     char buf[PWR_MAX_ELEMENT_NAME_LEN] = {0};
 
+    PWR_CPU_FreqRange cpuFreqRange = {0};
+    if (CpuFreqRangeRead(&cpuFreqRange) != PWR_SUCCESS) {
+        return PWR_ERR_COMMON;
+    }
+    if (rstData->minFreq < cpuFreqRange.minFreq ||
+        rstData->maxFreq > cpuFreqRange.maxFreq) {
+        Logger(ERROR, MD_NM_SVR_CPU, "cpu freq range: [%d, %d]. the input minfreq[%d] "
+            "or maxfreq[%d] is invalide", cpuFreqRange.minFreq, cpuFreqRange.maxFreq,
+            rstData->minFreq, rstData->maxFreq);
+        return PWR_ERR_INVALIDE_PARAM;
+    }
+
     // set min freq
     if (snprintf(buf, PWR_MAX_ELEMENT_NAME_LEN - 1, "%d", rstData->minFreq * THOUSAND) < 0) {
-        return 1;
+        return PWR_ERR_FILE_SPRINTF_FIILED;
     }
 
     char minFreqFile[PWR_MAX_NAME_LEN] = {0};
@@ -669,14 +706,15 @@ static int FreqRangeSet(PWR_CPU_FreqRange *rstData)
         StrCopy(minFreqFile, min1, PWR_MAX_NAME_LEN);
         strncat(minFreqFile, policys[i], strlen(policys[i]));
         strncat(minFreqFile, min2, strlen(min2));
-        if (WriteFile(minFreqFile, buf, strlen(buf)) != 0) {
-            return 1;
+        ret = WriteFile(minFreqFile, buf, strlen(buf));
+        if (ret != 0) {
+            return ret;
         }
     }
 
     // set max freq
     if (snprintf(buf, PWR_MAX_ELEMENT_NAME_LEN - 1, "%d", rstData->maxFreq * THOUSAND) < 0) {
-        return 1;
+        return PWR_ERR_FILE_SPRINTF_FIILED;
     }
     char maxFreqFile[PWR_MAX_NAME_LEN] = {0};
     const char max1[] = "/sys/devices/system/cpu/cpufreq/";
@@ -685,11 +723,12 @@ static int FreqRangeSet(PWR_CPU_FreqRange *rstData)
         StrCopy(maxFreqFile, max1, PWR_MAX_NAME_LEN);
         strncat(maxFreqFile, policys[i], strlen(policys[i]));
         strncat(maxFreqFile, max2, strlen(max2));
-        if (WriteFile(maxFreqFile, buf, strlen(buf)) != 0) {
-            return 1;
+        ret = WriteFile(maxFreqFile, buf, strlen(buf));
+        if (ret != 0) {
+            return ret;
         }
     }
-    return 0;
+    return PWR_SUCCESS;
 }
 
 void GetCpuinfo(PwrMsg *req)
@@ -808,7 +847,7 @@ void SetCpuFreq(PwrMsg *req)
         return;
     }
     Logger(DEBUG, MD_NM_SVR_CPU, "Set Freq  Req. seqId:%u, sysId:%d", req->head.seqId, req->head.sysId);
-    size_t len = (req->head.dataLen) / sizeof(PWR_CPU_CurFreq);
+    size_t num = (req->head.dataLen) / sizeof(PWR_CPU_CurFreq);
     char currentGov[PWR_MAX_ELEMENT_NAME_LEN];
     PWR_CPU_CurFreq *target = (PWR_CPU_CurFreq *)req->data;
     int rspCode = 0;
@@ -816,7 +855,7 @@ void SetCpuFreq(PwrMsg *req)
     // check whether current governor is userspace
     if (CurrentGovernorRead(currentGov) != PWR_SUCCESS) {
         rspCode = PWR_ERR_COMMON;
-    } else if (CheckPolicys(target, len) == 1) {
+    } else if (CheckPolicys(target, num) == 1) {
         rspCode = PWR_ERR_POLICY_INVALIDE;
     } else if (strcmp(currentGov, "userspace") != 0) {
         rspCode = PWR_ERR_GOVERNOR_INVALIDE;
@@ -824,16 +863,16 @@ void SetCpuFreq(PwrMsg *req)
 
     // check whether frequency is in range
     PWR_CPU_FreqRange freqRange;
-    if (FreqRangeRead(&freqRange) != 0) {
+    if (ScalingFreqRangeRead(&freqRange) != 0) {
         rspCode = PWR_ERR_COMMON;
-    } else if (CheckFreqInRange(target, len, freqRange) != 0) {
+    } else if (CheckFreqInRange(target, num, freqRange) != 0) {
         rspCode = PWR_ERR_FREQ_NOT_IN_RANGE;
     }
 
     if (rspCode != 0) {
         SendRspToClient(req, rspCode, NULL, 0);
     } else {
-        rspCode = FreqSet(target, len);
+        rspCode = FreqSet(target, num);
         SendRspToClient(req, rspCode, NULL, 0);
     }
 }
@@ -876,7 +915,7 @@ void GetCpuFreqRange(PwrMsg *req)
     if (!rstData) {
         return;
     }
-    int rspCode = FreqRangeRead(rstData);
+    int rspCode = ScalingFreqRangeRead(rstData);
     SendRspToClient(req, rspCode, (char *)rstData, sizeof(PWR_CPU_FreqRange));
 }
 

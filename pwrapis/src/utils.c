@@ -170,7 +170,6 @@ int GetFileLines(const char *file, int *num)
     char *line = NULL;
     size_t len = 0;
     ssize_t read;
-    int *p = num;
 
     if (file == NULL) {
         return PWR_ERR_INVALIDE_PARAM;
@@ -184,9 +183,9 @@ int GetFileLines(const char *file, int *num)
         return PWR_ERR_NULL_POINTER;
     }
 
-    *p = 0;
+    *num = 0;
     while ((read = getline(&line, &len, fp)) != -1) {
-        *p++;
+        (*num)++;
     }
 
     if (line) {
@@ -955,22 +954,22 @@ int ReadFile(const char *strInfo, char *buf, int bufLen)
 int WriteFile(const char *strInfo, char *buf, int bufLen)
 {
     if (access(strInfo, F_OK | R_OK | W_OK) != 0) {
-        return 1;
+        return PWR_ERR_FILE_ACCESS_FAILED;
     }
     FILE *fp = fopen(strInfo, "w+");
     if (fp == NULL) {
-        return 1;
+        return PWR_ERR_FILE_FOPEN_FAILED;
     }
     if (fprintf(fp, "%s", buf) < 0) {
         fclose(fp);
-        return 1;
+        return PWR_ERR_FILE_FPRINT_FAILED;
     }
     if (fflush(fp) != 0) {
         fclose(fp);
-        return 1;
+        return PWR_ERR_FILE_FFLUSH_FAILED;
     }
     (void)fclose(fp);
-    return 0;
+    return PWR_SUCCESS;
 }
 
 int WriteFileAndCheck(const char *strInfo, char *buf, int bufLen)

@@ -34,9 +34,9 @@ int CreateDcTask(const PWR_COM_BasicDcTaskInfo *basicDcTaskInfo)
 
     int ret = SendReqAndWaitForRsp(input, output);
     if (ret != PWR_SUCCESS) {
-        PwrLog(ERROR, "CreateDcTask failed. ret:%d", ret);
+        PwrLog(ERROR, "CreateDcTask failed. ret: %d", ret);
     } else {
-        PwrLog(DEBUG, "CreateDcTask Succeed.");
+        PwrLog(DEBUG, "CreateDcTask succeed.");
     }
     return ret;
 }
@@ -54,9 +54,9 @@ int DeleteDcTask(PWR_COM_COL_DATATYPE dataType)
 
     int ret = SendReqAndWaitForRsp(input, output);
     if (ret != PWR_SUCCESS) {
-        PwrLog(ERROR, "DeleteDcTask failed. ret:%d", ret);
+        PwrLog(ERROR, "DeleteDcTask failed. ret: %d", ret);
     } else {
-        PwrLog(DEBUG, "DeleteDcTask Succeed.");
+        PwrLog(DEBUG, "DeleteDcTask succeed.");
     }
     return ret;
 }

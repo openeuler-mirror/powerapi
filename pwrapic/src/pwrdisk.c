@@ -33,10 +33,10 @@ int GetDiskList(char diskList[][PWR_MAX_ELEMENT_NAME_LEN], uint32_t *len)
 
     int ret = SendReqAndWaitForRsp(input, output);
     if (ret != PWR_SUCCESS) {
-        PwrLog(ERROR, "GetDiskList failed. ret:%d", ret);
+        PwrLog(ERROR, "GetDiskList failed. ret: %d", ret);
         *len = size / PWR_MAX_ELEMENT_NAME_LEN;
     } else {
-        PwrLog(DEBUG, "GetDiskList Succeed.");
+        PwrLog(DEBUG, "GetDiskList succeed.");
     }
     return ret;
 }
@@ -60,11 +60,11 @@ int GetDiskLoad(PWR_DISK_Load load[], uint32_t *len, int spec)
 
     int ret = SendReqAndWaitForRsp(input, output);
     if (ret != PWR_SUCCESS) {
-        PwrLog(ERROR, "GetDiskLoad failed. ret:%d", ret);
+        PwrLog(ERROR, "GetDiskLoad failed. ret: %d", ret);
         size_t curLen = size / sizeof(PWR_DISK_Load);
         *len = curLen;
     } else {
-        PwrLog(DEBUG, "GetDiskLoad Succeed.");
+        PwrLog(DEBUG, "GetDiskLoad succeed.");
     }
     return ret;
 }
@@ -88,11 +88,11 @@ int GetDiskPwrLevel(PWR_DISK_PwrLevel pwrLevel[], uint32_t *len, int spec)
 
     int ret = SendReqAndWaitForRsp(input, output);
     if (ret != PWR_SUCCESS) {
-        PwrLog(ERROR, "GetDiskPwrLevel failed. ret:%d", ret);
+        PwrLog(ERROR, "GetDiskPwrLevel failed. ret: %d", ret);
         size_t curLen = size / sizeof(PWR_DISK_PwrLevel);
         *len = curLen;
     } else {
-        PwrLog(DEBUG, "GetDiskPwrLevel Succeed.");
+        PwrLog(DEBUG, "GetDiskPwrLevel succeed.");
     }
     return ret;
 }
@@ -110,9 +110,9 @@ int SetDiskPwrLevel(PWR_DISK_PwrLevel pwrLevel[], uint32_t len)
 
     int ret = SendReqAndWaitForRsp(input, output);
     if (ret != PWR_SUCCESS) {
-        PwrLog(ERROR, "SetDiskPwrLevel failed. ret:%d", ret);
+        PwrLog(ERROR, "SetDiskPwrLevel failed. ret: %d", ret);
     } else {
-        PwrLog(DEBUG, "SetDiskPwrLevel Succeed.");
+        PwrLog(DEBUG, "SetDiskPwrLevel succeed.");
     }
     return ret;
 }
@@ -136,11 +136,11 @@ int GetDiskScsiPolicy(PWR_DISK_ScsiPolicy scsiPolicy[], uint32_t *len, int spec)
 
     int ret = SendReqAndWaitForRsp(input, output);
     if (ret != PWR_SUCCESS) {
-        PwrLog(ERROR, "GetDiskScsiPolicy failed. ret:%d", ret);
+        PwrLog(ERROR, "GetDiskScsiPolicy failed. ret: %d", ret);
         size_t curLen = size / sizeof(PWR_DISK_ScsiPolicy);
         *len = curLen;
     } else {
-        PwrLog(DEBUG, "GetDiskScsiPolicy Succeed.");
+        PwrLog(DEBUG, "GetDiskScsiPolicy succeed.");
     }
     return ret;
 }
@@ -158,9 +158,9 @@ int SetDiskScsiPolicy(PWR_DISK_ScsiPolicy scsiPolicy[], uint32_t len)
 
     int ret = SendReqAndWaitForRsp(input, output);
     if (ret != PWR_SUCCESS) {
-        PwrLog(ERROR, "SetDiskScsiPolicy failed. ret:%d", ret);
+        PwrLog(ERROR, "SetDiskScsiPolicy failed. ret: %d", ret);
     } else {
-        PwrLog(DEBUG, "SetDiskScsiPolicy Succeed.");
+        PwrLog(DEBUG, "SetDiskScsiPolicy succeed.");
     }
     return ret;
 }

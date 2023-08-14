@@ -76,7 +76,7 @@ static int UpdateLogCfg(enum CnfItemType type, char *value)
                 Logger(ERROR, MD_NM_CFG, "File_size in config is invalid");
                 return PWR_ERR_INVALIDE_PARAM;
             }
-        
+
             g_logCfg.maxFileSize = actualValue * UNIT_FACTOR - MAX_LINE_LENGTH;
             break;
         case E_CFG_IT_CNT:
@@ -94,7 +94,7 @@ static int UpdateLogCfg(enum CnfItemType type, char *value)
                 Logger(ERROR, MD_NM_CFG, "Log_level in config is invalid");
                 return PWR_ERR_INVALIDE_PARAM;
             }
-        
+
             UpdateLogLevel(actualValue);
             break;
         case E_CFG_IT_LGP:
@@ -243,7 +243,7 @@ static int InitLogCfg(void)
 
 static int InitServCfg(void)
 {
-    strncpy(g_servCfg.sockFile, DEFAULT_SERVER_ADDR, sizeof(g_servCfg.sockFile) - 1);
+    strncpy(g_servCfg.sockFile, SERVER_ADDR, sizeof(g_servCfg.sockFile) - 1);
     g_servCfg.port = 0;
     return PWR_SUCCESS;
 }

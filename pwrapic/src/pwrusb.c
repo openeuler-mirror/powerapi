@@ -34,11 +34,11 @@ int GetUsbAutoSuspend(PWR_USB_AutoSuspend usbAts[], uint32_t *len)
 
     int ret = SendReqAndWaitForRsp(input, output);
     if (ret != PWR_SUCCESS) {
-        PwrLog(ERROR, "GetUsbAutoSuspend failed. ret:%d", ret);
+        PwrLog(ERROR, "GetUsbAutoSuspend failed. ret: %d", ret);
         size_t curLen = size / sizeof(PWR_USB_AutoSuspend);
         *len = curLen;
     } else {
-        PwrLog(DEBUG, "GetUsbAutoSuspend Succeed.");
+        PwrLog(DEBUG, "GetUsbAutoSuspend succeed.");
     }
     return ret;
 }
@@ -56,9 +56,9 @@ int SetUsbAutoSuspend(PWR_USB_AutoSuspend usbAts[], uint32_t len)
 
     int ret = SendReqAndWaitForRsp(input, output);
     if (ret != PWR_SUCCESS) {
-        PwrLog(ERROR, "SetUsbAutoSuspend failed. ret:%d", ret);
+        PwrLog(ERROR, "SetUsbAutoSuspend failed. ret: %d", ret);
     } else {
-        PwrLog(DEBUG, "SetUsbAutoSuspend Succeed.");
+        PwrLog(DEBUG, "SetUsbAutoSuspend succeed.");
     }
     return ret;
 }
