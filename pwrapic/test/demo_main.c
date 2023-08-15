@@ -247,7 +247,7 @@ static void TEST_SYS_GetRtPowerInfo(void)
     bzero(powerInfo, sizeof(PWR_SYS_PowerInfo));
     ret = PWR_SYS_GetRtPowerInfo(powerInfo);
     PrintResult("PWR_SYS_GetRtPower", ret);
-    printf("    sys power:%d\n", powerInfo->sysPower);
+    printf("    sys rt power:%d\n", powerInfo->sysPower);
     free(powerInfo);
 }
 
@@ -356,12 +356,23 @@ static void TEST_PWR_CPU_SetFreqGovernor(void)
 {
     int ret = -1;
     char governor[PWR_MAX_ELEMENT_NAME_LEN] = {0};
-    strncpy(governor, "userspace", PWR_MAX_ELEMENT_NAME_LEN);
+    char targetGov[PWR_MAX_ELEMENT_NAME_LEN] = "userspace";
+    if (PWR_CPU_GetFreqGovernor(governor, PWR_MAX_ELEMENT_NAME_LEN) != 0) {
+        return;
+    }
+    if (strcmp(governor, targetGov) == 0) {
+        strcpy(targetGov, "performance");
+    }
+
+    strncpy(governor, targetGov, PWR_MAX_ELEMENT_NAME_LEN);
     ret = PWR_CPU_SetFreqGovernor(governor);
     PrintResult("PWR_CPU_SetFreqGovernor", ret);
     bzero(governor, PWR_MAX_ELEMENT_NAME_LEN);
     PWR_CPU_GetFreqGovernor(governor, PWR_MAX_ELEMENT_NAME_LEN);
     printf("    current governor: %s\n", governor);
+    if (strcmp(governor, "userspace") != 0) {
+        PWR_CPU_SetFreqGovernor("userspace");
+    }
 }
 
 static void TEST_PWR_CPU_GetFreqRange(void)
