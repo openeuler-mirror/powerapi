@@ -522,8 +522,8 @@ int main(int argc, const char *args[])
     TEST_PWR_CPU_GetFreqAbility();
     TEST_PWR_CPU_GetFreqGovernor();
     TEST_PWR_CPU_SetFreqGovernor();
-    // TEST_PWR_CPU_GetFreqRange();
-    // TEST_PWR_CPU_SetFreqRange();
+    TEST_PWR_CPU_GetFreqRange();
+    TEST_PWR_CPU_SetFreqRange();
     TEST_PWR_CPU_GetFreq();
     TEST_PWR_CPU_SetFreq();
     // TEST_PWR_CPU_DmaSetAndGetLatency();
