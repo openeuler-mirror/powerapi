@@ -24,6 +24,11 @@ struct ucred {
     gid_t gid;
 };
 
+typedef struct OptToFunct {
+    enum OperationType type;
+    void (*funct)(PwrMsg *req);
+} OptToFunct;
+
 /**
  * Init and start the server
  * Note: return connected socket fd if success;

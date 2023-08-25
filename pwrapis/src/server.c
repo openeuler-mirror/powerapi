@@ -419,59 +419,34 @@ static void WaitForMsg(void)
     pthread_mutex_unlock((pthread_mutex_t *)&g_waitMsgMutex);
 }
 
+static OptToFunct g_optToFunct[] =
+{
+    {COM_CREATE_DC_TASK, CreateDataCollTask},
+    {COM_DELETE_DC_TASK, DeleteDataCollTask},
+    {COM_REQUEST_CONTROL_AUTH, RequestControlAuth},
+    {COM_RELEASE_CONTROL_AUTH, ReleaseControlAuth},
+    {SYS_SET_POWER_STATE, SetSysPowerState},
+    {SYS_GET_RT_POWER, GetSysRtPowerInfo},
+    {CPU_GET_USAGE, GetCpuUsage},
+    {CPU_GET_PERF_DATA, GetCpuPerfData},
+    {CPU_GET_INFO, GetCpuinfo},
+    {CPU_GET_FREQ_GOVERNOR, GetCpuFreqGovernor},
+    {CPU_SET_FREQ_GOVERNOR, SetCpuFreqGovernor},
+    {CPU_GET_CUR_FREQ, GetCpuFreq},
+    {CPU_SET_CUR_FREQ, SetCpuFreq},
+    {CPU_GET_FREQ_ABILITY, GetCpuFreqAbility},
+    {CPU_GET_FREQ_RANGE, GetCpuFreqRange},
+    {CPU_SET_FREQ_RANGE, SetCpuFreqRange}
+};
+
 static void ProcessReqMsg(PwrMsg *req)
 {
-    switch (req->head.optType) {
-        case COM_CREATE_DC_TASK:
-            CreateDataCollTask(req);
+    int count = sizeof(g_optToFunct) / sizeof(g_optToFunct[0]);
+    for (int i = 0; i < count; i++) {
+        if (req->head.optType == g_optToFunct[i].type) {
+            g_optToFunct[i].funct(req);
             break;
-        case COM_DELETE_DC_TASK:
-            DeleteDataCollTask(req);
-            break;
-        case COM_REQUEST_CONTROL_AUTH:
-            RequestControlAuth(req);
-            break;
-        case COM_RELEASE_CONTROL_AUTH:
-            ReleaseControlAuth(req);
-            break;
-        case SYS_SET_POWER_STATE:
-            SetSysPowerState(req);
-            break;
-        case SYS_GET_RT_POWER:
-            GetSysRtPowerInfo(req);
-            break;
-        case CPU_GET_USAGE:
-            GetCpuUsage(req);
-            break;
-        case CPU_GET_PERF_DATA:
-            GetCpuPerfData(req);
-            break;
-        case CPU_GET_INFO:
-            GetCpuinfo(req);
-            break;
-        case CPU_GET_FREQ_GOVERNOR:
-            GetCpuFreqGovernor(req);
-            break;
-        case CPU_SET_FREQ_GOVERNOR:
-            SetCpuFreqGovernor(req);
-            break;
-        case CPU_GET_CUR_FREQ:
-            GetCpuFreq(req);
-            break;
-        case CPU_SET_CUR_FREQ:
-            SetCpuFreq(req);
-            break;
-        case CPU_GET_FREQ_ABILITY:
-            GetCpuFreqAbility(req);
-            break;
-        case CPU_GET_FREQ_RANGE:
-            GetCpuFreqRange(req);
-            break;
-        case CPU_SET_FREQ_RANGE:
-            SetCpuFreqRange(req);
-            break;
-        default:
-            break;
+        }
     }
     ReleasePwrMsg(&req);
 }

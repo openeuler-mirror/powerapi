@@ -65,6 +65,11 @@ struct CnfItem {
     struct ListHead node;
 };
 
+typedef struct Name_To_Enum {
+    char *cnfItemName;
+    enum CnfItemType cnfItemType;
+} Name_To_Enum;
+
 // ServCfg
 typedef struct ServCfg {
     uint16_t port;
