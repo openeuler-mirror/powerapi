@@ -66,6 +66,9 @@ enum OperationType {
     CPU_SET_FREQ_RANGE,
     CPU_GET_FREQ_GOVERNOR,
     CPU_SET_FREQ_GOVERNOR,
+    CPU_GET_FREQ_GOV_ATTRS,
+    CPU_GET_FREQ_GOV_ATTR,
+    CPU_SET_FREQ_GOV_ATTR,
     CPU_GET_CUR_FREQ,
     CPU_SET_CUR_FREQ,
     CPU_GET_DMA_LATENCY,
@@ -112,7 +115,7 @@ int InitMsgFactory(void);
 void DestroyMsgFactory(void);
 int GenerateMetadataMsg(PwrMsg *metadata, uint32_t sysId, char *data, uint32_t len);
 int GenerateRspMsg(const PwrMsg *req, PwrMsg *rsp, int rspCode, char *data, int dataLen);
-int GenerateEventMsg(PwrMsg *event, uint32_t sysId, const char *data, uint32_t len);
+int GenerateEventMsg(PwrMsg *event, uint32_t sysId, char *data, uint32_t len);
 
 typedef struct ThreadInfo {
     pthread_t tid;

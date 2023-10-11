@@ -847,7 +847,7 @@ const char *StrJoin(char **strArr, int itemNum, const char *joinStr, char *buf, 
 
 const char *StrReplace(const char *src, const char *old, const char *new, char *dest, int destLen)
 {
-    size_t maxNum;
+    int maxNum;
     char **res = NULL;
     char *buf = NULL;
     const char *pStrRes = NULL;
@@ -1025,10 +1025,10 @@ int NormalizeAndVerifyFilepath(const char *filename, char *realpathRes)
 {
     char *path = NULL;
     path = realpath(filename, NULL);
-    strncpy(realpathRes, path, strlen(path));
-    if (realpathRes == NULL) {
+    if (!path) {
         return PWR_ERR_PATH_NORMALIZE;
     }
+    strncpy(realpathRes, path, strlen(path));
     // Verify file path
     if (access(realpathRes, F_OK) != 0) {
         return PWR_ERR_PATH_VERIFY;
@@ -1054,7 +1054,7 @@ int GetSockoptFromOS(const pid_t pid, UnixCredOS *credOS)
     }
     pclose(fp);
 
-    size_t maxNum;
+    int maxNum;
     char **res = NULL;
     maxNum = strlen(buf);
     if (maxNum == 0) {

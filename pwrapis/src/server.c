@@ -58,7 +58,7 @@ static int ListenStart(int sockFd, const struct sockaddr_un *addr)
         Logger(ERROR, MD_NM_SVR, "set reuse socket error %s errno: %d\n", strerror(errno), errno);
         return PWR_ERR_SYS_EXCEPTION;
     }
-    ret = bind(sockFd, addr, sizeof(struct sockaddr_un));
+    ret = bind(sockFd, (struct sockaddr *)addr, sizeof(struct sockaddr_un));
     if (ret < 0) {
         Logger(ERROR, MD_NM_SVR, "bind socket error %s errno: %d\n", strerror(errno), errno);
         return PWR_ERR_SYS_EXCEPTION;
@@ -145,7 +145,7 @@ static int PassCredVerification(const int sockfd, pid_t *pid)
     return PWR_SUCCESS;
 }
 
-static PWR_COM_EventInfo* CreateEventInfo(char *info, PWR_COM_EVT_TYPE eventType)
+static PWR_COM_EventInfo* CreateEventInfo(const char *info, PWR_COM_EVT_TYPE eventType)
 {
     size_t eventInfoLen = sizeof(PWR_COM_EventInfo) + strlen(info);
     PWR_COM_EventInfo *eventInfo = (PWR_COM_EventInfo *)malloc(eventInfoLen);
@@ -161,6 +161,7 @@ static PWR_COM_EventInfo* CreateEventInfo(char *info, PWR_COM_EVT_TYPE eventType
     return eventInfo;
 }
 
+static int SendEventToClient(const int dstFd, const uint32_t sysId, char *data, uint32_t len);
 static void AcceptConnection(void)
 {
     Logger(INFO, MD_NM_SVR, "Received connection request.");
@@ -337,6 +338,40 @@ static void SendMsgToClientAction(int dstFd, PwrMsg *msg)
     }
 }
 
+static int SendEventToClient(const int dstFd, const uint32_t sysId, char *data, uint32_t len)
+{
+    if (!data && len != 0) {
+        return PWR_ERR_INVALIDE_PARAM;
+    }
+
+    PwrMsg *event = (PwrMsg *)malloc(sizeof(PwrMsg));
+    char *dataCpy = (char *)malloc(len);
+    if (!event || !dataCpy) {
+        Logger(ERROR, MD_NM_SVR, "Malloc failed");
+        free(data);
+        return PWR_ERR_SYS_EXCEPTION;
+    }
+
+    bzero(event, sizeof(PwrMsg));
+    memset(dataCpy, 0, len);
+    memcpy(dataCpy, data, len);
+    int res = GenerateEventMsg(event, sysId, dataCpy, len);
+    if (res != PWR_SUCCESS) {
+        Logger(ERROR, MD_NM_SVR, "Generate event msg failed, result:%d", res);
+        free(data);
+        data = NULL;
+        ReleasePwrMsg(&event);
+        return res;
+    }
+
+    SendMsgToClientAction(dstFd, event);
+    Logger(INFO, MD_NM_SVR, "Send event notifcation success.");
+    free(data);
+    data = NULL;
+    ReleasePwrMsg(&event);
+    return PWR_SUCCESS;
+}
+
 static void ProcessSendMsgToClient(void)
 {
     // Read msg from buffer and send.
@@ -432,6 +467,9 @@ static OptToFunct g_optToFunct[] =
     {CPU_GET_INFO, GetCpuinfo},
     {CPU_GET_FREQ_GOVERNOR, GetCpuFreqGovernor},
     {CPU_SET_FREQ_GOVERNOR, SetCpuFreqGovernor},
+    {CPU_GET_FREQ_GOV_ATTRS, GetCpuFreqGovAttrs},
+    {CPU_GET_FREQ_GOV_ATTR, GetCpuFreqGovAttr},
+    {CPU_SET_FREQ_GOV_ATTR, SetCpuFreqGovAttr},
     {CPU_GET_CUR_FREQ, GetCpuFreq},
     {CPU_SET_CUR_FREQ, SetCpuFreq},
     {CPU_GET_FREQ_ABILITY, GetCpuFreqAbility},
@@ -441,6 +479,8 @@ static OptToFunct g_optToFunct[] =
 
 static void ProcessReqMsg(PwrMsg *req)
 {
+    Logger(DEBUG, MD_NM_SVR, "Get Req msg. seqId:%u, sysId:%d, optType:%d",
+        req->head.seqId, req->head.sysId, req->head.optType);
     int count = sizeof(g_optToFunct) / sizeof(g_optToFunct[0]);
     for (int i = 0; i < count; i++) {
         if (req->head.optType == g_optToFunct[i].type) {
@@ -565,38 +605,4 @@ int SendMetadataToClient(uint32_t sysId, char *data, uint32_t len)
 int SendRspMsg(PwrMsg *rsp)
 {
     return AddToBufferTail(&g_sendBuff, rsp);
-}
-
-int SendEventToClient(const int dstFd, const uint32_t sysId, char *data, uint32_t len)
-{
-    if (!data && len != 0) {
-        return PWR_ERR_INVALIDE_PARAM;
-    }
-
-    PwrMsg *event = (PwrMsg *)malloc(sizeof(PwrMsg));
-    char *dataCpy = (char *)malloc(len);
-    if (!event || !dataCpy) {
-        Logger(ERROR, MD_NM_SVR, "Malloc failed");
-        free(data);
-        return PWR_ERR_SYS_EXCEPTION;
-    }
-
-    bzero(event, sizeof(PwrMsg));
-    memset(dataCpy, 0, len);
-    memcpy(dataCpy, data, len);
-    int res = GenerateEventMsg(event, sysId, dataCpy, len);
-    if (res != PWR_SUCCESS) {
-        Logger(ERROR, MD_NM_SVR, "Generate event msg failed, result:%d", res);
-        free(data);
-        data = NULL;
-        ReleasePwrMsg(&event);
-        return res;
-    }
-
-    SendMsgToClientAction(dstFd, event);
-    Logger(INFO, MD_NM_SVR, "Send event notifcation success.");
-    free(data);
-    data = NULL;
-    ReleasePwrMsg(&event);
-    return PWR_SUCCESS;
 }

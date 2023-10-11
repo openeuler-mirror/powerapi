@@ -19,6 +19,7 @@
 #define PWR_MAX_ELEMENT_NAME_LEN 32
 #define PWR_MAX_ARRRIBUTES 11
 #define PWR_MAX_NAME_LEN 128
+#define PWR_MAX_VALUE_LEN 32
 #define PWR_MAX_CPU_LIST_LEN 248
 #define PWR_MAX_NUMA_NODE_NUM 16
 #define PWR_MAX_GOV_NUM 16
@@ -34,6 +35,7 @@
 #define PWR_CONVERSION 1000
 #define PWR_MAX_CPU_ID_WIDTH 5
 #define PWR_MAX_INPUT_NUM 512
+#define MAX_GOV_ATTR_NUM 20
 
 #define PWR_MAX_CPU_DMA_LATENCY 2000000000
 #define PWR_MAX_DISK_LIST_LEN 128
@@ -169,6 +171,22 @@ typedef struct PWR_CPU_FreqAbility {
     int freqDomainStep;
     char freqDomain[0];
 } PWR_CPU_FreqAbility;
+
+typedef struct PWR_COM_Attr {
+    char key[PWR_MAX_ELEMENT_NAME_LEN];
+    char value[PWR_MAX_VALUE_LEN];
+} PWR_COM_Attr;
+
+typedef struct PWR_CPU_FreqGovAttr {
+    char gov[PWR_MAX_ELEMENT_NAME_LEN];
+    PWR_COM_Attr attr;
+} PWR_CPU_FreqGovAttr;
+
+typedef struct PWR_CPU_FreqGovAttrs {
+    char gov[PWR_MAX_ELEMENT_NAME_LEN];
+    PWR_COM_Attr attrs[MAX_GOV_ATTR_NUM];
+    uint32_t attrNum;
+} PWR_CPU_FreqGovAttrs;
 
 typedef struct PWR_CPU_FreqRange {
     int minFreq;

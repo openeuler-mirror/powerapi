@@ -52,6 +52,9 @@ PWR_API int PWR_CPU_GetPerfData(PWR_CPU_PerfData *perfData);
 PWR_API int PWR_CPU_GetFreqAbility(PWR_CPU_FreqAbility *freqAbi, uint32_t bufferSize);
 PWR_API int PWR_CPU_GetFreqGovernor(char gov[], uint32_t size); // len: PWR_MAX_ELEMENT_NAME_LEN
 PWR_API int PWR_CPU_SetFreqGovernor(const char gov[]);
+PWR_API int PWR_CPU_GetFreqGovAttrs(PWR_CPU_FreqGovAttrs *govAttrs);
+PWR_API int PWR_CPU_GetFreqGovAttr(PWR_CPU_FreqGovAttr *govAttr);
+PWR_API int PWR_CPU_SetFreqGovAttr(const PWR_CPU_FreqGovAttr *govAttr);
 PWR_API int PWR_CPU_GetFreqRange(PWR_CPU_FreqRange *freqRange);
 PWR_API int PWR_CPU_SetFreqRange(const PWR_CPU_FreqRange *freqRange);
 PWR_API int PWR_CPU_GetFreq(PWR_CPU_CurFreq curFreq[], uint32_t *num, int spec);

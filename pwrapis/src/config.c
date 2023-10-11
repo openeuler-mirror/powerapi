@@ -116,6 +116,27 @@ static int UpdateLogCfg(enum CnfItemType type, char *value)
     return PWR_SUCCESS;
 }
 
+
+static void DoReleaseWhiteList(char** whiteList)
+{
+    int i = 0;
+    if (!whiteList) {
+        return;
+    }
+
+    /**
+     * The pointer in whiteList only points to the beginning of a
+     * substring in a block of memory (storing multiple strings),
+     * without allocating memory and does not need to be released.
+    */
+    free(whiteList);
+    while (whiteList[i] != NULL) {
+        whiteList[i] = NULL;
+        i++;
+    }
+    whiteList = NULL;
+}
+
 static int UpdateServCfg(enum CnfItemType type, char *value)
 {
     int actualValue;
@@ -144,7 +165,7 @@ static int UpdateServCfg(enum CnfItemType type, char *value)
 
 static char** UpdateRoleArrayAction(const char *value)
 {
-    size_t maxNum = 0;
+    int maxNum = 0;
     int i = 0;
     char** tempRoleArray = NULL;
     maxNum = strlen(value);
@@ -172,6 +193,37 @@ static char** UpdateRoleArrayAction(const char *value)
      * tempRoleArray will be release in UpdateRoleArray
     */
     return tempRoleArray;
+}
+
+static int IsSameArray(char **arr1, char **arr2)
+{
+    if (arr1 == NULL && arr2 == NULL) {
+        return PWR_TRUE;
+    }
+    if (arr1 == NULL || arr2 == NULL) {
+        return PWR_FALSE;
+    }
+
+    int len1 = 0;
+    int len2 = 0;
+    while (arr1[len1] != NULL && strlen(arr1[len1]) > 0) {
+        len1++;
+    }
+    while (arr2[len2] != NULL && strlen(arr2[len2]) > 0) {
+        len2++;
+    }
+    if (len1 != len2) {
+        return PWR_FALSE;
+    }
+
+    for (int i = 0; i < len1; i++)
+    {
+        if (strcmp(arr1[i], arr2[i]) != 0) {
+            return PWR_FALSE;
+        }
+    }
+
+    return PWR_TRUE;
 }
 
 static int UpdateRoleArray(enum CnfItemType type, const char *value)
@@ -548,61 +600,10 @@ int IsObserver(const char* user)
     return PWR_FALSE;
 }
 
-void DoReleaseWhiteList(char** whiteList)
-{
-    int i = 0;
-    if (!whiteList) {
-        return;
-    }
-
-    /**
-     * The pointer in whiteList only points to the beginning of a
-     * substring in a block of memory (storing multiple strings),
-     * without allocating memory and does not need to be released.
-    */
-    free(whiteList);
-    while (whiteList[i] != NULL) {
-        whiteList[i] = NULL;
-        i++;
-    }
-    whiteList = NULL;
-}
-
 void ReleaseWhiteList(void)
 {
     DoReleaseWhiteList(g_adminArray);
     DoReleaseWhiteList(g_observerArray);
     g_adminArray = NULL;
     g_observerArray = NULL;
-}
-
-int IsSameArray(char **arr1, char **arr2)
-{
-    if (arr1 == NULL && arr2 == NULL) {
-        return PWR_TRUE;
-    }
-    if (arr1 == NULL || arr2 == NULL) {
-        return PWR_FALSE;
-    }
-
-    int len1 = 0;
-    int len2 = 0;
-    while (arr1[len1] != NULL && strlen(arr1[len1]) > 0) {
-        len1++;
-    }
-    while (arr2[len2] != NULL && strlen(arr2[len2]) > 0) {
-        len2++;
-    }
-    if (len1 != len2) {
-        return PWR_FALSE;
-    }
-
-    for (int i = 0; i < len1; i++)
-    {
-        if (strcmp(arr1[i], arr2[i]) != 0) {
-            return PWR_FALSE;
-        }
-    }
-
-    return PWR_TRUE;
 }

@@ -444,7 +444,7 @@ static int CheckAvailableGovernor(char *gov, char *policys)
     return 1;
 }
 
-int CurrentGovernorRead(char *rstData)
+static int CurrentGovernorRead(char *rstData)
 {
     char govInfo[] = "/sys/devices/system/cpu/cpufreq/policy0/scaling_governor";
     char buf[PWR_MAX_STRING_LEN];
@@ -458,7 +458,7 @@ int CurrentGovernorRead(char *rstData)
     return PWR_SUCCESS;
 }
 
-int GovernorSet(char *gov, char (*policys)[PWR_MAX_ELEMENT_NAME_LEN], int *poNum)
+static int GovernorSet(char *gov, char (*policys)[PWR_MAX_ELEMENT_NAME_LEN], int *poNum)
 {
     int i;
     for (i = 0; i < (*poNum); i++) {
@@ -499,9 +499,9 @@ static int FreqRead(PWR_CPU_CurFreq *rstData, char (*policys)[PWR_MAX_ELEMENT_NA
     int m = GetArch();
     char freqInfo[PWR_MAX_NAME_LEN] = {0};
     char buf[PWR_MAX_STRING_LEN] = {0};
-    static const char s1[] = "/sys/devices/system/cpu/cpufreq/";
-    static const char s2Arm[] = "/cpuinfo_cur_freq";
-    static const char s2X86[] = "/scaling_cur_freq";
+    const char s1[] = "/sys/devices/system/cpu/cpufreq/";
+    const char s2Arm[] = "/cpuinfo_cur_freq";
+    const char s2X86[] = "/scaling_cur_freq";
     char s2[PWR_MAX_ELEMENT_NAME_LEN];
     bzero(s2, sizeof(s2));
     if (m == PWR_AARCH_64) {
@@ -531,8 +531,8 @@ static int FreqRead(PWR_CPU_CurFreq *rstData, char (*policys)[PWR_MAX_ELEMENT_NA
 static int FreqSet(PWR_CPU_CurFreq *target, int num)
 {
     char setFreqInfo[PWR_MAX_NAME_LEN] = {0};
-    static const char s1[] = "/sys/devices/system/cpu/cpufreq/policy";
-    static const char s2[] = "/scaling_setspeed";
+    const char s1[] = "/sys/devices/system/cpu/cpufreq/policy";
+    const char s2[] = "/scaling_setspeed";
     int i, freq, ret;
     char bufFreq[PWR_MAX_ELEMENT_NAME_LEN] = {0};
     char bufPolicyId[PWR_MAX_ELEMENT_NAME_LEN] = {0};
@@ -566,8 +566,8 @@ static int FreqDomainRead(char *buf, char (*policys)[PWR_MAX_ELEMENT_NAME_LEN], 
     char domainInfo[PWR_MAX_NAME_LEN] = {0};
     char domainbuf[PWR_MAX_CPU_LIST_LEN] = {0};
     char temp[PWR_MAX_ELEMENT_NAME_LEN] = {0};
-    char s1[] = "/sys/devices/system/cpu/cpufreq/";
-    char s2[] = "/affected_cpus";
+    const char s1[] = "/sys/devices/system/cpu/cpufreq/";
+    const char s2[] = "/affected_cpus";
     for (int i = 0; i < domainNum; i++) {
         StrCopy(domainInfo, s1, PWR_MAX_NAME_LEN);
         strncat(domainInfo, policys[i], strlen(policys[i]));
@@ -708,12 +708,74 @@ static int FreqRangeSet(PWR_CPU_FreqRange *rstData)
     return PWR_SUCCESS;
 }
 
+static int GetGovAttrs(PWR_CPU_FreqGovAttrs *attrs)
+{
+    char base[] = "/sys/devices/system/cpu/cpufreq/";
+    char attrPath[PWR_MAX_NAME_LEN] = {0};
+    StrCopy(attrPath, base, PWR_MAX_NAME_LEN - 1);
+    strncat(attrPath, attrs->gov, strlen(attrs->gov));
+    if (access(attrPath, F_OK) != 0) {
+        return PWR_ERR_FILE_ACCESS_FAILED;
+    }
+    DIR *dir = opendir(attrPath);
+    if (dir == NULL) {
+        Logger(ERROR, MD_NM_SVR_CPU, "Unable to open direct: %s", attrPath);
+        return PWR_ERR_FILE_OPEN_FAILED;
+    }
+    char *pathEnd = attrPath + strlen(attrPath);
+    *pathEnd = PATH_SEP_CHAR;
+    pathEnd++;
+    struct dirent *dt;
+    int ret = PWR_SUCCESS;
+    while ((dt = readdir(dir)) != NULL && attrs->attrNum < MAX_GOV_ATTR_NUM) {
+        if (strcmp(dt->d_name, CURRENT_DIR) == 0 || strcmp(dt->d_name, PARENT_DIR) == 0) {
+            continue;
+        }
+        StrCopy(attrs->attrs[attrs->attrNum].key, dt->d_name, PWR_MAX_ELEMENT_NAME_LEN);
+        StrCopy(pathEnd, dt->d_name, PWR_MAX_ELEMENT_NAME_LEN);
+        ret = ReadFile(attrPath, attrs->attrs[attrs->attrNum].value, PWR_MAX_VALUE_LEN);
+        if (ret != PWR_SUCCESS) {
+            break;
+        }
+        attrs->attrNum++;
+    }
+    closedir(dir);
+}
+
+static int GetGovAttr(PWR_CPU_FreqGovAttr *attr)
+{
+    char base[] = "/sys/devices/system/cpu/cpufreq/";
+    char attrPath[PWR_MAX_NAME_LEN] = {0};
+    StrCopy(attrPath, base, PWR_MAX_NAME_LEN - 1);
+    strncat(attrPath, attr->gov, strlen(attr->gov));
+    strncat(attrPath, PATH_SEP_STR, strlen(PATH_SEP_STR) + 1);
+    strncat(attrPath, attr->attr.key, strlen(attr->attr.key));
+    int ret = ReadFile(attrPath, attr->attr.value, sizeof(attr->attr.value));
+    if (ret != PWR_SUCCESS) {
+        Logger(ERROR, MD_NM_SVR_CPU, "GetGovAttr failed. path:%s, value:%s, ret:%d",
+            attrPath, attr->attr.value, ret);
+    }
+    return ret;
+}
+
+static int SetGovAttr(PWR_CPU_FreqGovAttr *attr)
+{
+    char base[] = "/sys/devices/system/cpu/cpufreq/";
+    char attrPath[PWR_MAX_NAME_LEN] = {0};
+    StrCopy(attrPath, base, PWR_MAX_NAME_LEN - 1);
+    strncat(attrPath, attr->gov, strlen(attr->gov));
+    strncat(attrPath, PATH_SEP_STR, strlen(PATH_SEP_STR) + 1);
+    strncat(attrPath, attr->attr.key, strlen(attr->attr.key));
+    int ret = WriteFile(attrPath, attr->attr.value, strlen(attr->attr.value));
+    if (ret != PWR_SUCCESS) {
+        Logger(ERROR, MD_NM_SVR_CPU, "SetGovAttr failed. path:%s, ret:%d", attrPath, ret);
+    }
+    return ret;
+}
+
+// public===========================================================================================
 void GetCpuinfo(PwrMsg *req)
 {
-    if (!req) {
-        return;
-    }
-    Logger(DEBUG, MD_NM_SVR_CPU, "Get GetCpuInfo Req. seqId:%u, sysId:%d", req->head.seqId, req->head.sysId);
     PWR_CPU_Info *rstData = malloc(sizeof(PWR_CPU_Info));
     if (!rstData) {
         return;
@@ -722,12 +784,9 @@ void GetCpuinfo(PwrMsg *req)
     int rspCode = CpuInfoRead(rstData);
     SendRspToClient(req, rspCode, (char *)rstData, sizeof(PWR_CPU_Info));
 }
+
 void GetCpuUsage(PwrMsg *req)
 {
-    if (!req) {
-        return;
-    }
-    Logger(DEBUG, MD_NM_SVR_CPU, "Get GetCpuUsage Req. seqId:%u, sysId:%d", req->head.seqId, req->head.sysId);
     int coreNum = GetCpuCoreNumber();
     PWR_CPU_Usage *rstData = malloc(sizeof(PWR_CPU_Usage) + sizeof(PWR_CPU_CoreUsage) * coreNum);
     if (!rstData) {
@@ -740,10 +799,6 @@ void GetCpuUsage(PwrMsg *req)
 
 void GetCpuPerfData(PwrMsg *req)
 {
-    if (!req) {
-        return;
-    }
-    Logger(DEBUG, MD_NM_SVR_CPU, "Get Get Perf Data Req. seqId:%u, sysId:%d", req->head.seqId, req->head.sysId);
     PWR_CPU_PerfData *rstData = malloc(sizeof(PWR_CPU_PerfData));
     if (!rstData) {
         return;
@@ -754,10 +809,6 @@ void GetCpuPerfData(PwrMsg *req)
 
 void GetCpuFreqGovernor(PwrMsg *req)
 {
-    if (!req) {
-        return;
-    }
-    Logger(DEBUG, MD_NM_SVR_CPU, "Get Get Freq Governor Req. seqId:%u, sysId:%d", req->head.seqId, req->head.sysId);
     char *rstData = malloc(sizeof(char) * PWR_MAX_ELEMENT_NAME_LEN);
     if (!rstData) {
         return;
@@ -768,10 +819,6 @@ void GetCpuFreqGovernor(PwrMsg *req)
 
 void SetCpuFreqGovernor(PwrMsg *req)
 {
-    if (!req) {
-        return;
-    }
-    Logger(DEBUG, MD_NM_SVR_CPU, "Set Freq Governor Req. seqId:%u, sysId:%d", req->head.seqId, req->head.sysId);
     char policys[PWR_MAX_CPU_LIST_LEN][PWR_MAX_ELEMENT_NAME_LEN];
     bzero(policys, sizeof(policys));
     int poNum;
@@ -780,12 +827,88 @@ void SetCpuFreqGovernor(PwrMsg *req)
     SendRspToClient(req, rspCode, NULL, 0);
 }
 
-void GetCpuFreq(PwrMsg *req)
+void GetCpuFreqGovAttrs(PwrMsg *req)
 {
-    if (!req) {
+    int rspCode = PWR_SUCCESS;
+    PWR_CPU_FreqGovAttrs *rspData = (PWR_CPU_FreqGovAttrs *)malloc(sizeof(PWR_CPU_FreqGovAttrs));
+    if (!rspData) {
         return;
     }
-    Logger(DEBUG, MD_NM_SVR_CPU, "Get Get Freq Req. seqId:%u, sysId:%d", req->head.seqId, req->head.sysId);
+    bzero(rspData, sizeof(PWR_CPU_FreqGovAttrs));
+    if (req->data == NULL || strlen(req->data) == 0) {
+        CurrentGovernorRead(rspData->gov);
+    } else {
+        StrCopy(rspData->gov, req->data, PWR_MAX_ELEMENT_NAME_LEN);
+    }
+    rspCode = GetGovAttrs(rspData);
+    if (rspCode != PWR_SUCCESS) {
+        free(rspData);
+        SendRspToClient(req, rspCode, NULL, 0);
+    } else {
+        SendRspToClient(req, rspCode, (char *)rspData, sizeof(PWR_CPU_FreqGovAttrs));
+    }
+}
+
+void GetCpuFreqGovAttr(PwrMsg *req)
+{
+    int rspCode = PWR_SUCCESS;
+    PWR_CPU_FreqGovAttr *attr = NULL;
+    do {
+        if (!req || req->head.dataLen != sizeof(PWR_CPU_FreqGovAttr)) {
+            Logger(ERROR, MD_NM_SVR_CPU, "GetCpuFreqGovAttr: wrong req msg. dataLen:%d", req->head.dataLen);
+            rspCode = PWR_ERR_INVALIDE_PARAM;
+            break;
+        }
+        attr = (PWR_CPU_FreqGovAttr *)req->data;
+        if (strlen(attr->attr.key) == 0) {
+            Logger(ERROR, MD_NM_SVR_CPU, "GetCpuFreqGovAttr: attr name is null");
+            rspCode = PWR_ERR_INVALIDE_PARAM;
+            break;
+        }
+        if (strlen(attr->gov) == 0 && CurrentGovernorRead(attr->gov) != PWR_SUCCESS) {
+            Logger(ERROR, MD_NM_SVR_CPU, "GetCpuFreqGovAttr: failed to find governor");
+            rspCode = PWR_ERR_INVALIDE_PARAM;
+            break;
+        }
+        rspCode = GetGovAttr(attr);
+    } while (PWR_FALSE);
+
+    if (rspCode != PWR_SUCCESS) {
+        SendRspToClient(req, rspCode, NULL, 0);
+    } else {
+        req->data = NULL;   // move the memory to rsp msg
+        SendRspToClient(req, rspCode, (char *)attr, sizeof(PWR_CPU_FreqGovAttr));
+    }
+}
+
+void SetCpuFreqGovAttr(PwrMsg *req)
+{
+    int rspCode = PWR_SUCCESS;
+    PWR_CPU_FreqGovAttr *attr = NULL;
+    do {
+        if (!req || req->head.dataLen != sizeof(PWR_CPU_FreqGovAttr)) {
+            Logger(ERROR, MD_NM_SVR_CPU, "SetCpuFreqGovAttr: wrong req msg. dataLen:%d", req->head.dataLen);
+            rspCode = PWR_ERR_INVALIDE_PARAM;
+            break;
+        }
+        attr = (PWR_CPU_FreqGovAttr *)req->data;
+        if (strlen(attr->attr.key) == 0) {
+            Logger(ERROR, MD_NM_SVR_CPU, "SetCpuFreqGovAttr: attr name is null");
+            rspCode = PWR_ERR_INVALIDE_PARAM;
+            break;
+        }
+        if (strlen(attr->gov) == 0 && CurrentGovernorRead(attr->gov) != PWR_SUCCESS) {
+            Logger(ERROR, MD_NM_SVR_CPU, "SetCpuFreqGovAttr: failed to find governor");
+            rspCode = PWR_ERR_INVALIDE_PARAM;
+            break;
+        }
+        rspCode = SetGovAttr(attr);
+    } while (PWR_FALSE);
+    SendRspToClient(req, rspCode, NULL, 0);
+}
+
+void GetCpuFreq(PwrMsg *req)
+{
     char policys[PWR_MAX_CPU_LIST_LEN][PWR_MAX_ELEMENT_NAME_LEN];
     bzero(policys, sizeof(policys));
     int poNum;
@@ -820,10 +943,6 @@ void GetCpuFreq(PwrMsg *req)
 
 void SetCpuFreq(PwrMsg *req)
 {
-    if (!req) {
-        return;
-    }
-    Logger(DEBUG, MD_NM_SVR_CPU, "Set Freq  Req. seqId:%u, sysId:%d", req->head.seqId, req->head.sysId);
     size_t num = (req->head.dataLen) / sizeof(PWR_CPU_CurFreq);
     char currentGov[PWR_MAX_ELEMENT_NAME_LEN];
     PWR_CPU_CurFreq *target = (PWR_CPU_CurFreq *)req->data;
@@ -856,10 +975,6 @@ void SetCpuFreq(PwrMsg *req)
 
 void GetCpuFreqAbility(PwrMsg *req)
 {
-    if (!req) {
-        return;
-    }
-    Logger(DEBUG, MD_NM_SVR_CPU, "Get GetCpuFreqAbility Req. seqId:%u, sysId:%d", req->head.seqId, req->head.sysId);
     int coreNum = GetCpuCoreNumber();
     char policys[PWR_MAX_CPU_LIST_LEN][PWR_MAX_ELEMENT_NAME_LEN];
     bzero(policys, sizeof(policys));
@@ -883,11 +998,6 @@ void GetCpuFreqAbility(PwrMsg *req)
 
 void GetCpuFreqRange(PwrMsg *req)
 {
-    if (!req) {
-        return;
-    }
-    Logger(DEBUG, MD_NM_SVR_CPU, "Get GetCpuFreqRange Req. seqId:%u, sysId:%d", req->head.seqId, req->head.sysId);
-
     PWR_CPU_FreqRange *rstData = malloc(sizeof(PWR_CPU_FreqRange));
     if (!rstData) {
         return;
@@ -898,11 +1008,6 @@ void GetCpuFreqRange(PwrMsg *req)
 
 void SetCpuFreqRange(PwrMsg *req)
 {
-    if (!req) {
-        return;
-    }
-    Logger(DEBUG, MD_NM_SVR_CPU, "Get SetCpuFreqRange Req. seqId:%u, sysId:%d", req->head.seqId, req->head.sysId);
-
     PWR_CPU_FreqRange *rstData = (PWR_CPU_FreqRange *)req->data;
 
     int rspCode = FreqRangeSet(rstData);
