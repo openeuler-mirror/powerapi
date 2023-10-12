@@ -24,22 +24,14 @@
 
 static int PowerSet(char *powerState)
 {
-    FILE *fp = NULL;
-    char *stateStr = malloc(strlen(powerState) + PWR_MAX_NAME_LEN);
-    if (stateStr == NULL) {
-        Logger(ERROR, MD_NM_SVR_SYS, "Malloc failed.");
-        return 1;
+    int bufferTime = 10; // The value may need to be determined again
+    static const char fileName[] = "/sys/power/state";
+
+    sleep(bufferTime);
+    int ret = WriteFile(fileName, powerState, strlen(powerState));
+    if (ret != 0) {
+        return ret;
     }
-    static const char s1[] = "sleep 10 && echo ";
-    static const char s2[] = "> /sys/power/state &";
-    StrCopy(stateStr, s1, strlen(powerState) + PWR_MAX_NAME_LEN);
-    strncat(stateStr, powerState, strlen(powerState));
-    strncat(stateStr, s2, strlen(s2));
-    fp = popen(stateStr, "r");
-    if (fp == NULL) {
-        return 1;
-    }
-    pclose(fp);
     return PWR_SUCCESS;
 }
 
@@ -85,12 +77,9 @@ static int SysRtPowerRead(PWR_SYS_PowerInfo *rstData)
     return PWR_SUCCESS;
 }
 
+// public===========================================================================================
 void SetSysPowerState(PwrMsg *req)
 {
-    if (!req) {
-        return;
-    }
-    Logger(DEBUG, MD_NM_SVR_SYS, "Set Sys Power State Req. seqId:%u, sysId:%d", req->head.seqId, req->head.sysId);
     int rspCode = PowerSet(req->data);
     PwrMsg *rsp = (PwrMsg *)malloc(sizeof(PwrMsg));
     if (!rsp) {
@@ -106,10 +95,6 @@ void SetSysPowerState(PwrMsg *req)
 
 void GetSysRtPowerInfo(PwrMsg *req)
 {
-    if (!req) {
-        return;
-    }
-    Logger(DEBUG, MD_NM_SVR_SYS, "Get Get Sys Rt Power Req. seqId:%u, sysId:%d", req->head.seqId, req->head.sysId);
     PWR_SYS_PowerInfo *rstData = malloc(sizeof(PWR_SYS_PowerInfo));
     if (!rstData) {
         return;

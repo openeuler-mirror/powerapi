@@ -504,10 +504,10 @@ int RegIoColl(const struct ListHead* pCollCfg)
     return PWR_SUCCESS;
 }
 
-int ReadDiskName(const char *file, PWR_DISK_Info disklist[], int diskNum)
+int ReadDiskName(const char *file, PWR_DISK_Info disklist[])
 {
     int i;
-    int DiskNamePos = 3; // file /proc/diskstats format: major minor diskname xxx xxx
+    int diskNameIndex = 3; // "/proc/diskstats" format: major minor diskname xxx
     FILE *fp;
     char *line = NULL;
     size_t len = 0;
@@ -527,15 +527,15 @@ int ReadDiskName(const char *file, PWR_DISK_Info disklist[], int diskNum)
         return PWR_ERR_NULL_POINTER;
     }
 
-    for (i = 0; i < diskNum; i++) {
-        while ((read = getline(&line, &len, fp)) != -1) {
-            pRes = GetNthField(line, " \n", DiskNamePos, statVal, sizeof(statVal) - 1);
-            if (pRes != NULL) {
-                strncpy(disklist[i].diskId, statVal, strlen(statVal));
-            } else {
-                disklist[i].diskId[0] = '\0';
-            }
+    i = 0;
+    while ((read = getline(&line, &len, fp)) != -1) {
+        pRes = GetNthField(line, " \n", diskNameIndex, statVal, sizeof(statVal) - 1);
+        if (pRes != NULL) {
+            strncpy(disklist[i].diskId, statVal, strlen(statVal));
+        } else {
+            disklist[i].diskId[0] = '\0';
         }
+        i++;
     }
 
     if (line) {
@@ -555,12 +555,14 @@ void GetDiskinfo(PwrMsg *req)
     }
     Logger(DEBUG, MD_NM_SVR_DISK, "Get PWR_DISK info Req. seqId:%u, sysId:%d", req->head.seqId, req->head.sysId);
     int diskNum;
-    GetFileLines(statFile, &diskNum);
+    int *p = &diskNum;
+    GetFileLines(statFile, p);
     PWR_DISK_Info *rstData = malloc(sizeof(PWR_DISK_Info) * diskNum);
     if (!rstData) {
         return;
     }
-    int rspCode = ReadDiskName(statFile, rstData, diskNum);
+    bzero(rstData, sizeof(PWR_DISK_Info) * diskNum);
+    int rspCode = ReadDiskName(statFile, rstData);
     PwrMsg *rsp = (PwrMsg *)malloc(sizeof(PwrMsg));
     if (!rsp) {
         Logger(ERROR, MD_NM_SVR_DISK, "Malloc failed.");

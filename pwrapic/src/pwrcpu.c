@@ -33,9 +33,9 @@ int GetCpuInfo(PWR_CPU_Info *cpuInfo)
 
     int ret = SendReqAndWaitForRsp(input, output);
     if (ret != PWR_SUCCESS) {
-        PwrLog(ERROR, "GetCpuInfo failed. ret:%d", ret);
+        PwrLog(ERROR, "GetCpuInfo failed. ret: %d", ret);
     } else {
-        PwrLog(DEBUG, "GetCpuInfo Succeed.");
+        PwrLog(DEBUG, "GetCpuInfo succeed.");
     }
     return ret;
 }
@@ -53,7 +53,7 @@ int GetCpuUsage(PWR_CPU_Usage *usage, uint32_t bufferSize)
 
     int ret = SendReqAndWaitForRsp(input, output);
     if (ret != PWR_SUCCESS) {
-        PwrLog(ERROR, "GetCpuUsage failed. ret:%d", ret);
+        PwrLog(ERROR, "GetCpuUsage failed. ret: %d", ret);
         return ret;
     }
 
@@ -77,9 +77,9 @@ int GetCpuPerfData(PWR_CPU_PerfData *perfData)
     output.rspData = (void *)perfData;
     int ret = SendReqAndWaitForRsp(input, output);
     if (ret != PWR_SUCCESS) {
-        PwrLog(ERROR, "GetCpuPerfData failed. ret:%d", ret);
+        PwrLog(ERROR, "GetCpuPerfData failed. ret: %d", ret);
     } else {
-        PwrLog(DEBUG, "GetCpuPerfData Succeed.");
+        PwrLog(DEBUG, "GetCpuPerfData succeed.");
     }
     return ret;
 }
@@ -97,14 +97,14 @@ int GetCpuFreqAbility(PWR_CPU_FreqAbility *freqAbi, uint32_t bufferSize)
 
     int ret = SendReqAndWaitForRsp(input, output);
     if (ret != PWR_SUCCESS) {
-        PwrLog(ERROR, "GetCpuFreqAbility failed. ret:%d", ret);
+        PwrLog(ERROR, "GetCpuFreqAbility failed. ret: %d", ret);
         if (freqAbi->freqDomainStep != 0) {
             // Remediate the data to avoid error happens in buffersize is smaller then real data length.
             size_t freqDomainNum = (size - sizeof(PWR_CPU_FreqAbility)) / freqAbi->freqDomainStep;
             freqAbi->freqDomainNum = freqDomainNum;
         }
     } else {
-        PwrLog(DEBUG, "GetCpuFreqAbility Succeed.");
+        PwrLog(DEBUG, "GetCpuFreqAbility succeed.");
     }
     return ret;
 }
@@ -122,9 +122,9 @@ int GetCpuFreqRange(PWR_CPU_FreqRange *freqRange)
     output.rspData = (void *)freqRange;
     int ret = SendReqAndWaitForRsp(input, output);
     if (ret != PWR_SUCCESS) {
-        PwrLog(ERROR, "GetCpuFreqRange failed. ret:%d", ret);
+        PwrLog(ERROR, "GetCpuFreqRange failed. ret: %d", ret);
     } else {
-        PwrLog(DEBUG, "GetCpuFreqRange Succeed.");
+        PwrLog(DEBUG, "GetCpuFreqRange succeed.");
     }
     return ret;
 }
@@ -142,9 +142,9 @@ int SetCpuFreqRange(const PWR_CPU_FreqRange *freqRange)
 
     int ret = SendReqAndWaitForRsp(input, output);
     if (ret != PWR_SUCCESS) {
-        PwrLog(ERROR, "SetCpuFreqRange failed. ret:%d", ret);
+        PwrLog(ERROR, "SetCpuFreqRange failed. ret: %d", ret);
     } else {
-        PwrLog(DEBUG, "SetCpuFreqRange Succeed.");
+        PwrLog(DEBUG, "SetCpuFreqRange succeed.");
     }
     return ret;
 }
@@ -161,7 +161,7 @@ int GetCpuFreqGovernor(char gov[], uint32_t size)
     bzero(gov, size);
     int ret = SendReqAndWaitForRsp(input, output);
     if (ret != PWR_SUCCESS) {
-        PwrLog(ERROR, "GetCpuFreqGovernor failed. ret:%d", ret);
+        PwrLog(ERROR, "GetCpuFreqGovernor failed. ret: %d", ret);
         return ret;
     }
 
@@ -170,7 +170,7 @@ int GetCpuFreqGovernor(char gov[], uint32_t size)
         return PWR_ERR_ANSWER_LONGER_THAN_SIZE;
     }
 
-    PwrLog(DEBUG, "GetCpuFreqGovernor Succeed.");
+    PwrLog(DEBUG, "GetCpuFreqGovernor succeed.");
     return ret;
 }
 
@@ -186,20 +186,20 @@ int SetCpuFreqGovernor(const char gov[], uint32_t size)
 
     int ret = SendReqAndWaitForRsp(input, output);
     if (ret != PWR_SUCCESS) {
-        PwrLog(ERROR, "SetCpuFreqGovernor failed. ret:%d", ret);
+        PwrLog(ERROR, "SetCpuFreqGovernor failed. ret: %d", ret);
     } else {
-        PwrLog(DEBUG, "SetCpuFreqGovernor Succeed.");
+        PwrLog(DEBUG, "SetCpuFreqGovernor succeed.");
     }
     return ret;
 }
 
-int GetCpuCurFreq(PWR_CPU_CurFreq curFreq[], uint32_t *len, int spec)
+int GetCpuCurFreq(PWR_CPU_CurFreq curFreq[], uint32_t *num, int spec)
 {
-    if ((*len) > PWR_MAX_INPUT_NUM) {
-        PwrLog(ERROR, "GetCpuCurFreq failed. ret:%d", PWR_ERR_INPUT_OVERSIZE);
+    if ((*num) > PWR_MAX_INPUT_NUM) {
+        PwrLog(ERROR, "GetCpuCurFreq failed. ret: %d", PWR_ERR_INPUT_OVERSIZE);
         return PWR_ERR_INPUT_OVERSIZE;
     }
-    size_t s = sizeof(PWR_CPU_CurFreq) * (*len);
+    size_t s = sizeof(PWR_CPU_CurFreq) * (*num);
     uint32_t size = s;
     ReqInputParam input;
     input.optType = CPU_GET_CUR_FREQ;
@@ -216,21 +216,80 @@ int GetCpuCurFreq(PWR_CPU_CurFreq curFreq[], uint32_t *len, int spec)
     output.rspData = (void *)curFreq;
 
     int ret = SendReqAndWaitForRsp(input, output);
-    size_t curLen = size / sizeof(PWR_CPU_CurFreq);
-    *len = curLen;
+    size_t curNum = size / sizeof(PWR_CPU_CurFreq);
+    *num = curNum;
     if (ret != PWR_SUCCESS) {
-        PwrLog(ERROR, "GetCpuCurFreq failed. ret:%d", ret);
+        PwrLog(ERROR, "GetCpuCurFreq failed. ret: %d", ret);
     } else {
-        PwrLog(DEBUG, "GetCpuCurFreq Succeed.");
+        PwrLog(DEBUG, "GetCpuCurFreq succeed.");
     }
     return ret;
 }
 
-int SetCpuCurFreq(const PWR_CPU_CurFreq curFreq[], uint32_t len)
+int GetCpuFreqGovAttrs(PWR_CPU_FreqGovAttrs *govAttrs)
+{
+    ReqInputParam input;
+    input.optType = CPU_GET_FREQ_GOV_ATTRS;
+    input.dataLen = (uint32_t)sizeof(govAttrs->gov);
+    input.data = govAttrs->gov;
+    RspOutputParam output;
+    uint32_t size = (uint32_t)sizeof(PWR_CPU_FreqGovAttrs);
+    output.rspBuffSize = &size;
+    output.rspData = (void *)govAttrs;
+
+    int ret = SendReqAndWaitForRsp(input, output);
+    if (ret != PWR_SUCCESS) {
+        PwrLog(ERROR, "GetCpuFreqGovAttrs failed. ret: %d", ret);
+    } else {
+        PwrLog(DEBUG, "GetCpuFreqGovAttrs succeed.");
+    }
+    return ret;
+}
+
+int GetCpuFreqGovAttr(PWR_CPU_FreqGovAttr *govAttr)
+{
+    ReqInputParam input;
+    input.optType = CPU_GET_FREQ_GOV_ATTR;
+    input.dataLen = (uint32_t)sizeof(PWR_CPU_FreqGovAttr);
+    input.data = (char *)govAttr;
+    RspOutputParam output;
+    uint32_t size = input.dataLen;
+    output.rspBuffSize = &size;
+    output.rspData = (void *)govAttr;
+
+    int ret = SendReqAndWaitForRsp(input, output);
+    if (ret != PWR_SUCCESS) {
+        PwrLog(ERROR, "GetCpuFreqGovAttr failed. ret: %d", ret);
+    } else {
+        PwrLog(DEBUG, "GetCpuFreqGovAttr succeed.");
+    }
+    return ret;
+}
+
+int SetCpuFreqGovAttr(const PWR_CPU_FreqGovAttr *govAttr)
+{
+    ReqInputParam input;
+    input.optType = CPU_SET_FREQ_GOV_ATTR;
+    input.dataLen = (uint32_t)sizeof(PWR_CPU_FreqGovAttr);
+    input.data = (char *)govAttr;
+    RspOutputParam output;
+    output.rspBuffSize = NULL;
+    output.rspData = NULL;
+
+    int ret = SendReqAndWaitForRsp(input, output);
+    if (ret != PWR_SUCCESS) {
+        PwrLog(ERROR, "SetCpuFreqGovAttr failed. ret: %d", ret);
+    } else {
+        PwrLog(DEBUG, "SetCpuFreqGovAttr succeed.");
+    }
+    return ret;
+}
+
+int SetCpuCurFreq(const PWR_CPU_CurFreq curFreq[], uint32_t num)
 {
     ReqInputParam input;
     input.optType = CPU_SET_CUR_FREQ;
-    size_t dataLen = sizeof(PWR_CPU_CurFreq) * len;
+    size_t dataLen = sizeof(PWR_CPU_CurFreq) * num;
     input.dataLen = dataLen;
     input.data = (char *)curFreq;
     RspOutputParam output;
@@ -239,9 +298,9 @@ int SetCpuCurFreq(const PWR_CPU_CurFreq curFreq[], uint32_t len)
 
     int ret = SendReqAndWaitForRsp(input, output);
     if (ret != PWR_SUCCESS) {
-        PwrLog(ERROR, "SetCpuCurFreq failed. ret:%d", ret);
+        PwrLog(ERROR, "SetCpuCurFreq failed. ret: %d", ret);
     } else {
-        PwrLog(DEBUG, "SetCpuCurFreq Succeed.");
+        PwrLog(DEBUG, "SetCpuCurFreq succeed.");
     }
     return ret;
 }
@@ -259,9 +318,9 @@ int GetCpuDmaLatency(int *latency)
     output.rspData = (void *)latency;
     int ret = SendReqAndWaitForRsp(input, output);
     if (ret != PWR_SUCCESS) {
-        PwrLog(ERROR, "GetCpuDmaLatency failed. ret:%d", ret);
+        PwrLog(ERROR, "GetCpuDmaLatency failed. ret: %d", ret);
     } else {
-        PwrLog(DEBUG, "GetCpuDmaLatency Succeed.");
+        PwrLog(DEBUG, "GetCpuDmaLatency succeed.");
     }
     return ret;
 }
@@ -279,9 +338,9 @@ int SetCpuDmaLatency(int latency)
 
     int ret = SendReqAndWaitForRsp(input, output);
     if (ret != PWR_SUCCESS) {
-        PwrLog(ERROR, "SetCpuDmaLatency failed. ret:%d", ret);
+        PwrLog(ERROR, "SetCpuDmaLatency failed. ret: %d", ret);
     } else {
-        PwrLog(DEBUG, "SetCpuDmaLatency Succeed.");
+        PwrLog(DEBUG, "SetCpuDmaLatency succeed.");
     }
     return ret;
 }

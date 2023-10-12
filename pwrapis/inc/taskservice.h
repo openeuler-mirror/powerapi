@@ -19,7 +19,7 @@
 
 int InitTaskService(void);
 void FiniTaskService(void);
-void CreateDataCollTask(const PwrMsg *req);
-void DeleteDataCollTask(const PwrMsg *req);
+void CreateDataCollTask(PwrMsg *req);
+void DeleteDataCollTask(PwrMsg *req);
 void CleanDataCollTaskByClient(uint32_t client);
 #endif

@@ -170,7 +170,6 @@ int GetFileLines(const char *file, int *num)
     char *line = NULL;
     size_t len = 0;
     ssize_t read;
-    int *p = num;
 
     if (file == NULL) {
         return PWR_ERR_INVALIDE_PARAM;
@@ -184,9 +183,9 @@ int GetFileLines(const char *file, int *num)
         return PWR_ERR_NULL_POINTER;
     }
 
-    *p = 0;
+    *num = 0;
     while ((read = getline(&line, &len, fp)) != -1) {
-        *p++;
+        (*num)++;
     }
 
     if (line) {
@@ -848,7 +847,7 @@ const char *StrJoin(char **strArr, int itemNum, const char *joinStr, char *buf, 
 
 const char *StrReplace(const char *src, const char *old, const char *new, char *dest, int destLen)
 {
-    size_t maxNum;
+    int maxNum;
     char **res = NULL;
     char *buf = NULL;
     const char *pStrRes = NULL;
@@ -938,7 +937,13 @@ int InIntRange(int *range, int len, int a)
 
 int ReadFile(const char *strInfo, char *buf, int bufLen)
 {
-    int fd = open(strInfo, O_RDONLY);
+    char realPath[MAX_FULL_NAME] = {0};
+    int ret = NormalizeAndVerifyFilepath(strInfo, realPath);
+    if (ret != PWR_SUCCESS) {
+        return ret;
+    }
+
+    int fd = open(realPath, O_RDONLY);
     if (fd == -1) {
         return 1;
     }
@@ -954,23 +959,29 @@ int ReadFile(const char *strInfo, char *buf, int bufLen)
 
 int WriteFile(const char *strInfo, char *buf, int bufLen)
 {
-    if (access(strInfo, F_OK | R_OK | W_OK) != 0) {
-        return 1;
+    char realPath[MAX_FULL_NAME] = {0};
+    int ret = NormalizeAndVerifyFilepath(strInfo, realPath);
+    if (ret != PWR_SUCCESS) {
+        return ret;
     }
-    FILE *fp = fopen(strInfo, "w+");
+
+    if (access(realPath, F_OK | R_OK | W_OK) != 0) {
+        return PWR_ERR_FILE_ACCESS_FAILED;
+    }
+    FILE *fp = fopen(realPath, "w+");
     if (fp == NULL) {
-        return 1;
+        return PWR_ERR_FILE_OPEN_FAILED;
     }
     if (fprintf(fp, "%s", buf) < 0) {
         fclose(fp);
-        return 1;
+        return PWR_ERR_FILE_FPRINT_FAILED;
     }
     if (fflush(fp) != 0) {
         fclose(fp);
-        return 1;
+        return PWR_ERR_FILE_FFLUSH_FAILED;
     }
     (void)fclose(fp);
-    return 0;
+    return PWR_SUCCESS;
 }
 
 int WriteFileAndCheck(const char *strInfo, char *buf, int bufLen)
@@ -1014,10 +1025,10 @@ int NormalizeAndVerifyFilepath(const char *filename, char *realpathRes)
 {
     char *path = NULL;
     path = realpath(filename, NULL);
-    strncpy(realpathRes, path, strlen(path));
-    if (realpathRes == NULL) {
+    if (!path) {
         return PWR_ERR_PATH_NORMALIZE;
     }
+    strncpy(realpathRes, path, strlen(path));
     // Verify file path
     if (access(realpathRes, F_OK) != 0) {
         return PWR_ERR_PATH_VERIFY;
@@ -1031,10 +1042,10 @@ int GetSockoptFromOS(const pid_t pid, UnixCredOS *credOS)
 {
     char credCmd[PWR_MAX_NAME_LEN];
     const char s[] = "ps -eo pid,uid,gid,user | grep ";
-    if (sprintf(credCmd, "%s%d", s, pid) < 0) return PWR_ERR_COMMON;
+    if (sprintf(credCmd, "%s%d", s, pid) < 0) return PWR_ERR_FILE_SPRINTF_FIILED;
     FILE *fp = popen(credCmd, "r");
     if (fp == NULL) {
-        return PWR_ERR_NULL_POINTER;
+        return PWR_ERR_FILE_OPEN_FAILED;
     }
     char buf[PWR_MAX_NAME_LEN] = {0};
     if (fgets(buf, sizeof(buf), fp) == NULL) {
@@ -1043,7 +1054,7 @@ int GetSockoptFromOS(const pid_t pid, UnixCredOS *credOS)
     }
     pclose(fp);
 
-    size_t maxNum;
+    int maxNum;
     char **res = NULL;
     maxNum = strlen(buf);
     if (maxNum == 0) {

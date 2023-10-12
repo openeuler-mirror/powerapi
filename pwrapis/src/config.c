@@ -50,7 +50,7 @@ int UpdateConfigPath(const char* configPath)
         Logger(ERROR, MD_NM_CFG, "The specified configuration file does not exist");
         return PWR_ERR_INVALIDE_PARAM;
     }
-    
+
     strncpy(g_configPath, configPath, sizeof(g_configPath) - 1);
     return PWR_SUCCESS;
 }
@@ -76,7 +76,7 @@ static int UpdateLogCfg(enum CnfItemType type, char *value)
                 Logger(ERROR, MD_NM_CFG, "File_size in config is invalid");
                 return PWR_ERR_INVALIDE_PARAM;
             }
-        
+
             g_logCfg.maxFileSize = actualValue * UNIT_FACTOR - MAX_LINE_LENGTH;
             break;
         case E_CFG_IT_CNT:
@@ -94,7 +94,7 @@ static int UpdateLogCfg(enum CnfItemType type, char *value)
                 Logger(ERROR, MD_NM_CFG, "Log_level in config is invalid");
                 return PWR_ERR_INVALIDE_PARAM;
             }
-        
+
             UpdateLogLevel(actualValue);
             break;
         case E_CFG_IT_LGP:
@@ -114,6 +114,27 @@ static int UpdateLogCfg(enum CnfItemType type, char *value)
             break;
     }
     return PWR_SUCCESS;
+}
+
+
+static void DoReleaseWhiteList(char** whiteList)
+{
+    int i = 0;
+    if (!whiteList) {
+        return;
+    }
+
+    /**
+     * The pointer in whiteList only points to the beginning of a
+     * substring in a block of memory (storing multiple strings),
+     * without allocating memory and does not need to be released.
+    */
+    free(whiteList);
+    while (whiteList[i] != NULL) {
+        whiteList[i] = NULL;
+        i++;
+    }
+    whiteList = NULL;
 }
 
 static int UpdateServCfg(enum CnfItemType type, char *value)
@@ -144,7 +165,7 @@ static int UpdateServCfg(enum CnfItemType type, char *value)
 
 static char** UpdateRoleArrayAction(const char *value)
 {
-    size_t maxNum = 0;
+    int maxNum = 0;
     int i = 0;
     char** tempRoleArray = NULL;
     maxNum = strlen(value);
@@ -174,6 +195,36 @@ static char** UpdateRoleArrayAction(const char *value)
     return tempRoleArray;
 }
 
+static int IsSameArray(char **arr1, char **arr2)
+{
+    if (arr1 == NULL && arr2 == NULL) {
+        return PWR_TRUE;
+    }
+    if (arr1 == NULL || arr2 == NULL) {
+        return PWR_FALSE;
+    }
+
+    int len1 = 0;
+    int len2 = 0;
+    while (arr1[len1] != NULL && strlen(arr1[len1]) > 0) {
+        len1++;
+    }
+    while (arr2[len2] != NULL && strlen(arr2[len2]) > 0) {
+        len2++;
+    }
+    if (len1 != len2) {
+        return PWR_FALSE;
+    }
+
+    for (int i = 0; i < len1; i++) {
+        if (strcmp(arr1[i], arr2[i]) != 0) {
+            return PWR_FALSE;
+        }
+    }
+
+    return PWR_TRUE;
+}
+
 static int UpdateRoleArray(enum CnfItemType type, const char *value)
 {
     char** tempRoleArray = UpdateRoleArrayAction(value);
@@ -190,12 +241,15 @@ static int UpdateRoleArray(enum CnfItemType type, const char *value)
                 Logger(INFO, MD_NM_CFG, "Admin in config is meaningless!%s", value);
                 return PWR_ERR_INVALIDE_PARAM;
             }
+            if (IsSameArray(g_adminArray, tempRoleArray) == PWR_TRUE) {
+                return PWR_SUCCESS;
+            }
 
             oldRoleArray = g_adminArray;
             g_adminArray = tempRoleArray;
             DoReleaseWhiteList(oldRoleArray);
             oldRoleArray = NULL;
-            Logger(INFO, MD_NM_CFG, "Admin in config has been modified to %s", value);
+            Logger(INFO, MD_NM_CFG, "Admin in config has been modified to [%s]", value);
             break;
         case E_CFG_IT_OBSER:
             if (value == NULL) {
@@ -205,16 +259,19 @@ static int UpdateRoleArray(enum CnfItemType type, const char *value)
                 return PWR_SUCCESS;
             }
 
-            if (tempRoleArray == NULL) {
+            if (strlen(value) != 0 && tempRoleArray == NULL) {
                 Logger(INFO, MD_NM_CFG, "Observer in config is meaningless!%s", value);
                 return PWR_ERR_INVALIDE_PARAM;
+            }
+            if (IsSameArray(g_observerArray, tempRoleArray) == PWR_TRUE) {
+                return PWR_SUCCESS;
             }
 
             oldRoleArray = g_observerArray;
             g_observerArray = tempRoleArray;
             DoReleaseWhiteList(oldRoleArray);
             oldRoleArray = NULL;
-            Logger(INFO, MD_NM_CFG, "Obser in config has been modified to %s", value);
+            Logger(INFO, MD_NM_CFG, "Obser in config has been modified to [%s]", value);
             break;
         default:
             DoReleaseWhiteList(tempRoleArray);
@@ -243,92 +300,106 @@ static int InitLogCfg(void)
 
 static int InitServCfg(void)
 {
-    strncpy(g_servCfg.sockFile, DEFAULT_SERVER_ADDR, sizeof(g_servCfg.sockFile) - 1);
+    strncpy(g_servCfg.sockFile, SERVER_ADDR, sizeof(g_servCfg.sockFile) - 1);
     g_servCfg.port = 0;
     return PWR_SUCCESS;
 }
 
-static enum CnfItemType StringToEnum(char *str)
+static Name_To_Enum g_strToEnum[] = {
+    {CFG_IT_FLS, E_CFG_IT_FLS},
+    {CFG_IT_CNT, E_CFG_IT_CNT},
+    {CFG_IT_LGV, E_CFG_IT_LGV},
+    {CFG_IT_LGP, E_CFG_IT_LGP},
+    {CFG_IT_BKP, E_CFG_IT_BKP},
+    {CFG_IT_PFX, E_CFG_IT_PFX},
+    {CFG_IT_SVP, E_CFG_IT_SVP},
+    {CFG_IT_SKF, E_CFG_IT_SKF},
+    {CFG_IT_ADM, E_CFG_IT_ADM},
+    {CFG_IT_OBSER, E_CFG_IT_OBSER}
+};
+
+static enum CnfItemType NameToEnum(char *name)
 {
-    if (strcmp(str, CFG_IT_FLS) == 0) {
-        return E_CFG_IT_FLS;
-    } else if (strcmp(str, CFG_IT_CNT) == 0) {
-        return E_CFG_IT_CNT;
-    } else if (strcmp(str, CFG_IT_LGV) == 0) {
-        return E_CFG_IT_LGV;
-    } else if (strcmp(str, CFG_IT_LGP) == 0) {
-        return E_CFG_IT_LGP;
-    } else if (strcmp(str, CFG_IT_BKP) == 0) {
-        return E_CFG_IT_BKP;
-    } else if (strcmp(str, CFG_IT_PFX) == 0) {
-        return E_CFG_IT_PFX;
-    } else if (strcmp(str, CFG_IT_SVP) == 0) {
-        return E_CFG_IT_SVP;
-    } else if (strcmp(str, CFG_IT_SKF) == 0) {
-        return E_CFG_IT_SKF;
-    } else if (strcmp(str, CFG_IT_ADM) == 0) {
-        return E_CFG_IT_ADM;
-    } else if (strcmp(str, CFG_IT_OBSER) == 0) {
-        return E_CFG_IT_OBSER;
+    int len = sizeof(g_strToEnum) / sizeof(g_strToEnum[0]);
+    for (int i = 0; i < len; i++) {
+        if (strcmp(name, g_strToEnum[i].cnfItemName) == 0) {
+            return g_strToEnum[i].cnfItemType;
+        }
     }
+    return -1;
 }
 
-static int LoadConfigFile(void)
+static int ParseCfgAndHandle(int(Handler(char *name, char *value)), const char *file)
 {
     char line[MAX_LINE_NUM] = {0};
-    char realpathRes[MAX_FULL_NAME] = {0};
+    char itemName[MAX_KEY_LEN] = {0};
+    char itemValue[MAX_LINE_LENGTH] = {0};
 
-    int ret = NormalizeAndVerifyFilepath(g_configPath, realpathRes);
-    if (ret != PWR_SUCCESS) return ret;
-    if (access(realpathRes, R_OK) != 0) return PWR_ERR_COMMON;
-
-    FILE *fp = fopen(realpathRes, "r");
-    if (fp == NULL) return PWR_ERR_NULL_POINTER;
+    FILE *fp = fopen(file, "r");
+    if (fp == NULL) {
+        return PWR_ERR_FILE_OPEN_FAILED;
+    }
     while (fgets(line, sizeof(line) - 1, fp) != NULL) {
-        // Skip invalid lines such as empty lines、comment lines
+        memset(itemName, 0, MAX_KEY_LEN);
+        memset(itemValue, 0, MAX_LINE_LENGTH);
         if (strlen(line) <= 1 || line[0] == '#' || line[0] == '[') {
             continue;
         }
-        // Parse the current line content, extract (key, value)
-        char key[MAX_KEY_LEN] = {0};
-        char value[MAX_LINE_LENGTH] = {0};
         char *index = strchr(line, '=');
         if (index == NULL) {
             continue;
         }
-        strncpy(key, line, index - line);
-        strncpy(value, index + 1, MAX_LINE_LENGTH - 1);
-        LRtrim(key);
-        LRtrim(value);
-        if (strlen(key) == 0) {
-            // Key is invalid
+        strncpy(itemName, line, index - line);
+        strncpy(itemValue, index + 1, MAX_LINE_LENGTH - 1);
+        LRtrim(itemName);
+        LRtrim(itemValue);
+        if (strlen(itemName) == 0) {
             continue;
         }
-        enum CnfItemType type = StringToEnum(key);
-
-        switch (type) {
-            case E_CFG_IT_FLS:
-            case E_CFG_IT_CNT:
-            case E_CFG_IT_LGV:
-            case E_CFG_IT_LGP:
-            case E_CFG_IT_BKP:
-            case E_CFG_IT_PFX:
-                UpdateLogCfg(type, value);
-                break;
-            case E_CFG_IT_SVP:
-            case E_CFG_IT_SKF:
-                UpdateServCfg(type, value);
-                break;
-            case E_CFG_IT_ADM:
-            case E_CFG_IT_OBSER:
-                UpdateRoleArray(type, value);
-                break;
-            default:
-                break;
-        }
+        Handler(itemName, itemValue);
     }
-    if (fclose(fp) < 0) return PWR_ERR_COMMON;
     return PWR_SUCCESS;
+}
+
+static int LoadCfgHandler(char *itemName, char *itemValue)
+{
+    enum CnfItemType type = NameToEnum(itemName);
+
+    switch (type) {
+        case E_CFG_IT_FLS:
+        case E_CFG_IT_CNT:
+        case E_CFG_IT_LGV:
+        case E_CFG_IT_LGP:
+        case E_CFG_IT_BKP:
+        case E_CFG_IT_PFX:
+            UpdateLogCfg(type, itemValue);
+            break;
+        case E_CFG_IT_SVP:
+        case E_CFG_IT_SKF:
+            UpdateServCfg(type, itemValue);
+            break;
+        case E_CFG_IT_ADM:
+        case E_CFG_IT_OBSER:
+            UpdateRoleArray(type, itemValue);
+            break;
+        default:
+            break;
+    }
+    return PWR_SUCCESS;
+}
+static int LoadConfigFile(void)
+{
+    // char line[MAX_LINE_NUM] = {0};
+    char realpath[MAX_FULL_NAME] = {0};
+
+    int ret = NormalizeAndVerifyFilepath(g_configPath, realpath);
+    if (ret != PWR_SUCCESS) {
+        return ret;
+    }
+    if (access(realpath, R_OK) != 0) {
+        return PWR_ERR_COMMON;
+    }
+    return ParseCfgAndHandle(LoadCfgHandler, realpath);
 }
 
 int InitConfig(void)
@@ -366,7 +437,7 @@ int InitConfig(void)
 
 static int HandleInvalidUpdate(char *key, char *value)
 {
-    enum CnfItemType type = StringToEnum(key);
+    enum CnfItemType type = NameToEnum(key);
     switch (type) {
         case E_CFG_IT_LGP:
             if (strcmp(value, g_logCfg.logPath) != 0) {
@@ -398,10 +469,9 @@ static int HandleInvalidUpdate(char *key, char *value)
 
 int UpdateConfig(char *key, char *value)
 {
-    enum CnfItemType type = StringToEnum(key);
+    enum CnfItemType type = NameToEnum(key);
     int actualValue;
     switch (type) {
-        // Properties that can be dynamically validated
         case E_CFG_IT_FLS:
             actualValue = atoi(value);
             if (!IsNumStr(value) || actualValue < 0) {
@@ -441,7 +511,6 @@ int UpdateConfig(char *key, char *value)
         case E_CFG_IT_ADM:
         case E_CFG_IT_OBSER:
             return UpdateRoleArray(type, value);
-        // Properties that cannot be dynamically validated
         default:
             return HandleInvalidUpdate(key, value);
     }
@@ -455,60 +524,17 @@ int CheckAndUpdateConfig(void)
     if (strlen(curMd5) == 0 || strcmp(curMd5, g_lastMd5) == 0) {
         return PWR_SUCCESS;
     }
+    char realpath[MAX_FULL_NAME] = {0};
 
-    int invalidUpdateSum = 0;   // The number of invalid updates
-    int nonDynamicSum = 0;      // The number of undynamically validated attrs that been modified
-    char line[MAX_LINE_LENGTH];
-    char realpathRes[MAX_FULL_NAME] = {0};
-
-    int ret = NormalizeAndVerifyFilepath(g_configPath, realpathRes);
-    if (ret != PWR_SUCCESS) return ret;
-    if (access(realpathRes, R_OK) != 0) return PWR_ERR_COMMON;
-
-    FILE *fp = fopen(realpathRes, "r");
-    if (fp == NULL) return PWR_ERR_NULL_POINTER;
-
-    while (fgets(line, sizeof(line) - 1, fp) != NULL) {
-        if (strlen(line) <= 1 || line[0] == '#' || line[0] == '[') continue;
-        char key[MAX_KEY_LEN] = {0};
-        char value[MAX_LINE_LENGTH] = {0};
-        char *index = strchr(line, '=');
-        if (index == NULL) continue;
-        
-        strncpy(key, line, index - line);
-        strncpy(value, index + 1, sizeof(value));
-        LRtrim(key);
-        LRtrim(value);
-        if (strlen(key) == 0 || strlen(value) == 0) {
-            // key or value is invalid
-            continue;
-        }
-        switch (UpdateConfig(key, value)) {
-            case PWR_ERR_INVALIDE_PARAM:
-                invalidUpdateSum++;
-                break;
-            case PWR_ERR_COMMON:
-                nonDynamicSum++;
-                break;
-        }
+    int ret = NormalizeAndVerifyFilepath(g_configPath, realpath);
+    if (ret != PWR_SUCCESS) {
+        return ret;
     }
-    if (fclose(fp) < 0) return PWR_ERR_COMMON;
+    if (access(realpath, R_OK) != 0) {
+        return PWR_ERR_COMMON;
+    }
     strncpy(g_lastMd5, curMd5, sizeof(g_lastMd5));
-    /**
-     * The file has been confirmed to be modified now.
-     * 1. Error modifying attrs, return PWR_ERR_INVALIDE_PARAM;
-     * 2. Undynamically validated attrs have been modified, return PWR_ERR_MODIFY_BAN_UPDATE_ATTR_CURRENTLY;
-     * 3. Return PWR_SUCCESS.
-     */
-    if (invalidUpdateSum != 0) {
-        return PWR_ERR_INVALIDE_PARAM;
-    } else {
-        if (nonDynamicSum != 0) {
-            return PWR_ERR_MODIFY_BAN_UPDATE_ATTR_CURRENTLY;
-        } else {
-            return PWR_SUCCESS;
-        }
-    }
+    return ParseCfgAndHandle(UpdateConfig, realpath);
 }
 
 int GetLogLevel(void)
@@ -570,22 +596,6 @@ int IsObserver(const char* user)
     }
 
     return PWR_FALSE;
-}
-
-void DoReleaseWhiteList(char** whiteList)
-{
-    int i = 0;
-    if (!whiteList) {
-        return;
-    }
-
-    while (whiteList[i] != NULL) {
-        free(whiteList[i]);
-        whiteList[i] = NULL;
-        i++;
-    }
-    free(whiteList);
-    whiteList = NULL;
 }
 
 void ReleaseWhiteList(void)

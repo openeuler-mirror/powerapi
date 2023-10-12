@@ -20,7 +20,7 @@
 #include "pwrerr.h"
 #include "sockclient.h"
 
-int SetSysPowerState(int powerState)
+int SetSysPowerState(const int powerState)
 {
     ReqInputParam input;
     input.optType = SYS_SET_POWER_STATE;
@@ -39,13 +39,52 @@ int SetSysPowerState(int powerState)
 
     int ret = SendReqAndWaitForRsp(input, output);
     if (ret != PWR_SUCCESS) {
-        PwrLog(ERROR, "SetSysPowerState failed. ret:%d", ret);
+        PwrLog(ERROR, "SetSysPowerState failed. ret: %d", ret);
     } else {
-        PwrLog(DEBUG, "SetSysPowerState Succeed.");
+        PwrLog(DEBUG, "SetSysPowerState succeed.");
     }
     return ret;
 }
 
+int GetCappedPower(int *cappedPower)
+{
+    ReqInputParam input;
+    input.optType = SYS_GET_CAPPED_POWER;
+    input.dataLen = 0;
+    input.data = NULL;
+    RspOutputParam output;
+    size_t s = sizeof(int);
+    uint32_t size = s;
+    output.rspBuffSize = &size;
+    output.rspData = (void *)cappedPower;
+    int ret = SendReqAndWaitForRsp(input, output);
+    if (ret != PWR_SUCCESS) {
+        PwrLog(ERROR, "GetCappedPower failed. ret: %d", ret);
+    } else {
+        PwrLog(DEBUG, "GetCappedPower succeed.");
+    }
+    return ret;
+}
+
+int SetCappedPower(const int cappedPower)
+{
+    ReqInputParam input;
+    input.optType = SYS_SET_CAPPED_POWER;
+    size_t dataLen = sizeof(int);
+    input.dataLen = dataLen;
+    input.data = (char *)&cappedPower;
+    RspOutputParam output;
+    output.rspBuffSize = NULL;
+    output.rspData = NULL;
+
+    int ret = SendReqAndWaitForRsp(input, output);
+    if (ret != PWR_SUCCESS) {
+        PwrLog(ERROR, "SetCappedPower failed. ret: %d", ret);
+    } else {
+        PwrLog(DEBUG, "SetCappedPower succeed.");
+    }
+    return ret;
+}
 
 int GetSysRtPowerInfo(PWR_SYS_PowerInfo *powerInfo)
 {
@@ -60,9 +99,29 @@ int GetSysRtPowerInfo(PWR_SYS_PowerInfo *powerInfo)
     output.rspData = (void *)powerInfo;
     int ret = SendReqAndWaitForRsp(input, output);
     if (ret != PWR_SUCCESS) {
-        PwrLog(ERROR, "GetSysRtPower failed. ret:%d", ret);
+        PwrLog(ERROR, "GetSysRtPower failed. ret: %d", ret);
     } else {
-        PwrLog(DEBUG, "GetSysRtPower Succeed.");
+        PwrLog(DEBUG, "GetSysRtPower succeed.");
+    }
+    return ret;
+}
+
+int GetStatisticPowerInfo(PWR_SYS_StatisticPowerInfo *stcPowerInfo)
+{
+    ReqInputParam input;
+    input.optType = SYS_GET_STC_POWER;
+    input.dataLen = 0;
+    input.data = NULL;
+    RspOutputParam output;
+    size_t s = sizeof(PWR_SYS_StatisticPowerInfo);
+    uint32_t size = s;
+    output.rspBuffSize = &size;
+    output.rspData = (void *)stcPowerInfo;
+    int ret = SendReqAndWaitForRsp(input, output);
+    if (ret != PWR_SUCCESS) {
+        PwrLog(ERROR, "GetStatisticPowerInfo failed. ret: %d", ret);
+    } else {
+        PwrLog(DEBUG, "GetStatisticPowerInfo succeed.");
     }
     return ret;
 }

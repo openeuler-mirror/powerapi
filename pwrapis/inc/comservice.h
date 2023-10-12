@@ -17,7 +17,7 @@
 #include <stdint.h>
 #include "pwrmsg.h"
 
-void RequestControlAuth(const PwrMsg *req);
-void ReleaseControlAuth(const PwrMsg *req);
+void RequestControlAuth(PwrMsg *req);
+void ReleaseControlAuth(PwrMsg *req);
 void CleanControlAuth(uint32_t client);
 #endif

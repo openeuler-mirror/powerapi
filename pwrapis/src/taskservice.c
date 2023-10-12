@@ -369,24 +369,20 @@ void FiniTaskService(void)
     g_hasInited = PWR_FALSE;
 }
 
-void CreateDataCollTask(const PwrMsg *req)
+void CreateDataCollTask(PwrMsg *req)
 {
     if (!req || req->head.dataLen != sizeof(PWR_COM_BasicDcTaskInfo)) {
         return;
     }
-    Logger(DEBUG, MD_NM_SVR_TASK, "Get CreateDataCollTask Req. seqId:%u, sysId:%d", req->head.seqId, req->head.sysId);
-
     int rspCode = CreateTask((PWR_COM_BasicDcTaskInfo *)req->data, req->head.sysId);
     SendRspToClient(req, rspCode, NULL, 0);
 }
 
-void DeleteDataCollTask(const PwrMsg *req)
+void DeleteDataCollTask(PwrMsg *req)
 {
     if (!req || req->head.dataLen != sizeof(PWR_COM_COL_DATATYPE)) {
         return;
     }
-    Logger(DEBUG, MD_NM_SVR_TASK, "Get DeleteDataCollTask Req. seqId:%u, sysId:%d", req->head.seqId, req->head.sysId);
-
     PWR_COM_COL_DATATYPE *dataType = (PWR_COM_COL_DATATYPE *)req->data;
     int rspCode = DeleteTask(*dataType, req->head.sysId);
     SendRspToClient(req, rspCode, NULL, 0);

@@ -56,7 +56,7 @@ TEST_F(RegisterOkCpuTest, PWR_SYS_GetRtPowerInfo_Test_001)
 {
     PWR_SYS_PowerInfo powerInfo;
     EXPECT_EQ(PWR_SUCCESS, PWR_SYS_GetRtPowerInfo(&powerInfo));
-    printf("sysPower:%02lf, cpuPower:%02lf, memPower:%02lf\n",
+    printf("sysPower:%d, cpuPower:%d, memPower:%d\n",
         powerInfo.sysPower, powerInfo.cpuPower, powerInfo.memPower);
     EXPECT_LT(0, powerInfo.sysPower);
 }

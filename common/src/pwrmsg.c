@@ -148,7 +148,7 @@ int GenerateRspMsg(const PwrMsg *req, PwrMsg *rsp, int rspCode, char *data, int 
     return PWR_SUCCESS;
 }
 
-int GenerateEventMsg(PwrMsg *event, uint32_t sysId, const char *data, uint32_t len)
+int GenerateEventMsg(PwrMsg *event, uint32_t sysId, char *data, uint32_t len)
 {
     if (!event || !data) {
         return PWR_ERR_NULL_POINTER;
