@@ -471,7 +471,7 @@ static int GovernorSet(char *gov, char (*policys)[PWR_MAX_ELEMENT_NAME_LEN], int
         Logger(ERROR, MD_NM_SVR_CPU, "Malloc failed.");
         return 1;
     }
-    bzero(govInfo, sizeof(govInfo));
+    bzero(govInfo, sizeof(strlen(gov) + PWR_MAX_NAME_LEN));
     static const char s1[] = "/sys/devices/system/cpu/cpufreq/";
     static const char s2[] = "/scaling_governor";
     for (i = 0; i < (*poNum); i++) {

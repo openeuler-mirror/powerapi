@@ -454,8 +454,7 @@ static void WaitForMsg(void)
     pthread_mutex_unlock((pthread_mutex_t *)&g_waitMsgMutex);
 }
 
-static OptToFunct g_optToFunct[] =
-{
+static OptToFunct g_optToFunct[] = {
     {COM_CREATE_DC_TASK, CreateDataCollTask},
     {COM_DELETE_DC_TASK, DeleteDataCollTask},
     {COM_REQUEST_CONTROL_AUTH, RequestControlAuth},
