@@ -77,12 +77,9 @@ static int SysRtPowerRead(PWR_SYS_PowerInfo *rstData)
     return PWR_SUCCESS;
 }
 
+// public===========================================================================================
 void SetSysPowerState(PwrMsg *req)
 {
-    if (!req) {
-        return;
-    }
-    Logger(DEBUG, MD_NM_SVR_SYS, "Set Sys Power State Req. seqId:%u, sysId:%d", req->head.seqId, req->head.sysId);
     int rspCode = PowerSet(req->data);
     PwrMsg *rsp = (PwrMsg *)malloc(sizeof(PwrMsg));
     if (!rsp) {
@@ -98,10 +95,6 @@ void SetSysPowerState(PwrMsg *req)
 
 void GetSysRtPowerInfo(PwrMsg *req)
 {
-    if (!req) {
-        return;
-    }
-    Logger(DEBUG, MD_NM_SVR_SYS, "Get Get Sys Rt Power Req. seqId:%u, sysId:%d", req->head.seqId, req->head.sysId);
     PWR_SYS_PowerInfo *rstData = malloc(sizeof(PWR_SYS_PowerInfo));
     if (!rstData) {
         return;

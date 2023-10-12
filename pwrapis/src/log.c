@@ -41,22 +41,12 @@ static FILE *OpenLogFile(void)
 {
     struct stat st;
     char fullName[MAX_FULL_NAME] = {0};
-    char realpathRes[MAX_FULL_NAME] = {0};
 
     // Create log file
     if (sprintf(fullName, "%s/%s", GetLogCfg()->logPath, GetLogCfg()->logPfx) < 0) {
         return NULL;
     }
-    
-    int ret = NormalizeAndVerifyFilepath(fullName, realpathRes);
-    if (ret != PWR_SUCCESS) {
-        return NULL;
-    }
-    if (access(realpathRes, W_OK) != 0) {
-        return NULL;
-    }
-
-    g_pFile = fopen(realpathRes, "a");
+    g_pFile = fopen(fullName, "a");
     if (stat(fullName, &st) < 0) {
         return NULL;
     }

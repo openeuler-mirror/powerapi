@@ -67,24 +67,14 @@ static int DoAuthRelease(uint32_t client)
 }
 
 // public===========================================================================================
-void RequestControlAuth(const PwrMsg *req)
+void RequestControlAuth(PwrMsg *req)
 {
-    if (!req) {
-        return;
-    }
-    Logger(DEBUG, MD_NM_SVR_TASK, "Get ReqeustControlAuth Req. seqId:%u, sysId:%d", req->head.seqId, req->head.sysId);
-
     int rspCode = DoAuthRequest(req->head.sysId);
     SendRspToClient(req, rspCode, NULL, 0);
 }
 
-void ReleaseControlAuth(const PwrMsg *req)
+void ReleaseControlAuth(PwrMsg *req)
 {
-    if (!req) {
-        return;
-    }
-    Logger(DEBUG, MD_NM_SVR_TASK, "Get ReleaseControlAuth Req. seqId:%u, sysId:%d", req->head.seqId, req->head.sysId);
-
     int rspCode = DoAuthRelease(req->head.sysId);
     SendRspToClient(req, rspCode, NULL, 0);
 }

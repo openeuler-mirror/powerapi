@@ -468,6 +468,32 @@ static void TEST_PWR_CPU_SetFreq(void)
     printf("    current policy[%d]: %lf\n", cpuCurFreq[0].policyId, cpuCurFreq[0].curFreq);
 }
 
+static void TEST_PWR_CPU_GovAttrs(void)
+{
+    int ret = 0;
+    char gov[] = "ondemand";
+    char sr[] = "sampling_rate";
+    char srValue[] = "9000";
+    PWR_CPU_SetFreqGovernor(gov);
+    PWR_CPU_FreqGovAttrs attrs = {0};
+    ret = PWR_CPU_GetFreqGovAttrs(&attrs);
+    PrintResult("1 PWR_CPU_GetFreqGovAttrs", ret);
+    for (int i = 0; i < attrs.attrNum; i++) {
+        printf("attr%d: %s: %s\n", i, attrs.attrs[i].key, attrs.attrs[i].value);
+    }
+
+    PWR_CPU_FreqGovAttr attr = {0};
+    strncpy(attr.gov, gov, strlen(gov));
+    strncpy(attr.attr.key, sr, strlen(sr));
+    ret = PWR_CPU_GetFreqGovAttr(&attr);
+    PrintResult("2 PWR_CPU_GetFreqGovAttr", ret);
+    printf("attr: %s: %s: %s\n", gov, sr, attr.attr.value);
+
+    strncpy(attr.attr.value, srValue, PWR_MAX_VALUE_LEN);
+    ret = PWR_CPU_SetFreqGovAttr(&attr);
+    PrintResult("3 PWR_CPU_SetFreqGovAttr", ret);
+}
+
 static void TEST_PWR_CPU_DmaSetAndGetLatency(void)
 {
     int ret = 0;
@@ -526,6 +552,7 @@ int main(int argc, const char *args[])
     TEST_PWR_CPU_SetFreqRange();
     TEST_PWR_CPU_GetFreq();
     TEST_PWR_CPU_SetFreq();
+    TEST_PWR_CPU_GovAttrs();
     // TEST_PWR_CPU_DmaSetAndGetLatency();
 
     /************ DISK ***********/

@@ -282,6 +282,27 @@ int PWR_CPU_SetFreqGovernor(const char gov[])
     return SetCpuFreqGovernor(gov, strlen(gov) + 1);
 }
 
+int PWR_CPU_GetFreqGovAttrs(PWR_CPU_FreqGovAttrs *govAttrs)
+{
+    CHECK_STATUS(STATUS_REGISTERTED);
+    CHECK_NULL_POINTER(govAttrs);
+    return GetCpuFreqGovAttrs(govAttrs);
+}
+
+int PWR_CPU_GetFreqGovAttr(PWR_CPU_FreqGovAttr *govAttr)
+{
+    CHECK_STATUS(STATUS_REGISTERTED);
+    CHECK_NULL_POINTER(govAttr);
+    return GetCpuFreqGovAttr(govAttr);
+}
+
+int PWR_CPU_SetFreqGovAttr(const PWR_CPU_FreqGovAttr *govAttr)
+{
+    CHECK_STATUS(STATUS_AUTHED);
+    CHECK_NULL_POINTER(govAttr);
+    return SetCpuFreqGovAttr(govAttr);
+}
+
 int PWR_CPU_GetFreq(PWR_CPU_CurFreq curFreq[], uint32_t *num, int spec)
 {
     CHECK_STATUS(STATUS_REGISTERTED);
@@ -327,6 +348,7 @@ int PWR_DISK_GetList(char diskList[][PWR_MAX_ELEMENT_NAME_LEN], uint32_t *len)
 {
     CHECK_STATUS(STATUS_REGISTERTED);
     CHECK_NULL_POINTER(diskList);
+    CHECK_NULL_POINTER(len);
     if (!len || *len == 0) {
         return PWR_ERR_INVALIDE_PARAM;
     }
@@ -338,6 +360,7 @@ int PWR_DISK_GetLoad(PWR_DISK_Load load[], uint32_t *len, int spec)
 {
     CHECK_STATUS(STATUS_REGISTERTED);
     CHECK_NULL_POINTER(load);
+    CHECK_NULL_POINTER(len);
     if (!len || *len == 0 || (spec != PWR_TRUE && spec != PWR_FALSE)) {
         return PWR_ERR_INVALIDE_PARAM;
     }
@@ -349,6 +372,7 @@ int PWR_DISK_GetPwrLevel(PWR_DISK_PwrLevel pwrLevel[], uint32_t *len, int spec)
 {
     CHECK_STATUS(STATUS_REGISTERTED);
     CHECK_NULL_POINTER(pwrLevel);
+    CHECK_NULL_POINTER(len);
     if (!len || *len == 0 || (spec != PWR_TRUE && spec != PWR_FALSE)) {
         return PWR_ERR_INVALIDE_PARAM;
     }
@@ -371,6 +395,7 @@ int PWR_DISK_GetScsiPolicy(PWR_DISK_ScsiPolicy scsiPolicy[], uint32_t *len, int 
 {
     CHECK_STATUS(STATUS_REGISTERTED);
     CHECK_NULL_POINTER(scsiPolicy);
+    CHECK_NULL_POINTER(len);
     if (!len || *len == 0 || (spec != PWR_TRUE && spec != PWR_FALSE)) {
         return PWR_ERR_INVALIDE_PARAM;
     }
@@ -439,6 +464,7 @@ int PWR_USB_GetAutoSuspend(PWR_USB_AutoSuspend usbAts[], uint32_t *len)
 {
     CHECK_STATUS(STATUS_REGISTERTED);
     CHECK_NULL_POINTER(usbAts);
+    CHECK_NULL_POINTER(len);
     if (!len || *len == 0) {
         return PWR_ERR_INVALIDE_PARAM;
     }
