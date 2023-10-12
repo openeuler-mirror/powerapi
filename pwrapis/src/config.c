@@ -216,8 +216,7 @@ static int IsSameArray(char **arr1, char **arr2)
         return PWR_FALSE;
     }
 
-    for (int i = 0; i < len1; i++)
-    {
+    for (int i = 0; i < len1; i++) {
         if (strcmp(arr1[i], arr2[i]) != 0) {
             return PWR_FALSE;
         }
@@ -306,8 +305,7 @@ static int InitServCfg(void)
     return PWR_SUCCESS;
 }
 
-static Name_To_Enum g_strToEnum[] =
-{
+static Name_To_Enum g_strToEnum[] = {
     {CFG_IT_FLS, E_CFG_IT_FLS},
     {CFG_IT_CNT, E_CFG_IT_CNT},
     {CFG_IT_LGV, E_CFG_IT_LGV},

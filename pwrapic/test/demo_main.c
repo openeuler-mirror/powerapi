@@ -212,7 +212,7 @@ static void TEST_SYS_SetPowerState(void)
 {
     /**
      * warning: After the system sleeps, it needs to be reactivated through
-     * other means (such as the IMPI interface through the BMC physical port) 
+     * other means (such as the IMPI interface through the BMC physical port)
     */
     int ret = -1;
     ret = PWR_SYS_SetPowerState(1);
@@ -282,7 +282,7 @@ static void TEST_PWR_CPU_GetInfo(void)
     ret = PWR_CPU_GetInfo(info);
     PrintResult("PWR_CPU_GetInfo", ret);
     printf("    arch: %s\n    coreNum: %d\n    maxFreq: %f\n    minFreq: %f\n    "
-        "modelName: %s\n    numaNum: %d\n    threadsPerCore: %d\n",info->arch,
+        "modelName: %s\n    numaNum: %d\n    threadsPerCore: %d\n", info->arch,
         info->coreNum, info->maxFreq, info->minFreq, info->modelName, info->numaNum,
         info->threadsPerCore);
     for (int i = 0; i < info->numaNum; i++) {
@@ -420,9 +420,10 @@ static void TEST_PWR_CPU_GetFreq(void)
     }
 
     /**
-     * Test 2: spec = 0 num = 2. get the previous 2 policies' freq.
+     * Test 2: spec = 0 num = 2. get the previous 2 policies' freq
      */
     ret = -1;
+    // 2: previous 2 policies
     num = 2;
     spec = 0;
     PWR_CPU_CurFreq cpuCurFreq2[num];
@@ -434,14 +435,16 @@ static void TEST_PWR_CPU_GetFreq(void)
     }
 
     /**
-     * Test 3: spec = 1, get the two target policy freq.
+     * Test 3: spec = 1, get the two target policy freq
      */
     ret = -1;
+    // 2: previous 2 policies
     num = 2;
     spec = 1;
     PWR_CPU_CurFreq cpuCurFreq3[num];
     bzero(cpuCurFreq3, num * sizeof(PWR_CPU_CurFreq));
     cpuCurFreq3[0].policyId = 0;
+    // 32 : the Id of the second policy.
     cpuCurFreq3[1].policyId = 32;
     ret = PWR_CPU_GetFreq(cpuCurFreq3, &num, spec);
     PrintResult("3  PWR_CPU_GetFreq", ret);

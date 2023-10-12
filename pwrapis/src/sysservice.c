@@ -24,7 +24,7 @@
 
 static int PowerSet(char *powerState)
 {
-    int bufferTime = 10; //The value may need to be determined again
+    int bufferTime = 10; // The value may need to be determined again
     static const char fileName[] = "/sys/power/state";
 
     sleep(bufferTime);
