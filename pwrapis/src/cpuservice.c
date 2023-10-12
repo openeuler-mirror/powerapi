@@ -466,16 +466,17 @@ static int GovernorSet(char *gov, char (*policys)[PWR_MAX_ELEMENT_NAME_LEN], int
             return PWR_ERR_INVALIDE_PARAM;
         }
     }
-    char *govInfo = malloc(strlen(gov) + PWR_MAX_NAME_LEN);
+    int buffLen = PWR_MAX_NAME_LEN + strlen(gov);
+    char *govInfo = malloc(buffLen);
     if (govInfo == NULL) {
         Logger(ERROR, MD_NM_SVR_CPU, "Malloc failed.");
         return 1;
     }
-    bzero(govInfo, sizeof(strlen(gov) + PWR_MAX_NAME_LEN));
+    bzero(govInfo, buffLen);
     static const char s1[] = "/sys/devices/system/cpu/cpufreq/";
     static const char s2[] = "/scaling_governor";
     for (i = 0; i < (*poNum); i++) {
-        StrCopy(govInfo, s1, strlen(gov) + PWR_MAX_NAME_LEN);
+        StrCopy(govInfo, s1, buffLen);
         strncat(govInfo, policys[i], strlen(policys[i]));
         strncat(govInfo, s2, strlen(s2));
         int ret = WriteFile(govInfo, gov, strlen(gov));
