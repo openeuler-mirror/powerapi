@@ -16,6 +16,7 @@
 #define POWERAPI_DATA_H__
 
 #include <stdint.h>
+#include <sys/types.h>
 #define PWR_MAX_ELEMENT_NAME_LEN 32
 #define PWR_MAX_ARRRIBUTES 11
 #define PWR_MAX_NAME_LEN 128
@@ -39,6 +40,10 @@
 
 #define PWR_MAX_CPU_DMA_LATENCY 2000000000
 #define PWR_MAX_DISK_LIST_LEN 128
+#define PWR_INIT_RESERVED_LEN 32
+#define PWR_ONE_HUNDRED 100
+#define PWR_ONE_THOUSAND 1000
+#define PWR_MAX_WATT_SCALE_INTERVAL 3600000
 
 enum PWR_Arch {
     PWR_AARCH_64 = 0,
@@ -63,6 +68,10 @@ enum PWR_CpuAttType {
     PWR_MAX_MHZ,
     PWR_MIN_MHZ,
 };
+typedef enum PWR_PROC_SMART_GRID_LEVEL {
+    PWR_PROC_SG_LEVEL_0 = 0,
+    PWR_PROC_SG_LEVEL_1 = 1,
+} PWR_PROC_SMART_GRID_LEVEL;
 
 typedef enum PWR_COM_COL_DATATYPE {
     PWR_COM_DATATYPE_CPU_PERF = 1,
@@ -245,4 +254,16 @@ typedef struct PWR_USB_AutoSuspend {
     int wakeup;
 } PWR_USB_AutoSuspend;
 
+typedef struct PWR_PROC_WattAttrs {
+    int scaleThreshold;
+    int domainMask;
+    int scaleInterval;
+    char reserved[PWR_INIT_RESERVED_LEN];
+} PWR_PROC_WattAttrs;
+
+typedef struct PWR_PROC_SmartGridProcs {
+    PWR_PROC_SMART_GRID_LEVEL level;
+    int procNum;
+    pid_t procs[0];
+} PWR_PROC_SmartGridProcs;
 #endif
