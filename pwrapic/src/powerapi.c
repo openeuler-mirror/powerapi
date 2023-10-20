@@ -26,6 +26,7 @@
 #include "pwrdisk.h"
 #include "pwrnet.h"
 #include "pwrusb.h"
+#include "pwrproc.h"
 
 typedef enum PwrApiStatus {
     STATUS_UNREGISTERED = 0,
@@ -481,4 +482,107 @@ int PWR_USB_SetAutoSuspend(PWR_USB_AutoSuspend usbAts[], uint32_t len)
     }
 
     return SetUsbAutoSuspend(usbAts, len);
+}
+
+// PROC
+int PWR_PROC_GetWattState(int *state)
+{
+    CHECK_STATUS(STATUS_REGISTERTED);
+    CHECK_NULL_POINTER(state);
+    return GetProcWattState(state);
+}
+
+int PWR_PROC_SetWattState(int state)
+{
+    CHECK_STATUS(STATUS_AUTHED);
+    if (state != PWR_TRUE || state != PWR_FALSE) {
+        return PWR_ERR_INVALIDE_PARAM;
+    }
+    return SetProcWattState(state);
+}
+
+int PWR_PROC_GetWattAttrs(PWR_PROC_WattAttrs *wattAttrs)
+{
+    CHECK_STATUS(STATUS_REGISTERTED);
+    CHECK_NULL_POINTER(wattAttrs);
+    return GetProcWattAttrs(wattAttrs);
+}
+
+int PWR_PROC_SetWattAttrs(const PWR_PROC_WattAttrs *wattAttrs)
+{
+    CHECK_STATUS(STATUS_AUTHED);
+    CHECK_NULL_POINTER(wattAttrs);
+    if (wattAttrs->scaleThreshold < 0 || wattAttrs->scaleThreshold > PWR_ONE_HUNDRED ||
+        wattAttrs->scaleInterval < 0 || wattAttrs->scaleInterval > PWR_MAX_WATT_SCALE_INTERVAL ||
+        wattAttrs->domainMask < 0) {
+        return PWR_ERR_INVALIDE_PARAM;
+    }
+    return SetProcWattAttrs(wattAttrs);
+}
+
+int PWR_PROC_GetWattProcs(pid_t wattProcs[], uint32_t *num)
+{
+    CHECK_STATUS(STATUS_REGISTERTED);
+    CHECK_NULL_POINTER(wattProcs);
+    CHECK_NULL_POINTER(num);
+    if (*num == 0) {
+        return PWR_ERR_INVALIDE_PARAM;
+    }
+    return GetWattProcs(wattProcs, num);
+}
+
+int PWR_PROC_AddWattProcs(const pid_t wattProcs[], uint32_t num)
+{
+    CHECK_STATUS(STATUS_AUTHED);
+    CHECK_NULL_POINTER(wattProcs);
+    if (num == 0) {
+        return PWR_ERR_INVALIDE_PARAM;
+    }
+    return AddWattProcs(wattProcs, num);
+}
+
+int PWR_PROC_DelWattProcs(const pid_t wattProcs[], uint32_t num)
+{
+    CHECK_STATUS(STATUS_AUTHED);
+    CHECK_NULL_POINTER(wattProcs);
+    if (num == 0) {
+        return PWR_ERR_INVALIDE_PARAM;
+    }
+    return DelWattProcs(wattProcs, num);
+}
+
+int PWR_PROC_GetSmartGridState(int *state)
+{
+    CHECK_STATUS(STATUS_REGISTERTED);
+    CHECK_NULL_POINTER(state);
+    return GetSmartGridState(state);
+}
+
+int PWR_PROC_SetSmartGridState(int state)
+{
+    CHECK_STATUS(STATUS_AUTHED);
+    if (state != PWR_TRUE || state != PWR_FALSE) {
+        return PWR_ERR_INVALIDE_PARAM;
+    }
+    return SetSmartGridState(state);
+}
+
+int PWR_PROC_GetSmartGridProcs(PWR_PROC_SMART_GRID_LEVEL level, PWR_PROC_SmartGridProcs *sgProcs)
+{
+    CHECK_STATUS(STATUS_REGISTERTED);
+    CHECK_NULL_POINTER(sgProcs);
+    if (sgProcs->procNum == 0) {
+        return PWR_ERR_INVALIDE_PARAM;
+    }
+    return GetSmartGridProcs(level, sgProcs);
+}
+
+int PWR_PROC_SetSmartGridLevel(const PWR_PROC_SmartGridProcs *sgProcs)
+{
+    CHECK_STATUS(STATUS_AUTHED);
+    CHECK_NULL_POINTER(sgProcs);
+    if (sgProcs->procNum == 0) {
+        return PWR_ERR_INVALIDE_PARAM;
+    }
+    return SetSmartGridLevel(sgProcs);
 }
