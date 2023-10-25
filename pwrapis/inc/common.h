@@ -59,6 +59,7 @@
 #define MD_NM_SVR_CPU "CPU_SERVICE"
 #define MD_NM_SVR_DISK "DISK_SERVICE"
 #define MD_NM_SVR_TASK "TASK_SERVICE"
+#define MD_NM_SVR_PROC "PROC_SERVICE"
 #define MD_NM_CRED "CREDENTIALS"
 
 // Define configuration section name
@@ -159,6 +160,7 @@
 #define CURRENT_DIR "."
 #define PARENT_DIR ".."
 #define K_TO_M 1024
+#define LINE_SEP "\n"
 // Collected data name separator
 #define DATA_NM_SEP '.'
 #define DT_NM_SEP_STR "."
@@ -250,6 +252,7 @@ enum STATUS {
 #define MAX_COLL_DURATION MAX_PERIOD
 
 #define STR_LEN_FOR_LONG 22
+#define STR_LEN_FOR_INT 12
 #define WRONG_OBJ "coll_item_not_existed"
 
 enum ExistSt {

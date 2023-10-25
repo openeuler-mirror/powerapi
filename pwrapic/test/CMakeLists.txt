@@ -11,7 +11,7 @@ link_directories( ${PROJECT_SOURCE_DIR}/../../build/pwrapic/src )
 
 # Set compile policy
 set (PG_NAME ${PROJECT_NAME})
-add_executable (${PG_NAME} demo_main.c)
+add_executable (${PG_NAME} procapitest.c demo_main.c)
 target_link_libraries(${PG_NAME} -lpwrapi -lpthread)
 set (CMAKE_EXPORT_COMPILE_COMMANDS ON)
 

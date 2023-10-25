@@ -246,6 +246,7 @@ int InIntRange(int *range, int len, int a);
 int ReadFile(const char *strInfo, char *buf, int bufLen);
 int WriteFile(const char *strInfo, char *buf, int bufLen);
 int WriteFileAndCheck(const char *strInfo, char *buf, int bufLen);
+int WriteIntToFile(const char *path, int content);
 int GetMd5(const char *filename, char *md5);
 int NormalizeAndVerifyFilepath(const char *filename, char *realpathRes);
 int GetSockoptFromOS(const pid_t pid, UnixCredOS *credOS);
