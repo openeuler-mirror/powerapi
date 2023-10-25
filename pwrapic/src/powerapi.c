@@ -495,7 +495,7 @@ int PWR_PROC_GetWattState(int *state)
 int PWR_PROC_SetWattState(int state)
 {
     CHECK_STATUS(STATUS_AUTHED);
-    if (state != PWR_TRUE || state != PWR_FALSE) {
+    if (state != PWR_ENABLE || state != PWR_DISABLE) {
         return PWR_ERR_INVALIDE_PARAM;
     }
     return SetProcWattState(state);
@@ -561,7 +561,7 @@ int PWR_PROC_GetSmartGridState(int *state)
 int PWR_PROC_SetSmartGridState(int state)
 {
     CHECK_STATUS(STATUS_AUTHED);
-    if (state != PWR_TRUE || state != PWR_FALSE) {
+    if (state != PWR_ENABLE || state != PWR_DISABLE) {
         return PWR_ERR_INVALIDE_PARAM;
     }
     return SetSmartGridState(state);

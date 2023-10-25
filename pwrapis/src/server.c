@@ -33,6 +33,7 @@
 #include "taskservice.h"
 #include "comservice.h"
 #include "diskservice.h"
+#include "procservice.h"
 #include "pwrerr.h"
 #include "utils.h"
 #define COUNT_MAX 5
@@ -473,7 +474,18 @@ static OptToFunct g_optToFunct[] = {
     {CPU_SET_CUR_FREQ, SetCpuFreq},
     {CPU_GET_FREQ_ABILITY, GetCpuFreqAbility},
     {CPU_GET_FREQ_RANGE, GetCpuFreqRange},
-    {CPU_SET_FREQ_RANGE, SetCpuFreqRange}
+    {CPU_SET_FREQ_RANGE, SetCpuFreqRange},
+    {PROC_GET_WATT_STATE, ProcGetWattState},
+    {PROC_SET_WATT_STATE, ProcSetWattState},
+    {PROC_GET_WATT_ARRTS, procGetWattAttrs},
+    {PROC_SET_WATT_ARRTS, ProcSetWattAttrs},
+    {PROC_GET_WATT_PROCS, ProcGetWattProcs},
+    {PROC_ADD_WATT_PROCS, ProcAddWattProcs},
+    {PROC_DEL_WATT_PROCS, ProcDelWattProcs},
+    {PROC_GET_SMART_GRID_STATE, ProcGetSmartGridState},
+    {PROC_SET_SMART_GRID_STATE, ProcSetSmartGridState},
+    {PROC_GET_SMART_GRID_PROCS, ProcGetSmartGridProcs},
+    {PROC_SET_SMART_GRID_PROCS_LEVEL, ProcSetSmartGridProcsLevel}
 };
 
 static void ProcessReqMsg(PwrMsg *req)

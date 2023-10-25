@@ -715,9 +715,6 @@ static int GetGovAttrs(PWR_CPU_FreqGovAttrs *attrs)
     char attrPath[PWR_MAX_NAME_LEN] = {0};
     StrCopy(attrPath, base, PWR_MAX_NAME_LEN - 1);
     strncat(attrPath, attrs->gov, strlen(attrs->gov));
-    if (access(attrPath, F_OK) != 0) {
-        return PWR_ERR_FILE_ACCESS_FAILED;
-    }
     DIR *dir = opendir(attrPath);
     if (dir == NULL) {
         Logger(ERROR, MD_NM_SVR_CPU, "Unable to open direct: %s", attrPath);
@@ -728,7 +725,7 @@ static int GetGovAttrs(PWR_CPU_FreqGovAttrs *attrs)
     pathEnd++;
     struct dirent *dt;
     int ret = PWR_SUCCESS;
-    while ((dt = readdir(dir)) != NULL && attrs->attrNum < MAX_GOV_ATTR_NUM) {
+    while ((dt = readdir(dir)) != NULL && attrs->attrNum < PWR_MAX_GOV_ATTR_NUM) {
         if (strcmp(dt->d_name, CURRENT_DIR) == 0 || strcmp(dt->d_name, PARENT_DIR) == 0) {
             continue;
         }

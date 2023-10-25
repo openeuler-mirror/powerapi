@@ -999,6 +999,15 @@ int WriteFileAndCheck(const char *strInfo, char *buf, int bufLen)
     return 0;
 }
 
+int WriteIntToFile(const char *path, int content)
+{
+    char buff[STR_LEN_FOR_INT] = {0};
+    if (sprintf(buff, "%d", content) < 0) {
+        return PWR_ERR_FILE_SPRINTF_FIILED;
+    }
+    return WriteFile(path, buff, strlen(buff));
+}
+
 int GetMd5(const char *filename, char *md5)
 {
     char md5Cmd[PWR_MAX_NAME_LEN];
@@ -1064,8 +1073,8 @@ int GetSockoptFromOS(const pid_t pid, UnixCredOS *credOS)
     if (res == NULL) {
         return PWR_ERR_NULL_POINTER;
     }
-
-    if (StrSplit(buf, " ", res, &maxNum) == NULL) {
+    char *p = StrSplit(buf, " ", res, &maxNum);
+    if (!p) {
         free(res);
         return PWR_ERR_COMMON;
     }
@@ -1086,5 +1095,6 @@ int GetSockoptFromOS(const pid_t pid, UnixCredOS *credOS)
     credOS->gid = atoi(res[2]);
 
     free(res);
+    free(p);
     return PWR_SUCCESS;
 }

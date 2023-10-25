@@ -36,7 +36,7 @@
 #define PWR_CONVERSION 1000
 #define PWR_MAX_CPU_ID_WIDTH 5
 #define PWR_MAX_INPUT_NUM 512
-#define MAX_GOV_ATTR_NUM 20
+#define PWR_MAX_GOV_ATTR_NUM 20
 
 #define PWR_MAX_CPU_DMA_LATENCY 2000000000
 #define PWR_MAX_DISK_LIST_LEN 128
@@ -44,6 +44,13 @@
 #define PWR_ONE_HUNDRED 100
 #define PWR_ONE_THOUSAND 1000
 #define PWR_MAX_WATT_SCALE_INTERVAL 3600000
+#define PWR_MAX_PROC_NUM 5000
+
+#define PWR_TRUE 1
+#define PWR_FALSE 0
+#define PWR_ENABLE 1
+#define PWR_DISABLE 0
+#define PWR_STATE_LEN 4
 
 enum PWR_Arch {
     PWR_AARCH_64 = 0,
@@ -193,7 +200,7 @@ typedef struct PWR_CPU_FreqGovAttr {
 
 typedef struct PWR_CPU_FreqGovAttrs {
     char gov[PWR_MAX_ELEMENT_NAME_LEN];
-    PWR_COM_Attr attrs[MAX_GOV_ATTR_NUM];
+    PWR_COM_Attr attrs[PWR_MAX_GOV_ATTR_NUM];
     uint32_t attrNum;
 } PWR_CPU_FreqGovAttrs;
 
