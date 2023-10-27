@@ -30,7 +30,7 @@
 #define WATT_PROC_PATH                  "/sys/fs/cgroup/cpu/watt_sched/tasks"
 #define ROOT_CGROUP_PROC_PATH           "/sys/fs/cgroup/cpu/tasks"
 
-#define SMART_GRID_STATE_PATH "/proc/sys/kernel/smart_grid_strategy_ctl"
+#define SMART_GRID_STATE_PATH "/proc/sys/kernel/smart_grid_strategy_ctrl"
 #define SMART_GRID_LEVEL_PATH_D "/proc/%d/smart_grid_level"
 #define SMART_GRID_LEVEL_PATH_S "/proc/%s/smart_grid_level"
 #define PROC_PATH "/proc"
@@ -193,7 +193,7 @@ void ProcSetWattState(PwrMsg *req)
         return;
     }
     int *state = (int *)req->data;
-    if (*state != PWR_ENABLE || *state != PWR_DISABLE) {
+    if (*state != PWR_ENABLE && *state != PWR_DISABLE) {
         SendRspToClient(req, PWR_ERR_INVALIDE_PARAM, NULL, 0);
         return;
     }
@@ -347,7 +347,7 @@ void ProcSetSmartGridState(PwrMsg *req)
             break;
         }
         int *state = (int *)req->data;
-        if (*state != PWR_ENABLE || *state != PWR_DISABLE) {
+        if (*state != PWR_ENABLE && *state != PWR_DISABLE) {
             ret = PWR_ERR_INVALIDE_PARAM;
             break;
         }
@@ -373,14 +373,15 @@ void ProcGetSmartGridProcs(PwrMsg *req)
         return;
     }
 
-    PWR_PROC_SMART_GRID_LEVEL level = (PWR_PROC_SMART_GRID_LEVEL)req->data;
+    PWR_PROC_SMART_GRID_LEVEL *level = (PWR_PROC_SMART_GRID_LEVEL *)req->data;
     size_t size = sizeof(PWR_PROC_SmartGridProcs) + PWR_MAX_PROC_NUM * sizeof(pid_t);
     PWR_PROC_SmartGridProcs *sgProcs = (PWR_PROC_SmartGridProcs *)malloc(size);
     if (!sgProcs) {
         SendRspToClient(req, PWR_ERR_SYS_EXCEPTION, NULL, 0);
         return;
     }
-    int ret = ReadSmartGridProcsByLevel(level, sgProcs, PWR_MAX_PROC_NUM);
+    bzero(sgProcs, size);
+    int ret = ReadSmartGridProcsByLevel(*level, sgProcs, PWR_MAX_PROC_NUM);
     if (ret != PWR_SUCCESS) {
         free(sgProcs);
         SendRspToClient(req, ret, NULL, 0);

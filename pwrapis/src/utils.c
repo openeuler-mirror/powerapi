@@ -947,7 +947,7 @@ int ReadFile(const char *strInfo, char *buf, int bufLen)
     if (fd == -1) {
         return 1;
     }
-    if (read(fd, buf, bufLen - 1) <= 0) {
+    if (read(fd, buf, bufLen - 1) < 0) {
         close(fd);
         return 1;
     }

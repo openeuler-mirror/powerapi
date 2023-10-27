@@ -219,9 +219,10 @@ int GetSmartGridProcs(PWR_PROC_SMART_GRID_LEVEL level, PWR_PROC_SmartGridProcs *
 
     int ret = SendReqAndWaitForRsp(input, output);
     if (ret != PWR_SUCCESS) {
-        PwrLog(ERROR, "GetWattProcs failed. ret:%d", ret);
+        PwrLog(ERROR, "GetSmartGridProcs failed. ret:%d", ret);
     } else {
-        PwrLog(DEBUG, "GetWattProcs succeed.");
+        sgProcs->procNum = (size - sizeof(PWR_PROC_SmartGridProcs)) / sizeof(pid_t);
+        PwrLog(DEBUG, "GetSmartGridProcs succeed.");
     }
     return ret;
 }
