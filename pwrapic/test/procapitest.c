@@ -25,7 +25,7 @@ static void TEST_PWR_PROC_SetAndGetWattState(void)
     ret = PWR_PROC_GetWattState(&state);
     printf("PWR_PROC_GetWattState. ret: %d state:%d\n", ret, state);
     ret = PWR_PROC_SetWattState(PWR_ENABLE);
-    printf("PWR_PROC_SetWattState. ret: %d state:%d\n", ret, state);
+    printf("PWR_PROC_SetWattState. ret: %d state:%d\n", ret, PWR_ENABLE);
 }
 
 #define TEST_WATT_TH 60
@@ -49,7 +49,8 @@ static void TEST_PWR_PROC_SetAndGetWattAttrs(void)
     }
     bzero(&was, sizeof(was));
     (void)PWR_PROC_GetWattAttrs(&was);
-    printf("PWR_PROC_SetWattAttrs: SUCCESS\n");
+    printf("After PWR_PROC_SetWattAttrs: ret:%d th:%d, interval:%d dmask:%d\n", ret,
+        was.scaleThreshold, was.scaleInterval, was.domainMask);
 }
 
 #define TEST_PID_NUM 2
@@ -86,8 +87,8 @@ static void TEST_PWR_PROC_SetAndGetSmartGridState(void)
     int ret = PWR_SUCCESS;
     ret = PWR_PROC_GetSmartGridState(&state);
     printf("PWR_PROC_GetSmartGridState. ret: %d state:%d\n", ret, state);
-    ret = PWR_PROC_SetSmartGridState(!state);
-    printf("PWR_PROC_SetSmartGridState. ret: %d state:%d\n", ret, state);
+    ret = PWR_PROC_SetSmartGridState(PWR_ENABLE);
+    printf("PWR_PROC_SetSmartGridState. ret: %d\n", ret);
 }
 
 static void TEST_PWR_PROC_SetAndGetSmartGridProcs(void)
@@ -104,6 +105,7 @@ static void TEST_PWR_PROC_SetAndGetSmartGridProcs(void)
     int ret = PWR_PROC_SetSmartGridLevel(sgp);
     printf("PWR_PROC_SetSmartGridLevel: ret:%d\n", ret);
     bzero(sgp, size);
+    sgp->procNum = TEST_PID_NUM;
     ret = PWR_PROC_GetSmartGridProcs(PWR_PROC_SG_LEVEL_1, sgp);
     printf("PWR_PROC_GetSmartGridProcs: ret:%d num:%d\n", ret, sgp->procNum);
     for (int i = 0; i < sgp->procNum; i++) {
