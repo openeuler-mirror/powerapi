@@ -18,6 +18,16 @@
 #include "powerapi.h"
 
 #define INVALIDE_STATE (-1)
+#define TEST_MAX_PROC_NUM 100
+static void TEST_PWR_PROC_QueryProcs(void)
+{
+    const char keywords[] = "nginx|mysql";
+    pid_t procs[TEST_MAX_PROC_NUM] = {0};
+    uint32_t num = TEST_MAX_PROC_NUM;
+    int ret = PWR_PROC_QueryProcs(keywords, procs, &num);
+    printf("PWR_PROC_QueryProcs. ret: %d num:%d\n", ret, num);
+}
+
 static void TEST_PWR_PROC_SetAndGetWattState(void)
 {
     int state = INVALIDE_STATE;
@@ -114,12 +124,33 @@ static void TEST_PWR_PROC_SetAndGetSmartGridProcs(void)
     free(sgp);
 }
 
+static void TEST_PWR_PROC_SetAndGetSmartGridGov(void)
+{
+    PWR_PROC_SmartGridGov sgGov = {0};
+    int ret = PWR_PROC_GetSmartGridGov(&sgGov);
+    printf("PWR_PROC_GetSmartGridGov: ret:%d sgAgentState:%d, sgLevel0Gov:%s sgLevel1Gov:%s\n",
+        ret, sgGov.sgAgentState, sgGov.sgLevel0Gov, sgGov.sgLevel1Gov);
+
+    const char level0Gov[] = "performance";
+    const char level1Gov[] = "conservative";
+    sgGov.sgAgentState = PWR_ENABLE;
+    strncpy(sgGov.sgLevel0Gov, level0Gov, PWR_MAX_ELEMENT_NAME_LEN - 1);
+    strncpy(sgGov.sgLevel1Gov, level1Gov, PWR_MAX_ELEMENT_NAME_LEN - 1);
+    ret = PWR_PROC_SetSmartGridGov(&sgGov);
+    bzero(&sgGov, sizeof(PWR_PROC_SmartGridGov));
+    PWR_PROC_GetSmartGridGov(&sgGov);
+    printf("PWR_PROC_SetSmartGridGov: ret:%d sgAgentState:%d, sgLevel0Gov:%s sgLevel1Gov:%s\n",
+        ret, sgGov.sgAgentState, sgGov.sgLevel0Gov, sgGov.sgLevel1Gov);
+}
+
 // public==============================================================================
 void TEST_PROC_AllFunc(void)
 {
+    TEST_PWR_PROC_QueryProcs();
     TEST_PWR_PROC_SetAndGetWattState();
     TEST_PWR_PROC_SetAndGetWattAttrs();
     TEST_PWR_PROC_AddAndDelWattProcs();
     TEST_PWR_PROC_SetAndGetSmartGridState();
     TEST_PWR_PROC_SetAndGetSmartGridProcs();
+    TEST_PWR_PROC_SetAndGetSmartGridGov();
 }

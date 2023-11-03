@@ -476,6 +476,7 @@ static OptToFunct g_optToFunct[] = {
     {CPU_GET_FREQ_ABILITY, GetCpuFreqAbility},
     {CPU_GET_FREQ_RANGE, GetCpuFreqRange},
     {CPU_SET_FREQ_RANGE, SetCpuFreqRange},
+    {PROC_QUERY_PROCS, ProcQueryProcs},
     {PROC_GET_WATT_STATE, ProcGetWattState},
     {PROC_SET_WATT_STATE, ProcSetWattState},
     {PROC_GET_WATT_ARRTS, procGetWattAttrs},
@@ -486,7 +487,9 @@ static OptToFunct g_optToFunct[] = {
     {PROC_GET_SMART_GRID_STATE, ProcGetSmartGridState},
     {PROC_SET_SMART_GRID_STATE, ProcSetSmartGridState},
     {PROC_GET_SMART_GRID_PROCS, ProcGetSmartGridProcs},
-    {PROC_SET_SMART_GRID_PROCS_LEVEL, ProcSetSmartGridProcsLevel}
+    {PROC_SET_SMART_GRID_PROCS_LEVEL, ProcSetSmartGridProcsLevel},
+    {PROC_GET_SMART_GRID_GOV, ProcGetSmartGridGov},
+    {PROC_SET_SMART_GRID_GOV, ProcSetSmartGridGov},
 };
 
 static void ProcessReqMsg(PwrMsg *req)

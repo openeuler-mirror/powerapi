@@ -16,6 +16,7 @@
 #define PAPIS_PROC_SERVICE_H__
 #include "pwrmsg.h"
 
+void ProcQueryProcs(PwrMsg *req);
 void ProcGetWattState(PwrMsg *req);
 void ProcSetWattState(PwrMsg *req);
 void procGetWattAttrs(PwrMsg *req);
@@ -27,4 +28,6 @@ void ProcGetSmartGridState(PwrMsg *req);
 void ProcSetSmartGridState(PwrMsg *req);
 void ProcGetSmartGridProcs(PwrMsg *req);
 void ProcSetSmartGridProcsLevel(PwrMsg *req);
+void ProcGetSmartGridGov(PwrMsg *req);
+void ProcSetSmartGridGov(PwrMsg *req);
 #endif

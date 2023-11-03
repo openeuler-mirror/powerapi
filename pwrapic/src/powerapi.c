@@ -485,6 +485,20 @@ int PWR_USB_SetAutoSuspend(PWR_USB_AutoSuspend usbAts[], uint32_t len)
 }
 
 // PROC
+int PWR_PROC_QueryProcs(const char *keywords, pid_t procs[], uint32_t *num)
+{
+    CHECK_STATUS(STATUS_REGISTERTED);
+    CHECK_NULL_POINTER(procs);
+    CHECK_NULL_POINTER(num);
+    if (*num == 0) {
+        return PWR_ERR_INVALIDE_PARAM;
+    }
+    if (keywords && strlen(keywords) >= PWR_MAX_STRING_LEN) {
+        return PWR_ERR_INVALIDE_PARAM;
+    }
+    return QueryProcsByKeywords(keywords, procs, num);
+}
+
 int PWR_PROC_GetWattState(int *state)
 {
     CHECK_STATUS(STATUS_REGISTERTED);
@@ -535,7 +549,7 @@ int PWR_PROC_AddWattProcs(const pid_t wattProcs[], uint32_t num)
 {
     CHECK_STATUS(STATUS_AUTHED);
     CHECK_NULL_POINTER(wattProcs);
-    if (num == 0) {
+    if (num == 0 || num > PWR_MAX_PROC_NUM) {
         return PWR_ERR_INVALIDE_PARAM;
     }
     return AddWattProcs(wattProcs, num);
@@ -545,7 +559,7 @@ int PWR_PROC_DelWattProcs(const pid_t wattProcs[], uint32_t num)
 {
     CHECK_STATUS(STATUS_AUTHED);
     CHECK_NULL_POINTER(wattProcs);
-    if (num == 0) {
+    if (num == 0 || num > PWR_MAX_PROC_NUM) {
         return PWR_ERR_INVALIDE_PARAM;
     }
     return DelWattProcs(wattProcs, num);
@@ -581,8 +595,25 @@ int PWR_PROC_SetSmartGridLevel(const PWR_PROC_SmartGridProcs *sgProcs)
 {
     CHECK_STATUS(STATUS_AUTHED);
     CHECK_NULL_POINTER(sgProcs);
-    if (sgProcs->procNum == 0) {
+    if (sgProcs->procNum == 0  || sgProcs->procNum > PWR_MAX_PROC_NUM) {
         return PWR_ERR_INVALIDE_PARAM;
     }
     return SetSmartGridLevel(sgProcs);
+}
+
+int PWR_PROC_GetSmartGridGov(PWR_PROC_SmartGridGov *sgGov)
+{
+    CHECK_STATUS(STATUS_REGISTERTED);
+    CHECK_NULL_POINTER(sgGov);
+    return GetSmartGridGov(sgGov);
+}
+
+int PWR_PROC_SetSmartGridGov(const PWR_PROC_SmartGridGov *sgGov)
+{
+    CHECK_STATUS(STATUS_AUTHED);
+    CHECK_NULL_POINTER(sgGov);
+    if (sgGov->sgAgentState != PWR_ENABLE && sgGov->sgAgentState != PWR_DISABLE) {
+        return PWR_ERR_INVALIDE_PARAM;
+    }
+    return SetSmartGridGov(sgGov);
 }
