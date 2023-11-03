@@ -33,6 +33,7 @@
 #include "taskservice.h"
 #include "comservice.h"
 #include "diskservice.h"
+#include "procservice.h"
 #include "pwrerr.h"
 #include "utils.h"
 #define COUNT_MAX 5
@@ -55,12 +56,12 @@ static int ListenStart(int sockFd, const struct sockaddr_un *addr)
 
     ret = setsockopt(sockFd, SOL_SOCKET, SO_REUSEADDR, (char *)&reuse, sizeof(int));
     if (ret < 0) {
-        Logger(ERROR, MD_NM_SVR, "set reuse socket error %s errno: %d\n", strerror(errno), errno);
+        Logger(ERROR, MD_NM_SVR, "set reuse socket error %s errno: %d", strerror(errno), errno);
         return PWR_ERR_SYS_EXCEPTION;
     }
     ret = bind(sockFd, (struct sockaddr *)addr, sizeof(struct sockaddr_un));
     if (ret < 0) {
-        Logger(ERROR, MD_NM_SVR, "bind socket error %s errno: %d\n", strerror(errno), errno);
+        Logger(ERROR, MD_NM_SVR, "bind socket error %s errno: %d", strerror(errno), errno);
         return PWR_ERR_SYS_EXCEPTION;
     }
 
@@ -74,7 +75,7 @@ static int ListenStart(int sockFd, const struct sockaddr_un *addr)
 
     ret = listen(sockFd, MAX_PEDDING_SOCKS);
     if (ret < 0) {
-        Logger(ERROR, MD_NM_SVR, "listen error %s errno: %d\n", strerror(errno), errno);
+        Logger(ERROR, MD_NM_SVR, "listen error %s errno: %d", strerror(errno), errno);
         return PWR_ERR_SYS_EXCEPTION;
     }
     g_listenFd = sockFd;
@@ -96,7 +97,7 @@ static int StartUnxListen(const char *localFileName)
     // Create a socket
     sockFd = socket(AF_UNIX, SOCK_STREAM, 0);
     if (sockFd < 0) {
-        Logger(ERROR, MD_NM_SVR, "socket error %s errno: %d\n", strerror(errno), errno);
+        Logger(ERROR, MD_NM_SVR, "socket error %s errno: %d", strerror(errno), errno);
         return PWR_ERR_SYS_EXCEPTION;
     }
     return ListenStart(sockFd, (struct sockaddr_un *)&tSockaddr);
@@ -389,7 +390,8 @@ static void ProcessSendMsgToClient(void)
             continue;
         }
         SendMsgToClientAction(dstFd, msg);
-        Logger(DEBUG, MD_NM_SVR, "send msg. opt:%d,sysId:%d", msg->head.optType, msg->head.sysId);
+        Logger(DEBUG, MD_NM_SVR, "send msg. opt:%d, sysId:%d, rspCode:%d",
+            msg->head.optType, msg->head.sysId, msg->head.rspCode);
         ReleasePwrMsg(&msg);
     }
 }
@@ -473,7 +475,21 @@ static OptToFunct g_optToFunct[] = {
     {CPU_SET_CUR_FREQ, SetCpuFreq},
     {CPU_GET_FREQ_ABILITY, GetCpuFreqAbility},
     {CPU_GET_FREQ_RANGE, GetCpuFreqRange},
-    {CPU_SET_FREQ_RANGE, SetCpuFreqRange}
+    {CPU_SET_FREQ_RANGE, SetCpuFreqRange},
+    {PROC_QUERY_PROCS, ProcQueryProcs},
+    {PROC_GET_WATT_STATE, ProcGetWattState},
+    {PROC_SET_WATT_STATE, ProcSetWattState},
+    {PROC_GET_WATT_ARRTS, procGetWattAttrs},
+    {PROC_SET_WATT_ARRTS, ProcSetWattAttrs},
+    {PROC_GET_WATT_PROCS, ProcGetWattProcs},
+    {PROC_ADD_WATT_PROCS, ProcAddWattProcs},
+    {PROC_DEL_WATT_PROCS, ProcDelWattProcs},
+    {PROC_GET_SMART_GRID_STATE, ProcGetSmartGridState},
+    {PROC_SET_SMART_GRID_STATE, ProcSetSmartGridState},
+    {PROC_GET_SMART_GRID_PROCS, ProcGetSmartGridProcs},
+    {PROC_SET_SMART_GRID_PROCS_LEVEL, ProcSetSmartGridProcsLevel},
+    {PROC_GET_SMART_GRID_GOV, ProcGetSmartGridGov},
+    {PROC_SET_SMART_GRID_GOV, ProcSetSmartGridGov},
 };
 
 static void ProcessReqMsg(PwrMsg *req)

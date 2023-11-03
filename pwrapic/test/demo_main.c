@@ -18,6 +18,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include "powerapi.h"
+#include "procapitest.h"
 
 #define MAIN_LOOP_INTERVAL 5
 #define TEST_FREQ 2400
@@ -562,6 +563,8 @@ int main(int argc, const char *args[])
     // TEST_PWR_DISK_GetList();
 
     // TEST_PWR_COM_DcTaskMgr();
+    /************ PROC ***********/
+    TEST_PROC_AllFunc();
     // todo: 其他接口测试
     while (g_run) {
         sleep(MAIN_LOOP_INTERVAL);

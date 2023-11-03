@@ -17,6 +17,7 @@
 
 #include <stdarg.h>
 #include <stdint.h>
+#include <sys/types.h>
 #include "pwrerr.h"
 #include "pwrdata.h"
 
@@ -79,6 +80,23 @@ PWR_API int PWR_NET_SetSpeedMod(char ethName[], uint32_t speedMod);
 // USB
 PWR_API int PWR_USB_GetAutoSuspend(PWR_USB_AutoSuspend usbAts[], uint32_t *len);
 PWR_API int PWR_USB_SetAutoSuspend(PWR_USB_AutoSuspend usbAts[], uint32_t len);
+
+
+// PROC
+PWR_API int PWR_PROC_QueryProcs(const char *keywords, pid_t procs[], uint32_t *num);
+PWR_API int PWR_PROC_GetWattState(int *state);
+PWR_API int PWR_PROC_SetWattState(int state);
+PWR_API int PWR_PROC_GetWattAttrs(PWR_PROC_WattAttrs *wattAttrs);
+PWR_API int PWR_PROC_SetWattAttrs(const PWR_PROC_WattAttrs *wattAttrs);
+PWR_API int PWR_PROC_GetWattProcs(pid_t wattProcs[], uint32_t *num);
+PWR_API int PWR_PROC_AddWattProcs(const pid_t wattProcs[], uint32_t num);
+PWR_API int PWR_PROC_DelWattProcs(const pid_t wattProcs[], uint32_t num);
+PWR_API int PWR_PROC_GetSmartGridState(int *state);
+PWR_API int PWR_PROC_SetSmartGridState(int state);
+PWR_API int PWR_PROC_GetSmartGridProcs(PWR_PROC_SMART_GRID_LEVEL level, PWR_PROC_SmartGridProcs *sgProcs);
+PWR_API int PWR_PROC_SetSmartGridLevel(const PWR_PROC_SmartGridProcs *sgProcs);
+PWR_API int PWR_PROC_GetSmartGridGov(PWR_PROC_SmartGridGov *sgGov);
+PWR_API int PWR_PROC_SetSmartGridGov(const PWR_PROC_SmartGridGov *sgGov);
 
 #ifdef __cplusplus
 }

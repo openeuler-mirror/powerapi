@@ -412,7 +412,7 @@ static int AllGovernorsRead(char (*govList)[PWR_MAX_ELEMENT_NAME_LEN], int *govN
     return 0;
 }
 
-static int CheckAvailableGovernor(char *gov, char *policys)
+static int CheckAvailableGovernor(const char *gov, char *policys)
 {
     char *checkGovInfo = malloc(strlen(gov) + PWR_MAX_NAME_LEN);
     if (checkGovInfo == NULL) {
@@ -444,7 +444,7 @@ static int CheckAvailableGovernor(char *gov, char *policys)
     return 1;
 }
 
-static int CurrentGovernorRead(char *rstData)
+int CurrentGovernorRead(char *gov)
 {
     char govInfo[] = "/sys/devices/system/cpu/cpufreq/policy0/scaling_governor";
     char buf[PWR_MAX_STRING_LEN];
@@ -454,11 +454,11 @@ static int CurrentGovernorRead(char *rstData)
     }
 
     DeleteChar(buf, ' ');
-    StrCopy(rstData, buf, PWR_MAX_ELEMENT_NAME_LEN);
+    StrCopy(gov, buf, PWR_MAX_ELEMENT_NAME_LEN);
     return PWR_SUCCESS;
 }
 
-static int GovernorSet(char *gov, char (*policys)[PWR_MAX_ELEMENT_NAME_LEN], int *poNum)
+static int GovernorSet(const char *gov, char (*policys)[PWR_MAX_ELEMENT_NAME_LEN], int *poNum)
 {
     int i;
     for (i = 0; i < (*poNum); i++) {
@@ -541,10 +541,10 @@ static int FreqSet(PWR_CPU_CurFreq *target, int num)
         StrCopy(setFreqInfo, s1, PWR_MAX_NAME_LEN);
         freq = (int)target[i].curFreq * THOUSAND;
         if (snprintf(bufFreq, PWR_MAX_ELEMENT_NAME_LEN - 1, "%d", freq) < 0) {
-            return PWR_ERR_FILE_SPRINTF_FIILED;
+            return PWR_ERR_FILE_SPRINTF_FAILED;
         }
         if (snprintf(bufPolicyId, PWR_MAX_ELEMENT_NAME_LEN - 1, "%d", target[i].policyId) < 0) {
-            return PWR_ERR_FILE_SPRINTF_FIILED;
+            return PWR_ERR_FILE_SPRINTF_FAILED;
         }
         strncat(setFreqInfo, bufPolicyId, strlen(bufPolicyId));
         strncat(setFreqInfo, s2, strlen(s2));
@@ -674,7 +674,7 @@ static int FreqRangeSet(PWR_CPU_FreqRange *rstData)
 
     // set min freq
     if (snprintf(buf, PWR_MAX_ELEMENT_NAME_LEN - 1, "%d", rstData->minFreq * THOUSAND) < 0) {
-        return PWR_ERR_FILE_SPRINTF_FIILED;
+        return PWR_ERR_FILE_SPRINTF_FAILED;
     }
 
     char minFreqFile[PWR_MAX_NAME_LEN] = {0};
@@ -692,7 +692,7 @@ static int FreqRangeSet(PWR_CPU_FreqRange *rstData)
 
     // set max freq
     if (snprintf(buf, PWR_MAX_ELEMENT_NAME_LEN - 1, "%d", rstData->maxFreq * THOUSAND) < 0) {
-        return PWR_ERR_FILE_SPRINTF_FIILED;
+        return PWR_ERR_FILE_SPRINTF_FAILED;
     }
     char maxFreqFile[PWR_MAX_NAME_LEN] = {0};
     const char max1[] = "/sys/devices/system/cpu/cpufreq/";
@@ -715,9 +715,6 @@ static int GetGovAttrs(PWR_CPU_FreqGovAttrs *attrs)
     char attrPath[PWR_MAX_NAME_LEN] = {0};
     StrCopy(attrPath, base, PWR_MAX_NAME_LEN - 1);
     strncat(attrPath, attrs->gov, strlen(attrs->gov));
-    if (access(attrPath, F_OK) != 0) {
-        return PWR_ERR_FILE_ACCESS_FAILED;
-    }
     DIR *dir = opendir(attrPath);
     if (dir == NULL) {
         Logger(ERROR, MD_NM_SVR_CPU, "Unable to open direct: %s", attrPath);
@@ -728,7 +725,7 @@ static int GetGovAttrs(PWR_CPU_FreqGovAttrs *attrs)
     pathEnd++;
     struct dirent *dt;
     int ret = PWR_SUCCESS;
-    while ((dt = readdir(dir)) != NULL && attrs->attrNum < MAX_GOV_ATTR_NUM) {
+    while ((dt = readdir(dir)) != NULL && attrs->attrNum < PWR_MAX_GOV_ATTR_NUM) {
         if (strcmp(dt->d_name, CURRENT_DIR) == 0 || strcmp(dt->d_name, PARENT_DIR) == 0) {
             continue;
         }
@@ -818,14 +815,21 @@ void GetCpuFreqGovernor(PwrMsg *req)
     SendRspToClient(req, rspCode, (char *)rstData, sizeof(char) * PWR_MAX_ELEMENT_NAME_LEN);
 }
 
-void SetCpuFreqGovernor(PwrMsg *req)
+int SetGovernorForAllPcy(const char *gov)
 {
+    if (!gov) {
+        return PWR_ERR_NULL_POINTER;
+    }
     char policys[PWR_MAX_CPU_LIST_LEN][PWR_MAX_ELEMENT_NAME_LEN];
     bzero(policys, sizeof(policys));
-    int poNum;
+    int poNum = 0;
     GetPolicys(policys, &poNum);
-    int rspCode = GovernorSet(req->data, policys, &poNum);
-    SendRspToClient(req, rspCode, NULL, 0);
+    return GovernorSet(gov, policys, &poNum);
+}
+
+void SetCpuFreqGovernor(PwrMsg *req)
+{
+    SendRspToClient(req, SetGovernorForAllPcy(req->data), NULL, 0);
 }
 
 void GetCpuFreqGovAttrs(PwrMsg *req)

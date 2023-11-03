@@ -10,10 +10,10 @@
  * See the Mulan PSL v2 for more details.
  * Author: wuhaotian
  * Create: 2022-11-10
- * Description: provide cpu service
+ * Description: provide sys service
  * **************************************************************************** */
 
-#include "cpuservice.h"
+#include "sysservice.h"
 #include "string.h"
 #include "pwrerr.h"
 #include "server.h"

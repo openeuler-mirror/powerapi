@@ -1,5 +1,5 @@
 /* *****************************************************************************
- * Copyright (c) Huawei Technologies Co., Ltd. 2022-2022. All rights reserved.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2023-2023 All rights reserved.
  * PowerAPI licensed under the Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
@@ -8,15 +8,12 @@
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR
  * PURPOSE.
  * See the Mulan PSL v2 for more details.
- * Author: wuhaotian
- * Create: 2022-11-10
- * Description: provide sys service
+ * Author: queyanwen
+ * Create: 2023-10-25
+ * Description: The testing of PowerAPI of PROC module.
  * **************************************************************************** */
-#ifndef PAPIS_SYS_SERVICE_H__
-#define PAPIS_SYS_SERVICE_H__
-#include "pwrmsg.h"
-#include "pwrdata.h"
+#ifndef POWERAPI_TEST_PROC_H__
+#define POWERAPI_TEST_PROC_H__
 
-void SetSysPowerState(PwrMsg *req);
-void GetSysRtPowerInfo(PwrMsg *req);
+void TEST_PROC_AllFunc(void);
 #endif

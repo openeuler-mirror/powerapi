@@ -30,8 +30,6 @@
 #include <fcntl.h>
 #include <ctype.h>
 #include <common.h>
-#include <sys/stat.h>
-#include <fcntl.h>
 
 static struct timeval GetCurTv(void)
 {
@@ -947,7 +945,7 @@ int ReadFile(const char *strInfo, char *buf, int bufLen)
     if (fd == -1) {
         return 1;
     }
-    if (read(fd, buf, bufLen - 1) <= 0) {
+    if (read(fd, buf, bufLen - 1) < 0) {
         close(fd);
         return 1;
     }
@@ -957,7 +955,7 @@ int ReadFile(const char *strInfo, char *buf, int bufLen)
     return 0;
 }
 
-int WriteFile(const char *strInfo, char *buf, int bufLen)
+int WriteFile(const char *strInfo, const char *buf, int bufLen)
 {
     char realPath[MAX_FULL_NAME] = {0};
     int ret = NormalizeAndVerifyFilepath(strInfo, realPath);
@@ -997,6 +995,15 @@ int WriteFileAndCheck(const char *strInfo, char *buf, int bufLen)
         return 1;
     }
     return 0;
+}
+
+int WriteIntToFile(const char *path, int content)
+{
+    char buff[STR_LEN_FOR_INT] = {0};
+    if (sprintf(buff, "%d", content) < 0) {
+        return PWR_ERR_FILE_SPRINTF_FAILED;
+    }
+    return WriteFile(path, buff, strlen(buff));
 }
 
 int GetMd5(const char *filename, char *md5)
@@ -1042,7 +1049,7 @@ int GetSockoptFromOS(const pid_t pid, UnixCredOS *credOS)
 {
     char credCmd[PWR_MAX_NAME_LEN];
     const char s[] = "ps -eo pid,uid,gid,user | grep ";
-    if (sprintf(credCmd, "%s%d", s, pid) < 0) return PWR_ERR_FILE_SPRINTF_FIILED;
+    if (sprintf(credCmd, "%s%d", s, pid) < 0) return PWR_ERR_FILE_SPRINTF_FAILED;
     FILE *fp = popen(credCmd, "r");
     if (fp == NULL) {
         return PWR_ERR_FILE_OPEN_FAILED;
@@ -1064,8 +1071,8 @@ int GetSockoptFromOS(const pid_t pid, UnixCredOS *credOS)
     if (res == NULL) {
         return PWR_ERR_NULL_POINTER;
     }
-
-    if (StrSplit(buf, " ", res, &maxNum) == NULL) {
+    char *p = StrSplit(buf, " ", res, &maxNum);
+    if (!p) {
         free(res);
         return PWR_ERR_COMMON;
     }
@@ -1086,5 +1093,6 @@ int GetSockoptFromOS(const pid_t pid, UnixCredOS *credOS)
     credOS->gid = atoi(res[2]);
 
     free(res);
+    free(p);
     return PWR_SUCCESS;
 }
