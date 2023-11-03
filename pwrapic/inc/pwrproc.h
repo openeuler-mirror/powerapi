@@ -17,6 +17,7 @@
 #include <stdint.h>
 #include "pwrdata.h"
 
+int QueryProcsByKeywords(const char *keywords, pid_t procs[], uint32_t *num);
 int GetProcWattState(int *state);
 int SetProcWattState(int state);
 int GetProcWattAttrs(PWR_PROC_WattAttrs *wattAttrs);
@@ -28,5 +29,6 @@ int GetSmartGridState(int *state);
 int SetSmartGridState(int state);
 int GetSmartGridProcs(PWR_PROC_SMART_GRID_LEVEL level, PWR_PROC_SmartGridProcs *sgProcs);
 int SetSmartGridLevel(const PWR_PROC_SmartGridProcs *sgProcs);
-
+int GetSmartGridGov(PWR_PROC_SmartGridGov *sgGov);
+int SetSmartGridGov(const PWR_PROC_SmartGridGov *sgGov);
 #endif

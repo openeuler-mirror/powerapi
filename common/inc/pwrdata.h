@@ -273,4 +273,11 @@ typedef struct PWR_PROC_SmartGridProcs {
     int procNum;
     pid_t procs[0];
 } PWR_PROC_SmartGridProcs;
+
+typedef struct PWR_PROC_SmartGridGov {
+    int sgAgentState;
+    char sgLevel0Gov[PWR_MAX_ELEMENT_NAME_LEN];
+    char sgLevel1Gov[PWR_MAX_ELEMENT_NAME_LEN];
+} PWR_PROC_SmartGridGov;
+
 #endif

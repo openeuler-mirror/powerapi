@@ -14,9 +14,32 @@
  * **************************************************************************** */
 
 #include "pwrproc.h"
+#include <string.h>
 #include "pwrlog.h"
 #include "pwrerr.h"
 #include "sockclient.h"
+
+int QueryProcsByKeywords(const char *keywords, pid_t procs[], uint32_t *num)
+{
+    ReqInputParam input;
+    input.optType = PROC_QUERY_PROCS;
+    input.dataLen = strlen(keywords) + 1;
+    input.data = (char *)keywords;
+
+    RspOutputParam output;
+    uint32_t size = (uint32_t)sizeof(pid_t) * (*num);
+    output.rspBuffSize = &size;
+    output.rspData = (char *)procs;
+
+    int ret = SendReqAndWaitForRsp(input, output);
+    *num = (uint32_t)(size / sizeof(pid_t));
+    if (ret != PWR_SUCCESS) {
+        PwrLog(ERROR, "QueryProcsByKeywords failed. ret:%d", ret);
+    } else {
+        PwrLog(DEBUG, "QueryProcsByKeywords succeed.");
+    }
+    return ret;
+}
 
 int GetProcWattState(int *state)
 {
@@ -232,7 +255,7 @@ int SetSmartGridLevel(const PWR_PROC_SmartGridProcs *sgProcs)
     ReqInputParam input;
     input.optType = PROC_SET_SMART_GRID_PROCS_LEVEL;
     input.dataLen = (uint32_t)(sizeof(PWR_PROC_SmartGridProcs) + sizeof(pid_t) * (sgProcs->procNum));
-    input.data = (char *)&sgProcs;
+    input.data = (char *)sgProcs;
 
     RspOutputParam output;
     output.rspBuffSize = NULL;
@@ -247,3 +270,44 @@ int SetSmartGridLevel(const PWR_PROC_SmartGridProcs *sgProcs)
     return ret;
 }
 
+int GetSmartGridGov(PWR_PROC_SmartGridGov *sgGov)
+{
+    ReqInputParam input;
+    input.optType = PROC_GET_SMART_GRID_GOV;
+    input.dataLen = 0;
+    input.data = NULL;
+
+    RspOutputParam output;
+    uint32_t size = (uint32_t)sizeof(PWR_PROC_SmartGridGov);
+    output.rspBuffSize = &size;
+    output.rspData = (char *)sgGov;
+
+    int ret = SendReqAndWaitForRsp(input, output);
+    if (ret != PWR_SUCCESS) {
+        PwrLog(ERROR, "GetSmartGridGov failed. ret:%d", ret);
+    } else {
+        PwrLog(DEBUG, "GetSmartGridGov succeed.");
+    }
+    return ret;
+}
+
+int SetSmartGridGov(const PWR_PROC_SmartGridGov *sgGov)
+{
+    ReqInputParam input;
+    input.optType = PROC_SET_SMART_GRID_GOV;
+    uint32_t size = (uint32_t)sizeof(PWR_PROC_SmartGridGov);
+    input.dataLen = size;
+    input.data = (char *)sgGov;
+
+    RspOutputParam output;
+    output.rspBuffSize = NULL;
+    output.rspData = NULL;
+
+    int ret = SendReqAndWaitForRsp(input, output);
+    if (ret != PWR_SUCCESS) {
+        PwrLog(ERROR, "SetSmartGridGov failed. ret:%d", ret);
+    } else {
+        PwrLog(DEBUG, "SetSmartGridGov succeed.");
+    }
+    return ret;
+}

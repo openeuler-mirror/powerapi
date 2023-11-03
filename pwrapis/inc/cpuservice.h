@@ -25,6 +25,8 @@ void GetCpuFreq(PwrMsg *req);
 void SetCpuFreq(PwrMsg *req);
 int PerfDataRead(PWR_CPU_PerfData *perfData);
 int CPUUsageRead(PWR_CPU_Usage *rstData, int coreNum);
+int CurrentGovernorRead(char *gov);
+int SetGovernorForAllPcy(const char *gov);
 void GetCpuFreqGovernor(PwrMsg *req);
 void SetCpuFreqGovernor(PwrMsg *req);
 void GetCpuFreqGovAttrs(PwrMsg *req);

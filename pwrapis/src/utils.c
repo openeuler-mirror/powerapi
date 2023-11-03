@@ -30,8 +30,6 @@
 #include <fcntl.h>
 #include <ctype.h>
 #include <common.h>
-#include <sys/stat.h>
-#include <fcntl.h>
 
 static struct timeval GetCurTv(void)
 {
@@ -957,7 +955,7 @@ int ReadFile(const char *strInfo, char *buf, int bufLen)
     return 0;
 }
 
-int WriteFile(const char *strInfo, char *buf, int bufLen)
+int WriteFile(const char *strInfo, const char *buf, int bufLen)
 {
     char realPath[MAX_FULL_NAME] = {0};
     int ret = NormalizeAndVerifyFilepath(strInfo, realPath);
@@ -1003,7 +1001,7 @@ int WriteIntToFile(const char *path, int content)
 {
     char buff[STR_LEN_FOR_INT] = {0};
     if (sprintf(buff, "%d", content) < 0) {
-        return PWR_ERR_FILE_SPRINTF_FIILED;
+        return PWR_ERR_FILE_SPRINTF_FAILED;
     }
     return WriteFile(path, buff, strlen(buff));
 }
@@ -1051,7 +1049,7 @@ int GetSockoptFromOS(const pid_t pid, UnixCredOS *credOS)
 {
     char credCmd[PWR_MAX_NAME_LEN];
     const char s[] = "ps -eo pid,uid,gid,user | grep ";
-    if (sprintf(credCmd, "%s%d", s, pid) < 0) return PWR_ERR_FILE_SPRINTF_FIILED;
+    if (sprintf(credCmd, "%s%d", s, pid) < 0) return PWR_ERR_FILE_SPRINTF_FAILED;
     FILE *fp = popen(credCmd, "r");
     if (fp == NULL) {
         return PWR_ERR_FILE_OPEN_FAILED;
