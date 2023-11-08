@@ -165,7 +165,7 @@ int GetCpuFreqGovernor(char gov[], uint32_t size)
         return ret;
     }
 
-    if (gov[size - 1] != 0) {
+    if (size != 0 && gov[size - 1] != 0) {
         gov[size - 1] = 0;
         return PWR_ERR_ANSWER_LONGER_THAN_SIZE;
     }
@@ -301,6 +301,70 @@ int SetCpuCurFreq(const PWR_CPU_CurFreq curFreq[], uint32_t num)
         PwrLog(ERROR, "SetCpuCurFreq failed. ret: %d", ret);
     } else {
         PwrLog(DEBUG, "SetCpuCurFreq succeed.");
+    }
+    return ret;
+}
+
+int GetCpuIdleInfo(PWR_CPU_IdleInfo *idleInfo)
+{
+    ReqInputParam input;
+    input.optType = CPU_GET_IDLE_INFO;
+    input.dataLen = 0;
+    input.data = NULL;
+    RspOutputParam output;
+    uint32_t size = (uint32_t)(sizeof(PWR_CPU_IdleInfo) + sizeof(PWR_CPU_Cstate) * idleInfo->cstateNum);
+    output.rspBuffSize = &size;
+    output.rspData = (char *)idleInfo;
+
+    int ret = SendReqAndWaitForRsp(input, output);
+    if (ret != PWR_SUCCESS) {
+        PwrLog(ERROR, "GetCpuIdleInfo failed. ret: %d", ret);
+    } else {
+        idleInfo->cstateNum = (size - sizeof(PWR_CPU_IdleInfo)) / sizeof(PWR_CPU_Cstate);
+        PwrLog(DEBUG, "GetCpuIdleInfo succeed.");
+    }
+    return ret;
+}
+
+int GetCpuIdleGov(char idleGov[], uint32_t size)
+{
+    ReqInputParam input;
+    input.optType = CPU_GET_IDLE_GOV;
+    input.dataLen = 0;
+    input.data = NULL;
+    RspOutputParam output;
+    output.rspBuffSize = &size;
+    output.rspData = (char *)idleGov;
+    bzero(idleGov, size);
+
+    int ret = SendReqAndWaitForRsp(input, output);
+    if (ret != PWR_SUCCESS) {
+        PwrLog(ERROR, "GetCpuIdleGov failed. ret: %d", ret);
+    } else {
+        if (size != 0 && idleGov[size - 1] != 0) {
+            idleGov[size - 1] = 0;
+            return PWR_ERR_ANSWER_LONGER_THAN_SIZE;
+        }
+        PwrLog(DEBUG, "GetCpuIdleGov succeed.");
+    }
+    return ret;
+}
+
+int SetCpuIdleGov(const char idleGov[])
+{
+    ReqInputParam input;
+    input.optType = CPU_SET_IDLE_GOV;
+    input.dataLen = strlen(idleGov) + 1;
+    input.data = (char *)idleGov;
+    RspOutputParam output;
+    output.rspBuffSize = NULL;
+    output.rspData = NULL;
+
+    int ret = SendReqAndWaitForRsp(input, output);
+    if (ret != PWR_SUCCESS) {
+        PwrLog(ERROR, "SetCpuIdleGov failed. ret: %d", ret);
+    } else {
+        PwrLog(DEBUG, "SetCpuIdleGov succeed.");
     }
     return ret;
 }

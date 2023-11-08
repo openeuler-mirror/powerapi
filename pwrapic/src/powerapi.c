@@ -325,6 +325,36 @@ int PWR_CPU_SetFreq(const PWR_CPU_CurFreq curFreq[], uint32_t num)
     return SetCpuCurFreq(curFreq, num);
 }
 
+int PWR_CPU_GetIdleInfo(PWR_CPU_IdleInfo *idleInfo)
+{
+    CHECK_STATUS(STATUS_REGISTERTED);
+    CHECK_NULL_POINTER(idleInfo);
+    if (idleInfo->cstateNum == 0) {
+        return PWR_ERR_INVALIDE_PARAM;
+    }
+    return GetCpuIdleInfo(idleInfo);
+}
+
+int PWR_CPU_GetIdleGovernor(char idleGov[], uint32_t size)
+{
+    CHECK_STATUS(STATUS_REGISTERTED);
+    CHECK_NULL_POINTER(idleGov);
+    if (size < PWR_MAX_ELEMENT_NAME_LEN) {
+        return PWR_ERR_INVALIDE_PARAM;
+    }
+    return GetCpuIdleGov(idleGov, size);
+}
+
+int PWR_CPU_SetIdleGovernor(const char idleGov[])
+{
+    CHECK_STATUS(STATUS_REGISTERTED);
+    CHECK_NULL_POINTER(idleGov);
+    if (strlen(idleGov) <= 0 || strlen(idleGov) >= PWR_MAX_ELEMENT_NAME_LEN) {
+        return PWR_ERR_INVALIDE_PARAM;
+    }
+    return SetCpuIdleGov(idleGov);
+}
+
 int PWR_CPU_DmaGetLatency(int *latency)
 {
     CHECK_STATUS(STATUS_REGISTERTED);

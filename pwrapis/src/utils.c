@@ -997,6 +997,17 @@ int WriteFileAndCheck(const char *strInfo, char *buf, int bufLen)
     return 0;
 }
 
+int ReadIntFromFile(const char *path, int *content)
+{
+    char buff[STR_LEN_FOR_INT] = {0};
+    int ret = ReadFile(path, buff, STR_LEN_FOR_INT);
+    if (ret != PWR_SUCCESS) {
+        return ret;
+    }
+    *content = atoi(buff);
+    return PWR_SUCCESS;
+}
+
 int WriteIntToFile(const char *path, int content)
 {
     char buff[STR_LEN_FOR_INT] = {0};
