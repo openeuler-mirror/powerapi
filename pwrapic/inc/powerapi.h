@@ -60,6 +60,9 @@ PWR_API int PWR_CPU_GetFreqRange(PWR_CPU_FreqRange *freqRange);
 PWR_API int PWR_CPU_SetFreqRange(const PWR_CPU_FreqRange *freqRange);
 PWR_API int PWR_CPU_GetFreq(PWR_CPU_CurFreq curFreq[], uint32_t *num, int spec);
 PWR_API int PWR_CPU_SetFreq(const PWR_CPU_CurFreq curFreq[], uint32_t num);
+PWR_API int PWR_CPU_GetIdleInfo(PWR_CPU_IdleInfo *idleInfo);
+PWR_API int PWR_CPU_GetIdleGovernor(char idleGov[], uint32_t size); // unit: us
+PWR_API int PWR_CPU_SetIdleGovernor(const char idleGov[]);
 PWR_API int PWR_CPU_DmaGetLatency(int *latency); // unit: us
 PWR_API int PWR_CPU_DmaSetLatency(int latency);
 

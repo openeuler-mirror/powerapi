@@ -36,4 +36,9 @@ void GetCpuFreqAbility(PwrMsg *req);
 void GetCpuFreqRange(PwrMsg *req);
 void SetCpuFreqRange(PwrMsg *req);
 int GetCpuCoreNumber(void);
+void GetCpuIdleInfo(PwrMsg *req);
+void GetCpuIdleGov(PwrMsg *req);
+void SetCpuIdleGov(PwrMsg *req);
+void GetCpuDmaLatency(PwrMsg *req);
+void SetCpuDmaLatency(PwrMsg *req);
 #endif
