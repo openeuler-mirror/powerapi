@@ -30,6 +30,9 @@ int GetCpuFreqGovAttr(PWR_CPU_FreqGovAttr *govAttr);
 int SetCpuFreqGovAttr(const PWR_CPU_FreqGovAttr *govAttr);
 int GetCpuCurFreq(PWR_CPU_CurFreq curFreq[], uint32_t *num, int spec);
 int SetCpuCurFreq(const PWR_CPU_CurFreq curFreq[], uint32_t num);
+int GetCpuIdleInfo(PWR_CPU_IdleInfo *idleInfo);
+int GetCpuIdleGov(char idleGov[], uint32_t size);
+int SetCpuIdleGov(const char idleGov[]);
 int GetCpuDmaLatency(int *latency);
 int SetCpuDmaLatency(int latency);
 #endif

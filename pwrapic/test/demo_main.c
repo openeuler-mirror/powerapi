@@ -498,6 +498,46 @@ static void TEST_PWR_CPU_GovAttrs(void)
     PrintResult("3 PWR_CPU_SetFreqGovAttr", ret);
 }
 
+static void TEST_PWR_CPU_GetIdleInfo(void)
+{
+    size_t size = sizeof(PWR_CPU_IdleInfo) + PWR_MAX_CPU_CSTATE_NUM * sizeof(PWR_CPU_Cstate);
+    PWR_CPU_IdleInfo *info = (PWR_CPU_IdleInfo *)malloc(size);
+    if (!info) {
+        return;
+    }
+    bzero(info, size);
+    info->cstateNum = PWR_MAX_CPU_CSTATE_NUM;
+    int ret = PWR_CPU_GetIdleInfo(info);
+    PrintResult("PWR_CPU_GetIdleInfo", ret);
+    printf("\t curr drv: %s, curr gov: %s\n", info->currDrv, info->currGov);
+    for (int i = 0; i < PWR_MAX_CPU_CSTATE_NUM; i++) {
+        if (strlen(info->avGovs[i]) != 0) {
+            printf("\t gov%d: %s\n", i, info->avGovs[i]);
+        } else {
+            break;
+        }
+    }
+    for (int i = 0; i < info->cstateNum; i++) {
+        printf("\t state%d: name: %s, disable:%d, latency:%d\n", info->cstates[i].id,
+            info->cstates[i].name, info->cstates[i].disable, info->cstates[i].latency);
+    }
+}
+
+static void TEST_PWR_CPU_GetAndSetIdlegovernor(void)
+{
+    char gov[PWR_MAX_ELEMENT_NAME_LEN] = {0};
+    int ret = PWR_CPU_GetIdleGovernor(gov, PWR_MAX_ELEMENT_NAME_LEN);
+    PrintResult("PWR_CPU_GetIdleGovernor", ret);
+    printf("\t current idle gov: %s\n", gov);
+
+    strncpy(gov, "teo", PWR_MAX_ELEMENT_NAME_LEN);
+    ret = PWR_CPU_SetIdleGovernor(gov);
+    PrintResult("PWR_CPU_SetIdleGovernor", ret);
+    bzero(gov, PWR_MAX_ELEMENT_NAME_LEN);
+    PWR_CPU_GetIdleGovernor(gov, PWR_MAX_ELEMENT_NAME_LEN);
+    printf("\t current idle gov: %s\n", gov);
+}
+
 static void TEST_PWR_CPU_DmaSetAndGetLatency(void)
 {
     int ret = 0;
@@ -557,7 +597,9 @@ int main(int argc, const char *args[])
     TEST_PWR_CPU_GetFreq();
     TEST_PWR_CPU_SetFreq();
     TEST_PWR_CPU_GovAttrs();
-    // TEST_PWR_CPU_DmaSetAndGetLatency();
+    TEST_PWR_CPU_GetIdleInfo();
+    TEST_PWR_CPU_GetAndSetIdlegovernor();
+    TEST_PWR_CPU_DmaSetAndGetLatency();
 
     /************ DISK ***********/
     // TEST_PWR_DISK_GetList();

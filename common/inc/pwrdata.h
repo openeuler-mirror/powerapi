@@ -37,6 +37,8 @@
 #define PWR_MAX_CPU_ID_WIDTH 5
 #define PWR_MAX_INPUT_NUM 512
 #define PWR_MAX_GOV_ATTR_NUM 20
+#define PWR_MAX_IDLE_GOV_NUM 8
+#define PWR_MAX_CPU_CSTATE_NUM 10
 
 #define PWR_MAX_CPU_DMA_LATENCY 2000000000
 #define PWR_MAX_DISK_LIST_LEN 128
@@ -213,6 +215,21 @@ typedef struct PWR_CPU_CurFreq {
     int policyId;
     double curFreq;
 } PWR_CPU_CurFreq;
+
+typedef  struct PWR_CPU_Cstate {
+    int id;
+    int disable;
+    uint32_t latency;
+    char name[PWR_MAX_ELEMENT_NAME_LEN];
+} PWR_CPU_Cstate;
+
+typedef struct PWR_CPU_IdleInfo {
+    char currDrv[PWR_MAX_ELEMENT_NAME_LEN];
+    char currGov[PWR_MAX_ELEMENT_NAME_LEN];
+    char avGovs[PWR_MAX_IDLE_GOV_NUM][PWR_MAX_ELEMENT_NAME_LEN];
+    uint32_t cstateNum;
+    PWR_CPU_Cstate cstates[0];
+} PWR_CPU_IdleInfo;
 
 typedef struct PWR_NET_Eth {
     char ethName[PWR_MAX_ELEMENT_NAME_LEN];
