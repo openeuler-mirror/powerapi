@@ -82,7 +82,6 @@ int PWR_SetServerInfo(const char* socketPath)
 
 int PWR_Register(void)
 {
-    // todo: 增加必要的其他初始化动作
     if (InitSockClient() != PWR_SUCCESS) {
         return PWR_ERR_COMMON;
     }
@@ -95,7 +94,6 @@ int PWR_Register(void)
 int PWR_UnRegister(void)
 {
     int ret = FiniSockClient();
-    // todo: 增加必要的其他去初始化动作
     g_status = STATUS_UNREGISTERED;
     return ret;
 }
