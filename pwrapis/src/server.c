@@ -172,8 +172,7 @@ static void AcceptConnection(void)
         return;
     }
 
-    /*
-    SetKeepAlive(newClientFd); todo 链路保活，后续完善 */
+    /*todo 链路保活，IPC场景下优先级放低，后续完善 */
     struct ucred credSocket;
     if (getsockopt(newClientFd, SOL_SOCKET, SO_PEERCRED, &credSocket, &socklen) < 0) {
         Logger(ERROR, MD_NM_SVR, "get sock options failed");
@@ -432,7 +431,7 @@ static void *RunServerSocketProcess(void *none)
         }
 
         for (int i = 0; i < MAX_CLIENT_NUM; i++) {
-            if (FD_ISSET(g_pwrClients[i].fd, &recvFdSet)) { // new msg in
+            if (FD_ISSET(g_pwrClients[i].fd, &recvFdSet)) { // new msg or event
                 ProcessRecvMsgFromClient(i);
             }
         }

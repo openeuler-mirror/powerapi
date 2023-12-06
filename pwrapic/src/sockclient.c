@@ -317,7 +317,6 @@ static void *RunSocketProcess(void *none)
             SendMsgToSocket();
         }
 
-        // todo: select中增加断连异常事件监听
         int ret = select(g_sockFd + 1, &recvFdSet, NULL, NULL, &tv);
         if (ret > 0 && FD_ISSET(g_sockFd, &recvFdSet)) {
             RecvMsgFromSocket();

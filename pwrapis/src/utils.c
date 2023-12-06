@@ -917,9 +917,8 @@ int DeleteSubstr(char *str, char *substr)
 
 void StrCopy(char *dest, const char *src, int destSize)
 {
-    unsigned int len = strlen(src) < destSize ? strlen(src) : destSize - 1;
-    strncpy(dest, src, len);
-    dest[len] = '\0';
+    strncpy(dest, src, destSize - 1);
+    dest[destSize - 1] = '\0';
 }
 
 int InIntRange(int *range, int len, int a)
@@ -1023,8 +1022,8 @@ int GetMd5(const char *filename, char *md5)
     const char s1[] = "md5sum ";
     const char s2[] = " | awk '{print $1}'";
     StrCopy(md5Cmd, s1, PWR_MAX_NAME_LEN);
-    strncat(md5Cmd, filename, strlen(filename));
-    strncat(md5Cmd, s2, strlen(s2));
+    strcat(md5Cmd, filename);
+    strcat(md5Cmd, s2);
     FILE *fp = popen(md5Cmd, "r");
     if (fp == NULL) {
         return PWR_ERR_NULL_POINTER;
@@ -1046,7 +1045,7 @@ int NormalizeAndVerifyFilepath(const char *filename, char *realpathRes)
     if (!path) {
         return PWR_ERR_PATH_NORMALIZE;
     }
-    strncpy(realpathRes, path, strlen(path));
+    strncpy(realpathRes, path, MAX_FULL_NAME - 1);
     // Verify file path
     if (access(realpathRes, F_OK) != 0) {
         return PWR_ERR_PATH_VERIFY;

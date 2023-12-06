@@ -385,7 +385,7 @@ static int InputTargetPolicys(PWR_CPU_CurFreq *target, char (*policys)[PWR_MAX_E
         if (snprintf(buffer, PWR_MAX_ELEMENT_NAME_LEN - 1, "%d", target[i].policyId) < 0) {
             return 1;
         }
-        strncat(policys[i], buffer, strlen(buffer));
+        strcat(policys[i], buffer);
     }
     return 0;
 }
@@ -422,8 +422,8 @@ static int CheckAvailableGovernor(const char *gov, char *policys)
     const char s1[] = "/sys/devices/system/cpu/cpufreq/";
     const char s2[] = "/scaling_available_governors";
     StrCopy(checkGovInfo, s1, strlen(gov) + PWR_MAX_NAME_LEN);
-    strncat(checkGovInfo, policys, strlen(gov));
-    strncat(checkGovInfo, s2, strlen(s2));
+    strcat(checkGovInfo, policys);
+    strcat(checkGovInfo, s2);
     char buf[PWR_MAX_STRING_LEN];
     int ret = ReadFile(checkGovInfo, buf, PWR_MAX_STRING_LEN);
     if (ret != PWR_SUCCESS) {
@@ -477,8 +477,8 @@ static int GovernorSet(const char *gov, char (*policys)[PWR_MAX_ELEMENT_NAME_LEN
     static const char s2[] = "/scaling_governor";
     for (i = 0; i < (*poNum); i++) {
         StrCopy(govInfo, s1, buffLen);
-        strncat(govInfo, policys[i], strlen(policys[i]));
-        strncat(govInfo, s2, strlen(s2));
+        strcat(govInfo, policys[i]);
+        strcat(govInfo, s2);
         int ret = WriteFile(govInfo, gov, strlen(gov));
         if (ret != 0) {
             Logger(ERROR, MD_NM_SVR_CPU, "Change gov(%s) failed.", gov);
@@ -513,8 +513,8 @@ static int FreqRead(PWR_CPU_CurFreq *rstData, char (*policys)[PWR_MAX_ELEMENT_NA
 
     for (int i = 0; i < (*poNum); i++) {
         StrCopy(freqInfo, s1, PWR_MAX_NAME_LEN);
-        strncat(freqInfo, policys[i], strlen(policys[i]));
-        strncat(freqInfo, s2, strlen(s2));
+        strcat(freqInfo, policys[i]);
+        strcat(freqInfo, s2);
         int ret = ReadFile(freqInfo, buf, PWR_MAX_STRING_LEN);
         if (ret != PWR_SUCCESS) {
             return ret;
@@ -546,8 +546,8 @@ static int FreqSet(PWR_CPU_CurFreq *target, int num)
         if (snprintf(bufPolicyId, PWR_MAX_ELEMENT_NAME_LEN - 1, "%d", target[i].policyId) < 0) {
             return PWR_ERR_FILE_SPRINTF_FAILED;
         }
-        strncat(setFreqInfo, bufPolicyId, strlen(bufPolicyId));
-        strncat(setFreqInfo, s2, strlen(s2));
+        strcat(setFreqInfo, bufPolicyId);
+        strcat(setFreqInfo, s2);
         ret = WriteFile(setFreqInfo, bufFreq, strlen(bufFreq));
         if (ret != 0) {
             return ret;
@@ -571,8 +571,8 @@ static int FreqDomainRead(char *buf, char (*policys)[PWR_MAX_ELEMENT_NAME_LEN], 
     const char s2[] = "/affected_cpus";
     for (int i = 0; i < domainNum; i++) {
         StrCopy(domainInfo, s1, PWR_MAX_NAME_LEN);
-        strncat(domainInfo, policys[i], strlen(policys[i]));
-        strncat(domainInfo, s2, strlen(s2));
+        strcat(domainInfo, policys[i]);
+        strcat(domainInfo, s2);
         bzero(domainbuf, PWR_MAX_CPU_LIST_LEN);
         int ret = ReadFile(domainInfo, domainbuf, PWR_MAX_CPU_LIST_LEN);
         if (ret != PWR_SUCCESS) {
@@ -682,8 +682,8 @@ static int FreqRangeSet(PWR_CPU_FreqRange *rstData)
     const char min2[] = "/scaling_min_freq";
     for (i = 0; i < poNum; i++) {
         StrCopy(minFreqFile, min1, PWR_MAX_NAME_LEN);
-        strncat(minFreqFile, policys[i], strlen(policys[i]));
-        strncat(minFreqFile, min2, strlen(min2));
+        strcat(minFreqFile, policys[i]);
+        strcat(minFreqFile, min2);
         ret = WriteFile(minFreqFile, buf, strlen(buf));
         if (ret != 0) {
             return ret;
@@ -699,8 +699,8 @@ static int FreqRangeSet(PWR_CPU_FreqRange *rstData)
     const char max2[] = "/scaling_max_freq";
     for (i = 0; i < poNum; i++) {
         StrCopy(maxFreqFile, max1, PWR_MAX_NAME_LEN);
-        strncat(maxFreqFile, policys[i], strlen(policys[i]));
-        strncat(maxFreqFile, max2, strlen(max2));
+        strcat(maxFreqFile, policys[i]);
+        strcat(maxFreqFile, max2);
         ret = WriteFile(maxFreqFile, buf, strlen(buf));
         if (ret != 0) {
             return ret;
@@ -714,7 +714,7 @@ static int GetGovAttrs(PWR_CPU_FreqGovAttrs *attrs)
     char base[] = "/sys/devices/system/cpu/cpufreq/";
     char attrPath[PWR_MAX_NAME_LEN] = {0};
     StrCopy(attrPath, base, PWR_MAX_NAME_LEN - 1);
-    strncat(attrPath, attrs->gov, strlen(attrs->gov));
+    strcat(attrPath, attrs->gov);
     DIR *dir = opendir(attrPath);
     if (dir == NULL) {
         Logger(ERROR, MD_NM_SVR_CPU, "Unable to open direct: %s", attrPath);
@@ -745,9 +745,9 @@ static int GetGovAttr(PWR_CPU_FreqGovAttr *attr)
     char base[] = "/sys/devices/system/cpu/cpufreq/";
     char attrPath[PWR_MAX_NAME_LEN] = {0};
     StrCopy(attrPath, base, PWR_MAX_NAME_LEN - 1);
-    strncat(attrPath, attr->gov, strlen(attr->gov));
-    strncat(attrPath, PATH_SEP_STR, strlen(PATH_SEP_STR) + 1);
-    strncat(attrPath, attr->attr.key, strlen(attr->attr.key));
+    strcat(attrPath, attr->gov);
+    strcat(attrPath, PATH_SEP_STR);
+    strcat(attrPath, attr->attr.key);
     int ret = ReadFile(attrPath, attr->attr.value, sizeof(attr->attr.value));
     if (ret != PWR_SUCCESS) {
         Logger(ERROR, MD_NM_SVR_CPU, "GetGovAttr failed. path:%s, value:%s, ret:%d",
@@ -761,9 +761,9 @@ static int SetGovAttr(PWR_CPU_FreqGovAttr *attr)
     char base[] = "/sys/devices/system/cpu/cpufreq/";
     char attrPath[PWR_MAX_NAME_LEN] = {0};
     StrCopy(attrPath, base, PWR_MAX_NAME_LEN - 1);
-    strncat(attrPath, attr->gov, strlen(attr->gov));
-    strncat(attrPath, PATH_SEP_STR, strlen(PATH_SEP_STR) + 1);
-    strncat(attrPath, attr->attr.key, strlen(attr->attr.key));
+    strcat(attrPath, attr->gov);
+    strcat(attrPath, PATH_SEP_STR);
+    strcat(attrPath, attr->attr.key);
     int ret = WriteFile(attrPath, attr->attr.value, strlen(attr->attr.value));
     if (ret != PWR_SUCCESS) {
         Logger(ERROR, MD_NM_SVR_CPU, "SetGovAttr failed. path:%s, ret:%d", attrPath, ret);

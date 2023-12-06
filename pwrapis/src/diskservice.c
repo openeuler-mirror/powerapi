@@ -531,7 +531,7 @@ int ReadDiskName(const char *file, PWR_DISK_Info disklist[])
     while ((read = getline(&line, &len, fp)) != -1) {
         pRes = GetNthField(line, " \n", diskNameIndex, statVal, sizeof(statVal) - 1);
         if (pRes != NULL) {
-            strncpy(disklist[i].diskId, statVal, strlen(statVal));
+            strncpy(disklist[i].diskId, statVal, sizeof(statVal) - 1);
         } else {
             disklist[i].diskId[0] = '\0';
         }
