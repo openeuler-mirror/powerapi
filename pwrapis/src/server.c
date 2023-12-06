@@ -115,24 +115,18 @@ static void StopListen(void)
     pthread_mutex_unlock(&g_listenFdLock);
 }
 
-static int PassCredVerification(const int sockfd, pid_t *pid)
+static int PassCredVerification(const struct ucred *credSocket)
 {
     int ret;
-    struct ucred credSocket;
-    UnixCredOS credOS;
-    socklen_t socklen = sizeof(struct ucred);
-    if (getsockopt(sockfd, SOL_SOCKET, SO_PEERCRED, &credSocket, &socklen) < 0) {
-        Logger(ERROR, MD_NM_SVR, "get sock opt failed");
-        return PWR_ERR_COMMON;
-    }
+    UnixCredOS credOS = {0};
 
-    ret = GetSockoptFromOS(*pid, &credOS);
+    ret = GetSockoptFromOS(credSocket->pid, &credOS);
     if (ret != PWR_SUCCESS) {
         Logger(ERROR, MD_NM_SVR, "get sockopt from OS failed, ret : %d", ret);
         return PWR_ERR_COMMON;
     }
 
-    if (credSocket.uid != credOS.uid || credSocket.gid != credOS.gid) {
+    if (credSocket->uid != credOS.uid || credSocket->gid != credOS.gid) {
         Logger(ERROR, MD_NM_SVR, "uid or gid from socket and OS are different");
         return PWR_ERR_COMMON;
     }
@@ -142,7 +136,6 @@ static int PassCredVerification(const int sockfd, pid_t *pid)
         return PWR_ERR_COMMON;
     }
 
-    *pid = credOS.pid;
     return PWR_SUCCESS;
 }
 
@@ -180,13 +173,13 @@ static void AcceptConnection(void)
 
     /*
     SetKeepAlive(newClientFd); todo 链路保活，后续完善 */
-    PwrClient client;
-    client.fd = newClientFd;
-    unsigned char strSysId[MAX_SYSID_LEN] = {0};
-    strncpy(strSysId, clientAddr.sun_path + strlen(CLIENT_ADDR), MAX_SYSID_LEN - 1);
-    client.sysId = atoi(strSysId);
+    struct ucred credSocket;
+    if (getsockopt(newClientFd, SOL_SOCKET, SO_PEERCRED, &credSocket, &socklen) < 0) {
+        Logger(ERROR, MD_NM_SVR, "get sock options failed");
+        return;
+    }
 
-    if (PassCredVerification(newClientFd, &client.sysId) != PWR_SUCCESS) {
+    if (PassCredVerification(&credSocket) != PWR_SUCCESS) {
         Logger(ERROR, MD_NM_CRED, "credentials verification failed");
         const char *info = "Server has closed connection. This client is not in white list";
         /* eventData should be release in the function that uses it */
@@ -197,12 +190,15 @@ static void AcceptConnection(void)
             return;
         }
 
-        SendEventToClient(newClientFd, client.sysId, (char *)eventInfo,
+        SendEventToClient(newClientFd, credSocket.pid, (char *)eventInfo,
             sizeof(PWR_COM_EventInfo) + strlen(info));
         close(newClientFd);
         return;
     }
 
+    PwrClient client;
+    client.fd = newClientFd;
+    client.sysId = credSocket.pid;
     if (AddToClientList(g_pwrClients, client) != PWR_SUCCESS) {
         Logger(ERROR, MD_NM_SVR, "Reach maximum connections or client existed : %d ", MAX_CLIENT_NUM);
         close(newClientFd);
@@ -257,10 +253,6 @@ static void ProcessRecvMsgFromClient(int clientIdx)
     }
     Logger(DEBUG, MD_NM_SVR, "receivd msg. opt:%d,sysId:%d", msg->head.optType, msg->head.sysId);
 
-    if (msg->head.msgType != MT_REQ) {
-        ReleasePwrMsg(&msg); // the server accept request msg only.
-    }
-
     if (msg->head.dataLen > 0) {
         char *msgcontent = malloc(msg->head.dataLen);
         if (!msgcontent || ReadMsg(msgcontent, msg->head.dataLen, dstFd, clientIdx) != PWR_SUCCESS) {
@@ -270,6 +262,11 @@ static void ProcessRecvMsgFromClient(int clientIdx)
         msg->data = msgcontent;
     } else {
         msg->data = NULL;
+    }
+
+    if (msg->head.msgType != MT_REQ) {
+        ReleasePwrMsg(&msg); // the server accept request msg only.
+        return;
     }
 
     if (msg->head.sysId != g_pwrClients[clientIdx].sysId) {
@@ -424,7 +421,6 @@ static void *RunServerSocketProcess(void *none)
         if (!IsEmptyBuffer(&g_sendBuff)) {
             ProcessSendMsgToClient();
         }
-        // todo: select中增加断连异常事件监听
         int ret = select(maxFd + 1, &recvFdSet, NULL, NULL, &tv);
         if (ret <= 0) {
             continue;
