@@ -269,6 +269,7 @@ enum RunStatus {
 #define INVALID_FD (-1)
 #define INVALID_INDEX (-1)
 #define MAX_CLIENT_NUM 3
+#define MAX_USER_NUM 10
 #define THOUSAND 1000
 
 #endif

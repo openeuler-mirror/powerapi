@@ -917,6 +917,9 @@ int DeleteSubstr(char *str, char *substr)
 
 void StrCopy(char *dest, const char *src, int destSize)
 {
+    if (!dest || !src) {
+        return;
+    }
     strncpy(dest, src, destSize - 1);
     dest[destSize - 1] = '\0';
 }
