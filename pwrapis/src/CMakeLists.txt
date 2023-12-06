@@ -29,10 +29,10 @@ install (FILES "${PROJECT_SOURCE_DIR}/../conf/pwrapis_config.ini"
 install (FILES "${PROJECT_SOURCE_DIR}/../pwrapis.service" DESTINATION /usr/lib/systemd/system)
 
 # release complile mode
-#set(CMAKE_BUILD_TYPE "Release")
-#set(CMAKE_CXX_FLAGS_RELEASE "$ENV{CXXFLAGS} -O3 -Wall")
+set(CMAKE_BUILD_TYPE "Release")
+set(CMAKE_CXX_FLAGS_RELEASE "$ENV{CXXFLAGS} -O3 -Wall")
 
 # debug complile mode
-set(CMAKE_BUILD_TYPE "Debug")
-set(CMAKE_CXX_FLAGS_DEBUG "$ENV{CXXFLAGS} -O0 -Wall -g -ggdb")
+#set(CMAKE_BUILD_TYPE "Debug")
+#set(CMAKE_CXX_FLAGS_DEBUG "$ENV{CXXFLAGS} -O0 -Wall -g -ggdb")
 
