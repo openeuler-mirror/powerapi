@@ -30,7 +30,7 @@
 #include "pwrerr.h"
 #include "pwrbuffer.h"
 
-#define CLIENT_ADDR "pwrclient.sock."
+#define CLIENT_ADDR "pwrclient.sock"
 #define INVALID_FD (-1)
 #define SOCK_THREAD_LOOP_INTERVAL 2000 // us
 #define RECONNECTE_INTERVAL 3          // s
@@ -269,15 +269,7 @@ static int CreateConnection(void)
     struct sockaddr_un clientAddr;
     bzero(&clientAddr, sizeof(clientAddr));
     clientAddr.sun_family = AF_UNIX;
-    char pidStr[MAX_PID_LEN];
-    pid_t pid = getpid();
-    if (sprintf(pidStr, "%d", pid) < 0) {
-        close(clientFd);
-        return PWR_ERR_SYS_EXCEPTION;
-    }
     strncpy(clientAddr.sun_path, CLIENT_ADDR, sizeof(clientAddr.sun_path) - 1);
-    // socket file "pwrclient.sock.{$pid}"
-    strncat(clientAddr.sun_path, pidStr, sizeof(clientAddr.sun_path) - strlen(CLIENT_ADDR) - 1);
     size_t clen = SUN_LEN(&clientAddr);
     unlink(clientAddr.sun_path);
     if (bind(clientFd, (struct sockaddr *)&clientAddr, clen) < 0) {
