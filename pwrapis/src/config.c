@@ -284,7 +284,7 @@ static int UpdateRoleArray(enum CnfItemType type, const char *value)
 static int InitLogCfg(void)
 {
     bzero(&g_logCfg, sizeof(g_logCfg));
-    g_logCfg.logLevel = DEBUG; // todo 发布时修改为INFO
+    g_logCfg.logLevel = INFO;
     g_logCfg.maxFileSize = DEFAULT_FILE_SIZE * UNIT_FACTOR - MAX_LINE_LENGTH;
     g_logCfg.maxCmpCnt = DEFAULT_FILE_NUM;
     strncpy(g_logCfg.logPath, DEFAULT_LOG_PATH, sizeof(g_logCfg.logPath) - 1);
@@ -300,7 +300,7 @@ static int InitLogCfg(void)
 
 static int InitServCfg(void)
 {
-    strncpy(g_servCfg.sockFile, SERVER_ADDR, sizeof(g_servCfg.sockFile) - 1);
+    strncpy(g_servCfg.sockFile, DEFAULT_SERVER_SOCK_FILE, sizeof(g_servCfg.sockFile) - 1);
     g_servCfg.port = 0;
     return PWR_SUCCESS;
 }

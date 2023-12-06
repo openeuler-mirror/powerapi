@@ -37,6 +37,7 @@
 #include "pwrerr.h"
 #include "utils.h"
 #define COUNT_MAX 5
+#define THREAD_LOOP_INTERVAL 2000 // us
 
 static int g_listenFd = -1;
 static pthread_mutex_t g_listenFdLock = PTHREAD_MUTEX_INITIALIZER;
