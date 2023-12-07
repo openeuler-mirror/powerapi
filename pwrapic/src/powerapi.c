@@ -99,45 +99,6 @@ int PWR_UnRegister(void)
 }
 
 
-int PWR_SetMetaDataCallback(void(MetaDataCallback)(const PWR_COM_CallbackData *))
-{
-    if (MetaDataCallback) {
-        return SetMetaDataCallback(MetaDataCallback);
-    }
-    return PWR_ERR_NULL_POINTER;
-}
-
-int PWR_CreateDcTask(const PWR_COM_BasicDcTaskInfo *basicDcTaskInfo)
-{
-    CHECK_STATUS(STATUS_REGISTERTED);
-    CHECK_NULL_POINTER(basicDcTaskInfo);
-
-    if (basicDcTaskInfo->interval < PWR_MIN_DC_INTERVAL || basicDcTaskInfo->interval > PWR_MAX_DC_INTERVAL) {
-        return PWR_ERR_INVALIDE_PARAM;
-    }
-
-    if (!HasSetDataCallback()) {
-        return PWR_ERR_CALLBACK_FUNCTION_SHOULD_BE_SET_FIRST;
-    }
-
-    return CreateDcTask(basicDcTaskInfo);
-}
-
-int PWR_DeleteDcTask(PWR_COM_COL_DATATYPE dataType)
-{
-    CHECK_STATUS(STATUS_REGISTERTED);
-
-    return DeleteDcTask(dataType);
-}
-
-int PWR_SetEventCallback(void(EventCallback)(const PWR_COM_EventInfo *))
-{
-    if (EventCallback) {
-        return SetEventCallback(EventCallback);
-    }
-    return PWR_ERR_NULL_POINTER;
-}
-
 int PWR_RequestControlAuth(void)
 {
     CHECK_STATUS(STATUS_REGISTERTED);
@@ -158,50 +119,6 @@ int PWR_ReleaseControlAuth(void)
     return ret;
 }
 
-int PWR_SYS_SetPowerState(const int powerState)
-{
-    CHECK_STATUS(STATUS_AUTHED);
-    if (powerState != PWR_MEM && powerState != PWR_DISK) {
-        return PWR_ERR_INVALIDE_PARAM;
-    }
-
-    return SetSysPowerState(powerState);
-}
-
-int PWR_SYS_GetCappedPower(int *cappedPower)
-{
-    CHECK_STATUS(STATUS_REGISTERTED);
-    CHECK_NULL_POINTER(cappedPower);
-
-    return GetCappedPower(cappedPower);
-}
-
-int PWR_SYS_SetCappedPower(const int cappedPower)
-{
-    CHECK_STATUS(STATUS_AUTHED);
-    if (cappedPower <= 0) {
-        return PWR_ERR_INVALIDE_PARAM;
-    }
-
-    return SetCappedPower(cappedPower);
-}
-
-int PWR_SYS_GetRtPowerInfo(PWR_SYS_PowerInfo *powerInfo)
-{
-    CHECK_STATUS(STATUS_REGISTERTED);
-    CHECK_NULL_POINTER(powerInfo);
-
-    return GetSysRtPowerInfo(powerInfo);
-}
-
-int PWR_SYS_GetStatisticPowerInfo(PWR_SYS_StatisticPowerInfo *stcPowerInfo)
-{
-    CHECK_STATUS(STATUS_REGISTERTED);
-    CHECK_NULL_POINTER(stcPowerInfo);
-
-    return GetStatisticPowerInfo(stcPowerInfo);
-}
-
 int PWR_CPU_GetInfo(PWR_CPU_Info *cpuInfo)
 {
     CHECK_STATUS(STATUS_REGISTERTED);
@@ -210,24 +127,6 @@ int PWR_CPU_GetInfo(PWR_CPU_Info *cpuInfo)
     return GetCpuInfo(cpuInfo);
 }
 
-int PWR_CPU_GetUsage(PWR_CPU_Usage *usage, uint32_t bufferSize)
-{
-    CHECK_STATUS(STATUS_REGISTERTED);
-    CHECK_NULL_POINTER(usage);
-    if (bufferSize < sizeof(PWR_CPU_Usage)) {
-        return PWR_ERR_INVALIDE_PARAM;
-    }
-
-    return GetCpuUsage(usage, bufferSize);
-}
-
-PWR_API int PWR_CPU_GetPerfData(PWR_CPU_PerfData *perfData)
-{
-    CHECK_STATUS(STATUS_REGISTERTED);
-    CHECK_NULL_POINTER(perfData);
-
-    return GetCpuPerfData(perfData);
-}
 
 int PWR_CPU_GetFreqAbility(PWR_CPU_FreqAbility *freqAbi, uint32_t bufferSize)
 {
@@ -371,6 +270,112 @@ int PWR_CPU_DmaSetLatency(int latency)
     return SetCpuDmaLatency(latency);
 }
 
+
+#ifndef RELEASE_MODE
+int PWR_SetMetaDataCallback(void(MetaDataCallback)(const PWR_COM_CallbackData *))
+{
+    if (MetaDataCallback) {
+        return SetMetaDataCallback(MetaDataCallback);
+    }
+    return PWR_ERR_NULL_POINTER;
+}
+
+int PWR_CreateDcTask(const PWR_COM_BasicDcTaskInfo *basicDcTaskInfo)
+{
+    CHECK_STATUS(STATUS_REGISTERTED);
+    CHECK_NULL_POINTER(basicDcTaskInfo);
+
+    if (basicDcTaskInfo->interval < PWR_MIN_DC_INTERVAL || basicDcTaskInfo->interval > PWR_MAX_DC_INTERVAL) {
+        return PWR_ERR_INVALIDE_PARAM;
+    }
+
+    if (!HasSetDataCallback()) {
+        return PWR_ERR_CALLBACK_FUNCTION_SHOULD_BE_SET_FIRST;
+    }
+
+    return CreateDcTask(basicDcTaskInfo);
+}
+
+int PWR_DeleteDcTask(PWR_COM_COL_DATATYPE dataType)
+{
+    CHECK_STATUS(STATUS_REGISTERTED);
+
+    return DeleteDcTask(dataType);
+}
+
+int PWR_SetEventCallback(void(EventCallback)(const PWR_COM_EventInfo *))
+{
+    if (EventCallback) {
+        return SetEventCallback(EventCallback);
+    }
+    return PWR_ERR_NULL_POINTER;
+}
+
+
+int PWR_SYS_SetPowerState(const int powerState)
+{
+    CHECK_STATUS(STATUS_AUTHED);
+    if (powerState != PWR_MEM && powerState != PWR_DISK) {
+        return PWR_ERR_INVALIDE_PARAM;
+    }
+
+    return SetSysPowerState(powerState);
+}
+
+int PWR_SYS_GetCappedPower(int *cappedPower)
+{
+    CHECK_STATUS(STATUS_REGISTERTED);
+    CHECK_NULL_POINTER(cappedPower);
+
+    return GetCappedPower(cappedPower);
+}
+
+int PWR_SYS_SetCappedPower(const int cappedPower)
+{
+    CHECK_STATUS(STATUS_AUTHED);
+    if (cappedPower <= 0) {
+        return PWR_ERR_INVALIDE_PARAM;
+    }
+
+    return SetCappedPower(cappedPower);
+}
+
+int PWR_SYS_GetRtPowerInfo(PWR_SYS_PowerInfo *powerInfo)
+{
+    CHECK_STATUS(STATUS_REGISTERTED);
+    CHECK_NULL_POINTER(powerInfo);
+
+    return GetSysRtPowerInfo(powerInfo);
+}
+
+int PWR_SYS_GetStatisticPowerInfo(PWR_SYS_StatisticPowerInfo *stcPowerInfo)
+{
+    CHECK_STATUS(STATUS_REGISTERTED);
+    CHECK_NULL_POINTER(stcPowerInfo);
+
+    return GetStatisticPowerInfo(stcPowerInfo);
+}
+
+
+
+int PWR_CPU_GetUsage(PWR_CPU_Usage *usage, uint32_t bufferSize)
+{
+    CHECK_STATUS(STATUS_REGISTERTED);
+    CHECK_NULL_POINTER(usage);
+    if (bufferSize < sizeof(PWR_CPU_Usage)) {
+        return PWR_ERR_INVALIDE_PARAM;
+    }
+
+    return GetCpuUsage(usage, bufferSize);
+}
+
+PWR_API int PWR_CPU_GetPerfData(PWR_CPU_PerfData *perfData)
+{
+    CHECK_STATUS(STATUS_REGISTERTED);
+    CHECK_NULL_POINTER(perfData);
+
+    return GetCpuPerfData(perfData);
+}
 
 // Disk
 int PWR_DISK_GetList(char diskList[][PWR_MAX_ELEMENT_NAME_LEN], uint32_t *len)
@@ -645,3 +650,5 @@ int PWR_PROC_SetSmartGridGov(const PWR_PROC_SmartGridGov *sgGov)
     }
     return SetSmartGridGov(sgGov);
 }
+
+#endif  // #ifndef RELEASE_MODE
