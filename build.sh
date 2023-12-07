@@ -5,7 +5,12 @@ PWRAPIS="server"
 
 mkdir build
 cd build
-cmake ..
+if [[ "$1" == "release" ]];then
+    cmake -DRELEASE_MODE="true" ..
+else
+    cmake ..
+fi
+
 if [ $? -ne 0 ]; then
     exit 1
 fi
@@ -36,13 +41,14 @@ cp ./pwrapic/inc/powerapi.h ./release/pwrapic/inc/
 cp ./common/inc/pwrdata.h  ./release/pwrapic/inc/
 cp ./common/inc/pwrerr.h  ./release/pwrapic/inc/
 
-mkdir ./release/pwrapi_demo
-cp ./build/pwrapic/test/pwrapic_demo  ./release/pwrapi_demo/
-cp -r ./release/pwrapic ./release/pwrapi_demo/
+if [[ "$1" != "release" ]];then
+    mkdir ./release/pwrapi_demo
+    cp ./build/pwrapic/test/pwrapic_demo  ./release/pwrapi_demo/
+    cp -r ./release/pwrapic ./release/pwrapi_demo/
 
-mkdir ./release/gtest
-cp ./build/pwrapic/gtest/gtest_test  ./release/gtest/
-
+    mkdir ./release/gtest
+    cp ./build/pwrapic/gtest/gtest_test  ./release/gtest/
+fi
 
 mkdir ./release/pwrapis
 cp ./build/pwrapis/src/pwrapis ./release/pwrapis/
