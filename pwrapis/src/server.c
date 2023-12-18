@@ -232,7 +232,7 @@ static int ReadMsg(void *pData, int len, int dstFd, int idx)
             CleanClientResource(g_pwrClients, idx);
             return PWR_ERR_SYS_EXCEPTION;
         } else if (recvLen == 0) {
-            Logger(ERROR, MD_NM_SVR, "connection closed !");
+            Logger(INFO, MD_NM_SVR, "connection closed !");
             CleanClientResource(g_pwrClients, idx);
             return PWR_ERR_DISCONNECTED;
         }
@@ -300,7 +300,7 @@ static int WriteMsg(const void *pData, size_t len, int dstFd)
             CleanClientResource(g_pwrClients, GetIdxByFd(g_pwrClients, dstFd));
             return PWR_ERR_SYS_EXCEPTION;
         } else if (sendLen == 0) {
-            Logger(ERROR, MD_NM_SVR, "connection closed !");
+            Logger(INFO, MD_NM_SVR, "connection closed !");
             CleanClientResource(g_pwrClients, GetIdxByFd(g_pwrClients, dstFd));
             return PWR_ERR_DISCONNECTED;
         }
