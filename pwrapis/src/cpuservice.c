@@ -782,6 +782,14 @@ static int SetGovAttr(PWR_CPU_FreqGovAttr *attr)
 #define CPU_IDLE_CSTATE_LATENCY "/sys/devices/system/cpu/cpu0/cpuidle/%s/latency"
 #define CPU_IDLE_CSTATE_NAME    "/sys/devices/system/cpu/cpu0/cpuidle/%s/name"
 
+static int SupportCpuIdle(void)
+{
+    if (access(CPU_IDLE_CSTATE_PATH, F_OK) != 0) {
+        return PWR_FALSE;
+    }
+    return PWR_TRUE;
+}
+
 static int ReadCpuIdleAvailableGovs(char govs[][PWR_MAX_ELEMENT_NAME_LEN], int maxGov)
 {
     char content[MAX_LINE_LENGTH] = {0};
@@ -1138,6 +1146,11 @@ int GetCpuCoreNumber(void)
 
 void GetCpuIdleInfo(PwrMsg *req)
 {
+    if (!SupportCpuIdle()) {
+        Logger(INFO, MD_NM_SVR_CPU, "The system does not support cpuidle.");
+        SendRspToClient(req, PWR_ERR_NOT_SUPPORT_CPUIDLE, NULL, 0);
+        return;
+    }
     size_t size = sizeof(PWR_CPU_IdleInfo) + sizeof(PWR_CPU_Cstate) * PWR_MAX_CPU_CSTATE_NUM;
     PWR_CPU_IdleInfo *idleInfo = (PWR_CPU_IdleInfo *)malloc(size);
     if (!idleInfo) {
@@ -1156,6 +1169,11 @@ void GetCpuIdleInfo(PwrMsg *req)
 
 void GetCpuIdleGov(PwrMsg *req)
 {
+    if (!SupportCpuIdle()) {
+        Logger(INFO, MD_NM_SVR_CPU, "The system does not support cpuidle.");
+        SendRspToClient(req, PWR_ERR_NOT_SUPPORT_CPUIDLE, NULL, 0);
+        return;
+    }
     char *gov = (char *)malloc(PWR_MAX_ELEMENT_NAME_LEN);
     if (!gov) {
         SendRspToClient(req, PWR_ERR_SYS_EXCEPTION, NULL, 0);
@@ -1173,6 +1191,11 @@ void GetCpuIdleGov(PwrMsg *req)
 
 void SetCpuIdleGov(PwrMsg *req)
 {
+    if (!SupportCpuIdle()) {
+        Logger(INFO, MD_NM_SVR_CPU, "The system does not support cpuidle.");
+        SendRspToClient(req, PWR_ERR_NOT_SUPPORT_CPUIDLE, NULL, 0);
+        return;
+    }
     if (req->head.dataLen == 0 || req->head.dataLen > PWR_MAX_ELEMENT_NAME_LEN || !req->data) {
         SendRspToClient(req, PWR_ERR_INVALIDE_PARAM, NULL, 0);
         return;
