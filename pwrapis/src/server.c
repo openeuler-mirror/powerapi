@@ -431,7 +431,8 @@ static void *RunServerSocketProcess(void *none)
         }
 
         for (int i = 0; i < MAX_CLIENT_NUM; i++) {
-            if (FD_ISSET(g_pwrClients[i].fd, &recvFdSet)) { // new msg or event
+            if (g_pwrClients[i].fd != INVALID_FD && FD_ISSET(g_pwrClients[i].fd, &recvFdSet)) {
+                // new msg or event
                 ProcessRecvMsgFromClient(i);
             }
         }

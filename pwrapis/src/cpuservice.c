@@ -113,7 +113,7 @@ int CpuInfoRead(PWR_CPU_Info *rstData)
     if (fp == NULL) {
         return 1;
     }
-    char buf[PWR_MAX_STRING_LEN];
+    char buf[PWR_MAX_STRING_LEN] = {0};
     while (fgets(buf, sizeof(buf) - 1, fp) != NULL) {
         char *att = strtok(buf, ":");
         if (att == NULL) {
@@ -136,6 +136,7 @@ int GetArch(void)
         Logger(ERROR, MD_NM_SVR_CPU, "Malloc failed.");
         return -1;
     }
+    bzero(cpuInfo, sizeof(PWR_CPU_Info));
     int m = CpuInfoRead(cpuInfo);
     int re = -1;
     if (m != 0) {
@@ -263,7 +264,7 @@ int PerfDataRead(PWR_CPU_PerfData *perfData)
     if (fp == NULL) {
         return 1;
     }
-    char buf[PWR_MAX_STRING_LEN];
+    char buf[PWR_MAX_STRING_LEN] = {0};
     int i = 0;
     unsigned long cacheMiss = 0;
     unsigned long ins = 0;
@@ -356,8 +357,7 @@ static void MergeDuplicatePolicys(PWR_CPU_CurFreq *target, int *len)
 */
 static int CheckPolicys(PWR_CPU_CurFreq *target, int num)
 {
-    char policys[PWR_MAX_CPU_LIST_LEN][PWR_MAX_ELEMENT_NAME_LEN];
-    bzero(policys, sizeof(policys));
+    char policys[PWR_MAX_CPU_LIST_LEN][PWR_MAX_ELEMENT_NAME_LEN] = {0};
     int poNum, i;
     if (GetPolicys(policys, &poNum) == 0) {
         int policysId[poNum];
@@ -424,7 +424,7 @@ static int CheckAvailableGovernor(const char *gov, char *policys)
     StrCopy(checkGovInfo, s1, strlen(gov) + PWR_MAX_NAME_LEN);
     strcat(checkGovInfo, policys);
     strcat(checkGovInfo, s2);
-    char buf[PWR_MAX_STRING_LEN];
+    char buf[PWR_MAX_STRING_LEN] = {0};
     int ret = ReadFile(checkGovInfo, buf, PWR_MAX_STRING_LEN);
     if (ret != PWR_SUCCESS) {
         free(checkGovInfo);
@@ -447,7 +447,7 @@ static int CheckAvailableGovernor(const char *gov, char *policys)
 int CurrentGovernorRead(char *gov)
 {
     char govInfo[] = "/sys/devices/system/cpu/cpufreq/policy0/scaling_governor";
-    char buf[PWR_MAX_STRING_LEN];
+    char buf[PWR_MAX_STRING_LEN] = {0};
     int ret = ReadFile(govInfo, buf, PWR_MAX_STRING_LEN);
     if (ret != PWR_SUCCESS) {
         return ret;
@@ -919,6 +919,7 @@ void GetCpuPerfData(PwrMsg *req)
     if (!rstData) {
         return;
     }
+    bzero(rstData, sizeof(PWR_CPU_PerfData));
     int rspCode = PerfDataRead(rstData);
     SendRspToClient(req, rspCode, (char *)rstData, sizeof(PWR_CPU_PerfData));
 }
@@ -939,8 +940,7 @@ int SetGovernorForAllPcy(const char *gov)
     if (!gov) {
         return PWR_ERR_NULL_POINTER;
     }
-    char policys[PWR_MAX_CPU_LIST_LEN][PWR_MAX_ELEMENT_NAME_LEN];
-    bzero(policys, sizeof(policys));
+    char policys[PWR_MAX_CPU_LIST_LEN][PWR_MAX_ELEMENT_NAME_LEN] = {0};
     int poNum = 0;
     GetPolicys(policys, &poNum);
     return GovernorSet(gov, policys, &poNum);
@@ -1033,8 +1033,7 @@ void SetCpuFreqGovAttr(PwrMsg *req)
 
 void GetCpuFreq(PwrMsg *req)
 {
-    char policys[PWR_MAX_CPU_LIST_LEN][PWR_MAX_ELEMENT_NAME_LEN];
-    bzero(policys, sizeof(policys));
+    char policys[PWR_MAX_CPU_LIST_LEN][PWR_MAX_ELEMENT_NAME_LEN] = {0};
     int poNum;
     int rspCode = 0;
     if (req->head.dataLen > 0 && req->data != NULL) {
@@ -1068,7 +1067,7 @@ void GetCpuFreq(PwrMsg *req)
 void SetCpuFreq(PwrMsg *req)
 {
     size_t num = (req->head.dataLen) / sizeof(PWR_CPU_CurFreq);
-    char currentGov[PWR_MAX_ELEMENT_NAME_LEN];
+    char currentGov[PWR_MAX_ELEMENT_NAME_LEN] = {0};
     PWR_CPU_CurFreq *target = (PWR_CPU_CurFreq *)req->data;
     int rspCode = 0;
 
@@ -1100,8 +1099,7 @@ void SetCpuFreq(PwrMsg *req)
 void GetCpuFreqAbility(PwrMsg *req)
 {
     int coreNum = GetCpuCoreNumber();
-    char policys[PWR_MAX_CPU_LIST_LEN][PWR_MAX_ELEMENT_NAME_LEN];
-    bzero(policys, sizeof(policys));
+    char policys[PWR_MAX_CPU_LIST_LEN][PWR_MAX_ELEMENT_NAME_LEN] = {0};
     int poNum;
     if (GetPolicys(policys, &poNum) != PWR_SUCCESS) {
         int rspCode = PWR_ERR_COMMON;
@@ -1126,6 +1124,7 @@ void GetCpuFreqRange(PwrMsg *req)
     if (!rstData) {
         return;
     }
+    bzero(rstData, sizeof(PWR_CPU_FreqRange));
     int rspCode = ScalingFreqRangeRead(rstData);
     SendRspToClient(req, rspCode, (char *)rstData, sizeof(PWR_CPU_FreqRange));
 }
