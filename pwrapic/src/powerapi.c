@@ -82,6 +82,9 @@ int PWR_SetServerInfo(const char* socketPath)
 
 int PWR_Register(void)
 {
+    if (g_status != STATUS_UNREGISTERED) {
+        return PWR_SUCCESS;
+    }
     if (InitSockClient() != PWR_SUCCESS) {
         return PWR_ERR_COMMON;
     }

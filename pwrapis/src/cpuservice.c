@@ -600,6 +600,7 @@ static int FreqAbilityRead(PWR_CPU_FreqAbility *rstData, char (*policys)[PWR_MAX
     if (FreqDomainRead(rstData->freqDomain, policys, rstData->freqDomainNum, rstData->freqDomainStep) != PWR_SUCCESS) {
         return PWR_ERR_COMMON;
     }
+    return PWR_SUCCESS;
 }
 
 static int CheckFreqInRange(PWR_CPU_CurFreq *target, int num, PWR_CPU_FreqRange freqRange)
@@ -738,6 +739,7 @@ static int GetGovAttrs(PWR_CPU_FreqGovAttrs *attrs)
         attrs->attrNum++;
     }
     closedir(dir);
+    return ret;
 }
 
 static int GetGovAttr(PWR_CPU_FreqGovAttr *attr)
