@@ -1109,3 +1109,18 @@ int GetSockoptFromOS(const pid_t pid, UnixCredOS *credOS)
     free(p);
     return PWR_SUCCESS;
 }
+
+int GetPath(const char *filepath, char *path)
+{
+    int len = strlen(filepath);
+    if (len > MAX_FULL_NAME) {
+        return PWR_ERR_FILE_ACCESS_FAILED;
+    }
+    for (int i = len - 1; i > 0; i--) {
+        if (filepath[i] == '/' || filepath[i] == '\\') {
+            strncpy(path, filepath, i);
+            return PWR_SUCCESS;
+        }
+    }
+    return PWR_ERR_FILE_ACCESS_FAILED;
+}

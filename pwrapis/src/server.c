@@ -84,8 +84,30 @@ static int ListenStart(int sockFd, const struct sockaddr_un *addr)
     return PWR_SUCCESS;
 }
 
+static int CheckAndCreateSockPath(const char *filepath)
+{
+    char path[MAX_FULL_NAME] = {0};
+    if (GetPath(filepath, path) != PWR_SUCCESS || IsPathOk(path) == WRONG_PATH) {
+            fprintf(stderr, "Wrong sock file path: %s\n", filepath);
+            return PWR_ERR_SYS_EXCEPTION;
+    }
+
+    if (access(path, F_OK) != 0) {
+        if (MkDirs(path) != PWR_SUCCESS) {
+            perror("access sock file path failed.\n");
+            return PWR_ERR_SYS_EXCEPTION;
+        }
+    }
+    return PWR_SUCCESS;
+}
+
 static int StartUnxListen(const char *localFileName)
 {
+    int ret = CheckAndCreateSockPath(localFileName);
+    if (ret != PWR_SUCCESS) {
+        return ret;
+    }
+
     int sockFd = 0;
     struct sockaddr_un tSockaddr;
 
