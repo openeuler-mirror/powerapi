@@ -250,4 +250,5 @@ int WriteIntToFile(const char *path, int content);
 int GetMd5(const char *filename, char *md5);
 int NormalizeAndVerifyFilepath(const char *filename, char *realpathRes);
 int GetSockoptFromOS(const pid_t pid, UnixCredOS *credOS);
+int GetPath(const char *filepath, char *path);
 #endif
