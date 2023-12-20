@@ -670,7 +670,7 @@ static int FreqRangeSet(PWR_CPU_FreqRange *rstData)
         Logger(ERROR, MD_NM_SVR_CPU, "cpu freq range: [%d, %d]. the input minfreq[%d] "
             "or maxfreq[%d] is invalide", cpuFreqRange.minFreq, cpuFreqRange.maxFreq,
             rstData->minFreq, rstData->maxFreq);
-        return PWR_ERR_INVALIDE_PARAM;
+        return PWR_ERR_FREQ_NOT_IN_RANGE;
     }
 
     // set min freq
@@ -1064,36 +1064,42 @@ void GetCpuFreq(PwrMsg *req)
     SendRspToClient(req, rspCode, (char *)rstData, sizeof(PWR_CPU_CurFreq) * poNum);
 }
 
+#define GOV_USERSPACE "userspace"
 void SetCpuFreq(PwrMsg *req)
 {
     size_t num = (req->head.dataLen) / sizeof(PWR_CPU_CurFreq);
     char currentGov[PWR_MAX_ELEMENT_NAME_LEN] = {0};
     PWR_CPU_CurFreq *target = (PWR_CPU_CurFreq *)req->data;
-    int rspCode = 0;
 
     // check whether current governor is userspace
-    if (CurrentGovernorRead(currentGov) != PWR_SUCCESS) {
-        rspCode = PWR_ERR_COMMON;
-    } else if (CheckPolicys(target, num) == 1) {
-        rspCode = PWR_ERR_POLICY_INVALIDE;
-    } else if (strcmp(currentGov, "userspace") != 0) {
-        rspCode = PWR_ERR_GOVERNOR_INVALIDE;
+    int ret = CurrentGovernorRead(currentGov);
+    if (ret != PWR_SUCCESS) {
+        SendRspToClient(req, ret, NULL, 0);
+        return;
+    }
+    if (strcmp(currentGov, GOV_USERSPACE) != 0) {
+        SendRspToClient(req, PWR_ERR_GOVERNOR_INVALIDE, NULL, 0);
+        return;
+    }
+
+    if (CheckPolicys(target, num) == 1) {
+        SendRspToClient(req, PWR_ERR_POLICY_INVALIDE, NULL, 0);
+        return;
     }
 
     // check whether frequency is in range
     PWR_CPU_FreqRange freqRange;
-    if (ScalingFreqRangeRead(&freqRange) != 0) {
-        rspCode = PWR_ERR_COMMON;
-    } else if (CheckFreqInRange(target, num, freqRange) != 0) {
-        rspCode = PWR_ERR_FREQ_NOT_IN_RANGE;
+    ret = ScalingFreqRangeRead(&freqRange);
+    if (ret != 0) {
+        SendRspToClient(req, ret, NULL, 0);
+        return;
+    }
+    if (CheckFreqInRange(target, num, freqRange) != 0) {
+        SendRspToClient(req, PWR_ERR_FREQ_NOT_IN_RANGE, NULL, 0);
+        return;
     }
 
-    if (rspCode != 0) {
-        SendRspToClient(req, rspCode, NULL, 0);
-    } else {
-        rspCode = FreqSet(target, num);
-        SendRspToClient(req, rspCode, NULL, 0);
-    }
+    SendRspToClient(req, FreqSet(target, num), NULL, 0);
 }
 
 void GetCpuFreqAbility(PwrMsg *req)
