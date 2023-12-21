@@ -18,6 +18,7 @@
 #include <stdint.h>
 #include <sys/types.h>
 #define PWR_MAX_ELEMENT_NAME_LEN 32
+#define PWR_MAX_LOG_LEN 4000
 #define PWR_MAX_ARRRIBUTES 11
 #define PWR_MAX_NAME_LEN 128
 #define PWR_MAX_VALUE_LEN 32

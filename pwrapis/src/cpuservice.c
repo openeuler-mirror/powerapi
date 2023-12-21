@@ -412,7 +412,7 @@ static int AllGovernorsRead(char (*govList)[PWR_MAX_ELEMENT_NAME_LEN], int *govN
     return 0;
 }
 
-static int CheckAvailableGovernor(const char *gov, char *policys)
+static int CheckAvailableGovernor(const char *gov, const char *policys)
 {
     char *checkGovInfo = malloc(strlen(gov) + PWR_MAX_NAME_LEN);
     if (checkGovInfo == NULL) {
@@ -458,12 +458,24 @@ int CurrentGovernorRead(char *gov)
     return PWR_SUCCESS;
 }
 
+static int ReadGovernorByPolicy(char *gov, const char *pcy)
+{
+    const char base[] = "/sys/devices/system/cpu/cpufreq/%s/scaling_governor";
+    char path[PWR_MAX_STRING_LEN] = {0};
+    if(sprintf(path, base, pcy) < 0){
+        return PWR_ERR_FILE_SPRINTF_FAILED;
+    }
+    int ret = ReadFile(path, gov, PWR_MAX_ELEMENT_NAME_LEN);
+    LRtrim(gov);
+    return ret;
+}
+
 static int GovernorSet(const char *gov, char (*policys)[PWR_MAX_ELEMENT_NAME_LEN], int *poNum)
 {
     int i;
     for (i = 0; i < (*poNum); i++) {
         if (CheckAvailableGovernor(gov, policys[i]) != 0) {
-            return PWR_ERR_INVALIDE_PARAM;
+            return PWR_ERR_GOVERNOR_INVALIDE;
         }
     }
     int buffLen = PWR_MAX_NAME_LEN + strlen(gov);
@@ -710,6 +722,27 @@ static int FreqRangeSet(PWR_CPU_FreqRange *rstData)
     return PWR_SUCCESS;
 }
 
+static int GovIsActive(const char *gov)
+{
+    char policys[PWR_MAX_CPU_LIST_LEN][PWR_MAX_ELEMENT_NAME_LEN] = {0};
+    int poNum = 0;
+    GetPolicys(policys, &poNum);
+
+    if (CheckAvailableGovernor(gov, policys[0]) != 0) {
+        return PWR_ERR_GOVERNOR_INVALIDE;
+    }
+
+    char pcyGov[PWR_MAX_ELEMENT_NAME_LEN] = {0};
+    for (int i = 0; i < poNum; i++) {
+        bzero(pcyGov, PWR_MAX_ELEMENT_NAME_LEN);
+        (void)ReadGovernorByPolicy(pcyGov, policys[i]);
+        if (strcmp(gov, pcyGov) == 0) {
+            return PWR_SUCCESS;
+        }
+    }
+    return PWR_ERR_GOVERNOR_INACTIVE;
+}
+
 static int GetGovAttrs(PWR_CPU_FreqGovAttrs *attrs)
 {
     char base[] = "/sys/devices/system/cpu/cpufreq/";
@@ -718,8 +751,8 @@ static int GetGovAttrs(PWR_CPU_FreqGovAttrs *attrs)
     strcat(attrPath, attrs->gov);
     DIR *dir = opendir(attrPath);
     if (dir == NULL) {
-        Logger(ERROR, MD_NM_SVR_CPU, "Unable to open direct: %s", attrPath);
-        return PWR_ERR_FILE_OPEN_FAILED;
+        Logger(WARNING, MD_NM_SVR_CPU, "This gov does not have attrs: %s", attrPath);
+        return PWR_SUCCESS;
     }
     char *pathEnd = attrPath + strlen(attrPath);
     *pathEnd = PATH_SEP_CHAR;
@@ -730,12 +763,12 @@ static int GetGovAttrs(PWR_CPU_FreqGovAttrs *attrs)
         if (strcmp(dt->d_name, CURRENT_DIR) == 0 || strcmp(dt->d_name, PARENT_DIR) == 0) {
             continue;
         }
-        StrCopy(attrs->attrs[attrs->attrNum].key, dt->d_name, PWR_MAX_ELEMENT_NAME_LEN);
         StrCopy(pathEnd, dt->d_name, PWR_MAX_ELEMENT_NAME_LEN);
         ret = ReadFile(attrPath, attrs->attrs[attrs->attrNum].value, PWR_MAX_VALUE_LEN);
         if (ret != PWR_SUCCESS) {
-            break;
+            continue;
         }
+        StrCopy(attrs->attrs[attrs->attrNum].key, dt->d_name, PWR_MAX_ELEMENT_NAME_LEN);
         attrs->attrNum++;
     }
     closedir(dir);
@@ -750,6 +783,9 @@ static int GetGovAttr(PWR_CPU_FreqGovAttr *attr)
     strcat(attrPath, attr->gov);
     strcat(attrPath, PATH_SEP_STR);
     strcat(attrPath, attr->attr.key);
+    if (access(attrPath, F_OK) != 0) {
+        return PWR_ERR_ATTR_NOT_EXISTS;
+    }
     int ret = ReadFile(attrPath, attr->attr.value, sizeof(attr->attr.value));
     if (ret != PWR_SUCCESS) {
         Logger(ERROR, MD_NM_SVR_CPU, "GetGovAttr failed. path:%s, value:%s, ret:%d",
@@ -766,6 +802,9 @@ static int SetGovAttr(PWR_CPU_FreqGovAttr *attr)
     strcat(attrPath, attr->gov);
     strcat(attrPath, PATH_SEP_STR);
     strcat(attrPath, attr->attr.key);
+    if (access(attrPath, F_OK) != 0) {
+        return PWR_ERR_ATTR_NOT_EXISTS;
+    }
     int ret = WriteFile(attrPath, attr->attr.value, strlen(attr->attr.value));
     if (ret != PWR_SUCCESS) {
         Logger(ERROR, MD_NM_SVR_CPU, "SetGovAttr failed. path:%s, ret:%d", attrPath, ret);
@@ -963,6 +1002,12 @@ void GetCpuFreqGovAttrs(PwrMsg *req)
         CurrentGovernorRead(rspData->gov);
     } else {
         StrCopy(rspData->gov, req->data, PWR_MAX_ELEMENT_NAME_LEN);
+        rspCode = GovIsActive(rspData->gov);
+        if (rspCode != PWR_SUCCESS) {
+            free(rspData);
+            SendRspToClient(req, rspCode, NULL, 0);
+            return;
+        }
     }
     rspCode = GetGovAttrs(rspData);
     if (rspCode != PWR_SUCCESS) {
@@ -989,11 +1034,20 @@ void GetCpuFreqGovAttr(PwrMsg *req)
             rspCode = PWR_ERR_INVALIDE_PARAM;
             break;
         }
-        if (strlen(attr->gov) == 0 && CurrentGovernorRead(attr->gov) != PWR_SUCCESS) {
-            Logger(ERROR, MD_NM_SVR_CPU, "GetCpuFreqGovAttr: failed to find governor");
-            rspCode = PWR_ERR_INVALIDE_PARAM;
-            break;
+
+        if (strlen(attr->gov) == 0) {
+            if (CurrentGovernorRead(attr->gov) != PWR_SUCCESS) {
+                Logger(ERROR, MD_NM_SVR_CPU, "GetCpuFreqGovAttr: failed to find governor");
+                rspCode = PWR_ERR_INVALIDE_PARAM;
+                break;
+            }
+        } else {
+            rspCode = GovIsActive(attr->gov);
+            if (rspCode != PWR_SUCCESS) {
+                break;
+            }
         }
+        bzero(attr->attr.value, sizeof(attr->attr.value));
         rspCode = GetGovAttr(attr);
     } while (PWR_FALSE);
 
@@ -1021,10 +1075,17 @@ void SetCpuFreqGovAttr(PwrMsg *req)
             rspCode = PWR_ERR_INVALIDE_PARAM;
             break;
         }
-        if (strlen(attr->gov) == 0 && CurrentGovernorRead(attr->gov) != PWR_SUCCESS) {
-            Logger(ERROR, MD_NM_SVR_CPU, "SetCpuFreqGovAttr: failed to find governor");
-            rspCode = PWR_ERR_INVALIDE_PARAM;
-            break;
+        if (strlen(attr->gov) == 0) {
+            if (CurrentGovernorRead(attr->gov) != PWR_SUCCESS) {
+                Logger(ERROR, MD_NM_SVR_CPU, "SetCpuFreqGovAttr: failed to find governor");
+                rspCode = PWR_ERR_INVALIDE_PARAM;
+                break;
+            }
+        } else {
+            rspCode = GovIsActive(attr->gov);
+            if (rspCode != PWR_SUCCESS) {
+                break;
+            }
         }
         rspCode = SetGovAttr(attr);
     } while (PWR_FALSE);

@@ -56,9 +56,34 @@ static PwrApiStatus g_status = STATUS_UNREGISTERED;
         }                            \
     }
 
+static const char *GetLogLevelName(int level)
+{
+    static char debug[] = "DEBUG";
+    static char info[] = "INFO";
+    static char warning[] = "WARNING";
+    static char error[] = "ERROR";
+    switch (level) {
+        case DEBUG:
+            return debug;
+        case INFO:
+            return info;
+        case WARNING:
+            return warning;
+        case ERROR:
+            return error;
+        default:
+            return info;
+    }
+}
+
+#define LOG_TAB 5
 static void DefaultLogCallback(int level, const char *fmt, va_list vl)
 {
-    printf(fmt);
+    char message[PWR_MAX_LOG_LEN] = {0};
+    if (vsnprintf(message, sizeof(message) - 1, fmt, vl) < 0) {
+        return;
+    }
+    printf("[%-*s]    %s\n", LOG_TAB, GetLogLevelName(level), message);
 }
 
 void (*g_pwrlog_callback)(int level, const char *fmt, va_list vl) = DefaultLogCallback;
