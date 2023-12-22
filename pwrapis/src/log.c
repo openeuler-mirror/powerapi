@@ -154,13 +154,13 @@ int InitLogger(void)
     regcomp(&g_logCmpFlRgx, "^", REG_EXTENDED | REG_NOSUB);
 
     if (access(GetLogCfg()->logPath, F_OK) != 0) {
-        if (MkDirs(GetLogCfg()->logPath) != PWR_SUCCESS) {
+        if (MkDirs(GetLogCfg()->logPath, CRT_DIR_MODE) != PWR_SUCCESS) {
             perror("access log path failed.");
             return PWR_ERR_SYS_EXCEPTION;
         }
     }
     if (access(GetLogCfg()->logBkp, F_OK) != 0) {
-        if (MkDirs(GetLogCfg()->logBkp) != PWR_SUCCESS) {
+        if (MkDirs(GetLogCfg()->logBkp, CRT_DIR_MODE) != PWR_SUCCESS) {
             perror("access log path failed.");
             return PWR_ERR_SYS_EXCEPTION;
         }

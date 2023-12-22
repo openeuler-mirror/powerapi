@@ -553,7 +553,7 @@ const char *GetMatchN(const char *fileName, regex_t *pRegex, int n, char *row, i
     }
 }
 
-int MkDirs(const char *sDirName)
+int MkDirs(const char *sDirName, mode_t perm)
 {
     size_t i;
     size_t len;
@@ -574,7 +574,7 @@ int MkDirs(const char *sDirName)
                 DirName[i] = PATH_SEP_CHAR;
                 continue;
             }
-            if (mkdir(DirName, CRT_DIR_MODE) == -1) {
+            if (mkdir(DirName, perm) == -1) {
                 return FAILED;
             }
             DirName[i] = PATH_SEP_CHAR;
