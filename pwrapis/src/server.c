@@ -214,7 +214,7 @@ static void AcceptConnection(void)
         }
 
         SendEventToClient(newClientFd, credSocket.pid, (char *)eventInfo,
-            sizeof(PWR_COM_EventInfo) + strlen(info));
+            sizeof(PWR_COM_EventInfo) + strlen(info) + 1);
         close(newClientFd);
         return;
     }
@@ -270,16 +270,26 @@ static void ProcessRecvMsgFromClient(int clientIdx)
     // Get msg from connFd, send to service queue and waiting for processing
     int dstFd = g_pwrClients[clientIdx].fd;
     PwrMsg *msg = (PwrMsg *)malloc(sizeof(PwrMsg));
-    if (!msg || ReadMsg(msg, sizeof(PwrMsg), dstFd, clientIdx) != PWR_SUCCESS) {
-        ReleasePwrMsg(&msg);
+    if (!msg) {
+        return;
+    }
+    bzero(msg, sizeof(PwrMsg));
+    if (ReadMsg(msg, sizeof(PwrMsg), dstFd, clientIdx) != PWR_SUCCESS) {
+        free(msg);
         return;
     }
     Logger(DEBUG, MD_NM_SVR, "receivd msg. opt:%d,sysId:%d", msg->head.optType, msg->head.sysId);
 
     if (msg->head.dataLen > 0) {
         char *msgcontent = malloc(msg->head.dataLen);
-        if (!msgcontent || ReadMsg(msgcontent, msg->head.dataLen, dstFd, clientIdx) != PWR_SUCCESS) {
-            ReleasePwrMsg(&msg);
+        if (!msgcontent) {
+            free(msg);
+            return;
+        }
+        bzero(msgcontent, msg->head.dataLen);
+        if (ReadMsg(msgcontent, msg->head.dataLen, dstFd, clientIdx) != PWR_SUCCESS) {
+            free(msg);
+            free(msgcontent);
             return;
         }
         msg->data = msgcontent;
@@ -366,17 +376,14 @@ static int SendEventToClient(const int dstFd, const uint32_t sysId, char *data, 
     }
 
     PwrMsg *event = (PwrMsg *)malloc(sizeof(PwrMsg));
-    char *dataCpy = (char *)malloc(len);
-    if (!event || !dataCpy) {
+    if (!event) {
         Logger(ERROR, MD_NM_SVR, "Malloc failed");
         free(data);
         return PWR_ERR_SYS_EXCEPTION;
     }
 
     bzero(event, sizeof(PwrMsg));
-    memset(dataCpy, 0, len);
-    memcpy(dataCpy, data, len);
-    int res = GenerateEventMsg(event, sysId, dataCpy, len);
+    int res = GenerateEventMsg(event, sysId, data, len);
     if (res != PWR_SUCCESS) {
         Logger(ERROR, MD_NM_SVR, "Generate event msg failed, result:%d", res);
         free(data);
@@ -387,9 +394,7 @@ static int SendEventToClient(const int dstFd, const uint32_t sysId, char *data, 
 
     SendMsgToClientAction(dstFd, event);
     Logger(INFO, MD_NM_SVR, "Send event notifcation success.");
-    free(data);
-    data = NULL;
-    ReleasePwrMsg(&event);
+    ReleasePwrMsg(&event);  // This will free(data)
     return PWR_SUCCESS;
 }
 

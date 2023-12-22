@@ -192,15 +192,25 @@ static void ProcessOtherMsg(PwrMsg *msg)
 static void RecvMsgFromSocket(void)
 {
     PwrMsg *msg = (PwrMsg *)malloc(sizeof(PwrMsg));
-    if (!msg || ReadMsg(msg, sizeof(PwrMsg)) != PWR_SUCCESS) {
-        ReleasePwrMsg(&msg);
+    if (!msg) {
+        return;
+    }
+    bzero(msg, sizeof(PwrMsg));
+    if (ReadMsg(msg, sizeof(PwrMsg)) != PWR_SUCCESS) {
+        free(msg);
         return;
     }
 
     if (msg->head.dataLen != 0) {
         char *msgcontent = malloc(msg->head.dataLen);
-        if (!msgcontent || ReadMsg(msgcontent, msg->head.dataLen) != PWR_SUCCESS) {
-            ReleasePwrMsg(&msg);
+        if (!msgcontent) {
+            free(msg);
+            return;
+        }
+        bzero(msgcontent, msg->head.dataLen);
+        if (ReadMsg(msgcontent, msg->head.dataLen) != PWR_SUCCESS) {
+            free(msg);
+            free(msgcontent);
             return;
         }
         msg->data = msgcontent;
