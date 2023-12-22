@@ -84,6 +84,7 @@ static int ListenStart(int sockFd, const struct sockaddr_un *addr)
     return PWR_SUCCESS;
 }
 
+#define SOCK_DIR_PERM 0755
 static int CheckAndCreateSockPath(const char *filepath)
 {
     char path[MAX_FULL_NAME] = {0};
@@ -93,7 +94,7 @@ static int CheckAndCreateSockPath(const char *filepath)
     }
 
     if (access(path, F_OK) != 0) {
-        if (MkDirs(path) != PWR_SUCCESS) {
+        if (MkDirs(path, SOCK_DIR_PERM) != PWR_SUCCESS) {
             perror("access sock file path failed.\n");
             return PWR_ERR_SYS_EXCEPTION;
         }
@@ -164,16 +165,16 @@ static int PassCredVerification(const struct ucred *credSocket)
 
 static PWR_COM_EventInfo* CreateEventInfo(const char *info, PWR_COM_EVT_TYPE eventType)
 {
-    size_t eventInfoLen = sizeof(PWR_COM_EventInfo) + strlen(info);
+    size_t eventInfoLen = sizeof(PWR_COM_EventInfo) + strlen(info) + 1;
     PWR_COM_EventInfo *eventInfo = (PWR_COM_EventInfo *)malloc(eventInfoLen);
     if (!eventInfo) {
         return NULL;
     }
 
-    bzero(eventInfo, sizeof(PWR_COM_EventInfo));
+    bzero(eventInfo, sizeof(eventInfoLen));
     GetCurFullTime(eventInfo->ctime, PWR_MAX_TIME_LEN);
     eventInfo->eventType = eventType;
-    eventInfo->infoLen = strlen(info);
+    eventInfo->infoLen = strlen(info) + 1;
     strcpy(eventInfo->info, info);
     return eventInfo;
 }

@@ -356,7 +356,7 @@ void ProcSetWattState(PwrMsg *req)
         SendRspToClient(req, PWR_ERR_INVALIDE_PARAM, NULL, 0);
         return;
     }
-    if (access(WATT_CGROUP_PATH, F_OK) != 0 && MkDirs(WATT_CGROUP_PATH) != PWR_SUCCESS) {
+    if (access(WATT_CGROUP_PATH, F_OK) != 0 && MkDirs(WATT_CGROUP_PATH, CRT_DIR_MODE) != PWR_SUCCESS) {
         SendRspToClient(req, PWR_ERR_SYS_EXCEPTION, NULL, 0);
         return;
     }
