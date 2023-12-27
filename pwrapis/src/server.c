@@ -230,10 +230,10 @@ static void AcceptConnection(void)
     Logger(INFO, MD_NM_SVR, "Create new connection succeed. fd:%d, sysId:%d", client.fd, client.sysId);
 }
 
-static void CleanClientResource(PwrClient *pwrClient, int idx)
+static void CleanClientResource(PwrClient clients[], int idx)
 {
-    CleanControlAuth(pwrClient->sysId);
-    CleanDataCollTaskByClient(pwrClient->sysId);
+    CleanControlAuth(clients[idx].sysId);
+    CleanDataCollTaskByClient(clients[idx].sysId);
     DeleteFromClientList(g_pwrClients, idx);
 }
 
