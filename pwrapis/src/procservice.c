@@ -38,7 +38,8 @@
 #define SMART_GRID_LEVEL_PATH_D "/proc/%d/smart_grid_level"
 #define SMART_GRID_LEVEL_PATH_S "/proc/%s/smart_grid_level"
 #define PROC_PATH "/proc"
-#define SMART_GRID_GOV_PATH "/sys/devices/system/cpu/cpufreq/smart_grid_agent/current_governor"
+#define SMART_GRID_GOV_ENABL_PATH "/sys/devices/system/cpu/cpufreq/smart_grid_governor_enable"
+#define SMART_GRID_GOV_PATH "/sys/devices/system/cpu/cpufreq/smart_grid_governor"
 
 #define CHECK_SUPPORT_WATT_SCHED()                                              \
     {                                                                           \
@@ -223,17 +224,23 @@ static int WriteSmartGridProcsLevel(const PWR_PROC_SmartGridProcs *sgProcs)
     return PWR_SUCCESS;
 }
 
-static inline int SmartGridGovEnabled()
+static int SmartGridGovEnabled()
 {
-    // There is no path of SMART_GRID_GOV_PATH if smart_grid_agent governor is not configed.
-    if (access(SMART_GRID_GOV_PATH, F_OK) == 0) {
-        return PWR_TRUE;
+    if (access(SMART_GRID_GOV_ENABL_PATH, F_OK) != 0) {
+        return PWR_FALSE;
     }
-    return PWR_FALSE;
+
+    char buff[PWR_STATE_LEN] = {0};
+    int ret = ReadFile(SMART_GRID_GOV_ENABL_PATH, buff, PWR_STATE_LEN);
+    if (ret != PWR_SUCCESS) {
+        return PWR_FALSE;
+    }
+    int state = atoi(buff);
+    return (state == PWR_ENABLE);
 }
 
-#define LEVEL0_PREFIX "level-0:"
-#define LEVEL1_PREFIX "level-1:"
+#define LEVEL0_PREFIX "smart_grid-0: "
+#define LEVEL1_PREFIX "smart_grid-1: "
 static int ReadSmartGridGov(PWR_PROC_SmartGridGov *sgGov)
 {
     if (!SmartGridGovEnabled()) {
@@ -263,28 +270,35 @@ static int ReadSmartGridGov(PWR_PROC_SmartGridGov *sgGov)
             continue;
         }
     }
+    fclose(fp);
     return PWR_SUCCESS;
 }
 
-#define SMART_GRID_GOV_NAME "smart_grid_agent"
+static inline int DisableSmartGridGov()
+{
+    return WriteIntToFile(SMART_GRID_GOV_ENABL_PATH, 0);
+}
+
+static inline int EnableSmartGridGov()
+{
+    return WriteIntToFile(SMART_GRID_GOV_ENABL_PATH, 1);
+}
+
 #define EXT_GOV_NAME_LEN (PWR_MAX_ELEMENT_NAME_LEN + 2)
-static char g_orgGov[PWR_MAX_ELEMENT_NAME_LEN] = "conservative";
 static int WriteSmartGridGov(PWR_PROC_SmartGridGov *sgGov)
 {
     if (sgGov->sgAgentState == PWR_DISABLE) {
         if (!SmartGridGovEnabled()) {
             return PWR_SUCCESS;
         }
-        return SetGovernorForAllPcy(g_orgGov);
+        return DisableSmartGridGov();
     }
     // sgGov->sgAgentState == PWR_ENABLE
     if (!SmartGridGovEnabled()) {
-        (void)CurrentGovernorRead(g_orgGov);
-    }
-
-    int ret = SetGovernorForAllPcy(SMART_GRID_GOV_NAME);
-    if (ret != PWR_SUCCESS) {
-        return ret;
+        int ret = EnableSmartGridGov();
+        if (ret != PWR_SUCCESS) {
+            return ret;
+        }
     }
 
     char gov[EXT_GOV_NAME_LEN] = {0};
