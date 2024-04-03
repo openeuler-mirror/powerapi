@@ -15,6 +15,7 @@
 #include "utils.h"
 #include "pwrerr.h"
 #include "pwrdata.h"
+#include "log.h"
 
 #include <regex.h>
 #include <stdio.h>
@@ -30,6 +31,7 @@
 #include <fcntl.h>
 #include <ctype.h>
 #include <common.h>
+#include <errno.h>
 
 static struct timeval GetCurTv(void)
 {
@@ -781,13 +783,13 @@ void LRtrim(char *str)
     size_t length = strlen(str);
     int head = 0;
     int tail = length - 1;
-    while (isspace(str[head])) {
+    while (head <= tail && isspace(str[head])) {
         head++;
     }
-    while (isspace(str[tail])) {
+    while (tail >= head && isspace(str[tail])) {
         tail--;
     }
-    int i;
+    int i = 0;
     for (i = 0; i <= tail - head; i++) {
         str[i] = str[head + i];
     }
@@ -945,9 +947,11 @@ int ReadFile(const char *strInfo, char *buf, int bufLen)
 
     int fd = open(realPath, O_RDONLY);
     if (fd == -1) {
+        Logger(ERROR, MD_NM_OTHS, "Open file[%s] failed. errno:%d, %s", strInfo, errno, strerror(errno));
         return 1;
     }
     if (read(fd, buf, bufLen - 1) < 0) {
+        Logger(ERROR, MD_NM_OTHS, "Read file[%s] failed. errno:%d, %s", strInfo, errno, strerror(errno));
         close(fd);
         return 1;
     }
@@ -966,17 +970,21 @@ int WriteFile(const char *strInfo, const char *buf, int bufLen)
     }
 
     if (access(realPath, F_OK | R_OK | W_OK) != 0) {
+        Logger(ERROR, MD_NM_OTHS, "Access file[%s] failed. errno:%d, %s", strInfo, errno, strerror(errno));
         return PWR_ERR_FILE_ACCESS_FAILED;
     }
     FILE *fp = fopen(realPath, "w+");
     if (fp == NULL) {
+        Logger(ERROR, MD_NM_OTHS, "Open file[%s] failed. errno:%d, %s", strInfo, errno, strerror(errno));
         return PWR_ERR_FILE_OPEN_FAILED;
     }
     if (fprintf(fp, "%s", buf) < 0) {
+        Logger(ERROR, MD_NM_OTHS, "Write file[%s] failed. errno:%d, %s", strInfo, errno, strerror(errno));
         fclose(fp);
         return PWR_ERR_FILE_FPRINT_FAILED;
     }
     if (fflush(fp) != 0) {
+        Logger(ERROR, MD_NM_OTHS, "Fflush file[%s] failed. errno:%d, %s", strInfo, errno, strerror(errno));
         fclose(fp);
         return PWR_ERR_FILE_FFLUSH_FAILED;
     }

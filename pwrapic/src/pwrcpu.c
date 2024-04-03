@@ -195,7 +195,7 @@ int SetCpuFreqGovernor(const char gov[], uint32_t size)
 
 int GetCpuCurFreq(PWR_CPU_CurFreq curFreq[], uint32_t *num, int spec)
 {
-    if ((*num) > PWR_MAX_INPUT_NUM) {
+    if ((*num) > PWR_MAX_CPUFREQ_POLICY_NUM) {
         PwrLog(ERROR, "GetCpuCurFreq failed. ret: %d", PWR_ERR_INPUT_OVERSIZE);
         return PWR_ERR_INPUT_OVERSIZE;
     }

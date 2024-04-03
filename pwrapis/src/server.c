@@ -347,13 +347,14 @@ static void SendMsgToClientAction(int dstFd, PwrMsg *msg)
 {
     static char data[MAX_DATA_SIZE];
     size_t len = sizeof(PwrMsg) + msg->head.dataLen;
+    memcpy(data, msg, sizeof(PwrMsg));
 
     if (len <= MAX_DATA_SIZE) {
-        memcpy(data, msg, sizeof(PwrMsg));
-        memcpy(data + sizeof(PwrMsg), msg->data, msg->head.dataLen);
+        if (msg->data && msg->head.dataLen > 0) {
+            memcpy(data + sizeof(PwrMsg), msg->data, msg->head.dataLen);
+        }
         WriteMsg(data, len, dstFd);
     } else {
-        memcpy(data, msg, sizeof(PwrMsg));
         memcpy(data + sizeof(PwrMsg), msg->data, MAX_DATA_SIZE - sizeof(PwrMsg));
         WriteMsg(data, MAX_DATA_SIZE, dstFd);
         size_t datasent = MAX_DATA_SIZE - sizeof(PwrMsg);

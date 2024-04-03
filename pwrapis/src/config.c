@@ -124,7 +124,7 @@ static void DoReleaseWhiteList(char** whiteList)
         return;
     }
 
-    while (whiteList[i] != NULL) {
+    while (i < MAX_USER_NUM && whiteList[i] != NULL) {
         free(whiteList[i]);
         whiteList[i] = NULL;
         i++;
@@ -166,7 +166,7 @@ static char** UpdateRoleArrayAction(const char *value)
     }
 
     int userNum = MAX_USER_NUM;
-    char** tempRoleArray = calloc(userNum, sizeof(char *));
+    char** tempRoleArray = calloc(MAX_USER_NUM, sizeof(char *));
     if (!tempRoleArray) {
         Logger(ERROR, MD_NM_CFG, "Calloc failed.");
         return NULL;
@@ -177,13 +177,13 @@ static char** UpdateRoleArrayAction(const char *value)
         return NULL;
     }
 
-    char** users = calloc(userNum, sizeof(char *));
+    char** users = calloc(MAX_USER_NUM, sizeof(char *));
     if (!users) {
         free(pbuff);
         free(tempRoleArray);
         return NULL;
     }
-    bzero(users, userNum * sizeof(char *));
+    bzero(users, MAX_USER_NUM * sizeof(char *));
     int idx = 0;
     for (int i = 0; i < userNum; i++) {
         if (!tempRoleArray[i]) {

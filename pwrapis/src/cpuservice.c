@@ -77,8 +77,10 @@ int CpuInfoCopy(char *att, char *value, PWR_CPU_Info *rstData)
             DeleteSubstr(att, "NUMA node");
             DeleteSubstr(att, " CPU(s)");
             int j = atoi(att);
-            rstData->numa[j].nodeNo = j;
-            StrCopy(rstData->numa[j].cpuList, value, PWR_MAX_CPU_LIST_LEN);
+            if (j < PWR_MAX_NUMA_NODE_NUM) {
+                rstData->numa[j].nodeNo = j;
+                StrCopy(rstData->numa[j].cpuList, value, PWR_MAX_CPU_LIST_LEN);
+            }
             break;
         case PWR_CPU_NUMBER:
             if (strlen(att) == PWR_CPUS_WIDTH) {
@@ -311,7 +313,7 @@ int GetPolicys(char (*policys)[PWR_MAX_ELEMENT_NAME_LEN], int *poNum)
     char buf[PWR_MAX_NAME_LEN];
     bzero(buf, PWR_MAX_NAME_LEN);
     *poNum = 0;
-    while ((ent = readdir(dir)) != NULL) {
+    while ((*poNum) < PWR_MAX_CPUFREQ_POLICY_NUM && (ent = readdir(dir)) != NULL) {
         if (strlen(ent->d_name) <= len || strncmp(ent->d_name, targetItem, len) != 0) {
             continue;
         }
@@ -357,7 +359,7 @@ static void MergeDuplicatePolicys(PWR_CPU_CurFreq *target, int *len)
 */
 static int CheckPolicys(PWR_CPU_CurFreq *target, int num)
 {
-    char policys[PWR_MAX_CPU_LIST_LEN][PWR_MAX_ELEMENT_NAME_LEN] = {0};
+    char policys[PWR_MAX_CPUFREQ_POLICY_NUM][PWR_MAX_ELEMENT_NAME_LEN] = {0};
     int poNum, i;
     if (GetPolicys(policys, &poNum) == 0) {
         int policysId[poNum];
@@ -581,6 +583,7 @@ static int FreqDomainRead(char *buf, char (*policys)[PWR_MAX_ELEMENT_NAME_LEN], 
     char temp[PWR_MAX_ELEMENT_NAME_LEN] = {0};
     const char s1[] = "/sys/devices/system/cpu/cpufreq/";
     const char s2[] = "/affected_cpus";
+    int *pcyId = NULL;
     for (int i = 0; i < domainNum; i++) {
         StrCopy(domainInfo, s1, PWR_MAX_NAME_LEN);
         strcat(domainInfo, policys[i]);
@@ -594,7 +597,8 @@ static int FreqDomainRead(char *buf, char (*policys)[PWR_MAX_ELEMENT_NAME_LEN], 
         // convert policys to int
         StrCopy(temp, policys[i], PWR_MAX_ELEMENT_NAME_LEN);
         DeleteSubstr(temp, "policy");
-        buf[i * step] = atoi(temp);
+        pcyId = (int*)(buf + i * step);
+        *pcyId = atoi(temp);
         StrCopy(buf + i * step + sizeof(int), domainbuf, step - sizeof(int));
     }
     return 0;
@@ -665,7 +669,7 @@ static int CpuFreqRangeRead(PWR_CPU_FreqRange *cpuFreqRange)
 
 static int FreqRangeSet(PWR_CPU_FreqRange *rstData)
 {
-    char policys[PWR_MAX_CPU_LIST_LEN][PWR_MAX_ELEMENT_NAME_LEN] = {0};
+    char policys[PWR_MAX_CPUFREQ_POLICY_NUM][PWR_MAX_ELEMENT_NAME_LEN] = {0};
     int ret = -1;
     int poNum, i;
     if (GetPolicys(policys, &poNum) != 0) {
@@ -724,7 +728,7 @@ static int FreqRangeSet(PWR_CPU_FreqRange *rstData)
 
 static int GovIsActive(const char *gov)
 {
-    char policys[PWR_MAX_CPU_LIST_LEN][PWR_MAX_ELEMENT_NAME_LEN] = {0};
+    char policys[PWR_MAX_CPUFREQ_POLICY_NUM][PWR_MAX_ELEMENT_NAME_LEN] = {0};
     int poNum = 0;
     GetPolicys(policys, &poNum);
 
@@ -979,7 +983,7 @@ int SetGovernorForAllPcy(const char *gov)
     if (!gov) {
         return PWR_ERR_NULL_POINTER;
     }
-    char policys[PWR_MAX_CPU_LIST_LEN][PWR_MAX_ELEMENT_NAME_LEN] = {0};
+    char policys[PWR_MAX_CPUFREQ_POLICY_NUM][PWR_MAX_ELEMENT_NAME_LEN] = {0};
     int poNum = 0;
     GetPolicys(policys, &poNum);
     return GovernorSet(gov, policys, &poNum);
@@ -1094,7 +1098,7 @@ void SetCpuFreqGovAttr(PwrMsg *req)
 
 void GetCpuFreq(PwrMsg *req)
 {
-    char policys[PWR_MAX_CPU_LIST_LEN][PWR_MAX_ELEMENT_NAME_LEN] = {0};
+    char policys[PWR_MAX_CPUFREQ_POLICY_NUM][PWR_MAX_ELEMENT_NAME_LEN] = {0};
     int poNum;
     int rspCode = 0;
     if (req->head.dataLen > 0 && req->data != NULL) {
@@ -1166,7 +1170,7 @@ void SetCpuFreq(PwrMsg *req)
 void GetCpuFreqAbility(PwrMsg *req)
 {
     int coreNum = GetCpuCoreNumber();
-    char policys[PWR_MAX_CPU_LIST_LEN][PWR_MAX_ELEMENT_NAME_LEN] = {0};
+    char policys[PWR_MAX_CPUFREQ_POLICY_NUM][PWR_MAX_ELEMENT_NAME_LEN] = {0};
     int poNum;
     if (GetPolicys(policys, &poNum) != PWR_SUCCESS) {
         int rspCode = PWR_ERR_COMMON;
