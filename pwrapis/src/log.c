@@ -33,7 +33,7 @@
 
 #define CRT_DIR_MODE 0700
 
-static FILE *g_pFile = NULL; // todo 需要mutex保护
+static FILE *g_pFile = NULL; // 需要mutex保护?
 static uint32_t g_curSize = 0;
 static regex_t g_logCmpFlRgx;
 

@@ -45,6 +45,7 @@ static PwrMsgBuffer g_sendBuff;         // Send queue
 static PwrMsgBuffer g_recvBuff;         // Receive queue
 static ResultWaitingMsgList g_waitList; // Waiting for results list
 static char SERVER_ADDR[MAX_PATH_LEN] = "/etc/sysconfig/pwrapis/pwrserver.sock"; // Default server path
+static PwrApiStatus g_status = STATUS_UNREGISTERED;
 
 #define CHECK_SOCKET_STATUS()                         \
     if (g_sockFd == INVALID_FD) {                     \
@@ -121,6 +122,18 @@ static void DoDataCallback(PwrMsg *msg)
     ReleasePwrMsg(&msg);
 }
 
+static int EventPreProcessing(const PWR_COM_EventInfo *event)
+{
+    switch (event->eventType) {
+        case PWR_COM_EVTTYPE_AUTH_RELEASED:
+            SetPwrApiStatus(STATUS_REGISTERTED);
+            break;
+        default:
+            break;
+    }
+    return PWR_SUCCESS;
+}
+
 static void DefaultEventCallback(const PWR_COM_EventInfo *eventInfo)
 {
     printf("[Event] ctime:%s, type:%d, info:%s\n", eventInfo->ctime,
@@ -136,13 +149,10 @@ static void DoEventCallback(PwrMsg *msg)
         return;
     }
     PWR_COM_EventInfo *callbackEvent = (PWR_COM_EventInfo *)msg->data;
-    if (callbackEvent->infoLen <= 0) {
-        PwrLog(DEBUG, "DoEventCallback. data empty. len: %d", callbackEvent->infoLen);
-        ReleasePwrMsg(&msg);
-        return;
-    }
+    (void)EventPreProcessing(callbackEvent);
+
     if (g_event_callback == NULL) {
-        PwrLog(ERROR, "No event callback.");
+        PwrLog(ERROR, "No event callback function.");
         ReleasePwrMsg(&msg);
         return;
     }
@@ -500,5 +510,16 @@ int SendReqAndWaitForRsp(const ReqInputParam input, RspOutputParam output)
     PwrLog(DEBUG, "Request succeed. optType: %d", input.optType);
     ReleasePwrMsg(&req);
     ReleasePwrMsg(&rsp);
+    return PWR_SUCCESS;
+}
+
+PwrApiStatus GetPwrApiStatus()
+{
+    return g_status;
+}
+
+int SetPwrApiStatus(PwrApiStatus status)
+{
+    g_status = status;
     return PWR_SUCCESS;
 }

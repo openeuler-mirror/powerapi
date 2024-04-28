@@ -12,7 +12,6 @@
  * Create: 2022-11-05
  * Description: provide task service
  * **************************************************************************** */
-// todo: socket断链时，需要考虑task的释放
 
 #include "taskservice.h"
 #include <pthread.h>

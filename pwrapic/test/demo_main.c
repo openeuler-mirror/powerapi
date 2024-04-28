@@ -45,6 +45,14 @@ static void PrintResult(char *function, int ret)
     }
 }
 
+static void PrintEventInfo(const PWR_COM_EventInfo *eventInfo)
+{
+    printf("[Event]    ctime:%s, type: %d\n", eventInfo->ctime, eventInfo->eventType);
+    if (eventInfo->infoLen > 0 && eventInfo->info) {
+        printf("[Event] info:%s\n", eventInfo->info);
+    }
+}
+
 enum {
     DEBUG = 0,
     INFO,
@@ -116,8 +124,12 @@ void EventCallback(const PWR_COM_EventInfo *eventInfo)
     printf("[Event]    Get event notification\n");
     switch (eventInfo->eventType) {
         case PWR_COM_EVTTYPE_CRED_FAILED:
-            printf("[Event]    ctime: %s, type: %d, info: %s\n", eventInfo->ctime,
-                eventInfo->eventType, eventInfo->info);
+            PrintEventInfo(eventInfo);
+            break;
+        case PWR_COM_EVTTYPE_AUTH_RELEASED:
+            PrintEventInfo(eventInfo);
+            printf("Control auth was released. app exit.\n");
+            g_run = 0;
             break;
         default:
             printf("[Event]    Get invalid event.\n");
