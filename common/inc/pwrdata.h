@@ -298,4 +298,12 @@ typedef struct PWR_PROC_SmartGridGov {
     char sgLevel1Gov[PWR_MAX_ELEMENT_NAME_LEN];
 } PWR_PROC_SmartGridGov;
 
+// HBM
+typedef enum PWR_HBM_SysState {
+    PWR_HBM_NOT_SUPPORT = 0,
+    PWR_HBM_FLAT_MOD,
+    PWR_HBM_CACHE_MOD,
+    PWR_HBM_HYBRID_MOD,
+} PWR_HBM_SysState;
+
 #endif

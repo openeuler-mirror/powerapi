@@ -27,6 +27,7 @@
 #include "pwrnet.h"
 #include "pwrusb.h"
 #include "pwrproc.h"
+#include "pwrhbm.h"
 
 #define CHECK_STATUS(s)                           \
     {                                             \
@@ -290,6 +291,22 @@ int PWR_CPU_DmaSetLatency(int latency)
     return SetCpuDmaLatency(latency);
 }
 
+// HBM
+int PWR_HBM_GetSysState(PWR_HBM_SysState *hbmState)
+{
+    CHECK_STATUS(STATUS_REGISTERTED);
+
+    return GetHbmSysState(hbmState);
+}
+
+int PWR_HBM_SetAllPwrState(int state)
+{
+    CHECK_STATUS(STATUS_AUTHED);
+    if (state < 0 || state > 1) {
+        return PWR_ERR_INVALIDE_PARAM;
+    }
+    return SetAllHbmPowerState(state);
+}
 
 #ifndef RELEASE_MODE
 int PWR_SetMetaDataCallback(void(MetaDataCallback)(const PWR_COM_CallbackData *))

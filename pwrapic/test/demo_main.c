@@ -581,6 +581,32 @@ static void TEST_PWR_DISK_GetList(void)
 }
 /*************************** DISK END ************************/
 
+/***************************** HBM **************************/
+static void TEST_PWR_HBM_GetSysState(void)
+{
+    int ret = -1;
+    PWR_HBM_SysState state = PWR_HBM_HYBRID_MOD;
+    ret = PWR_HBM_GetSysState(&state);
+    PrintResult("TEST_PWR_HBM_GetSysState", ret);
+    printf("hbm state is %d.\n", (int)state);
+}
+
+static void TEST_PWR_HBM_SetAllPwrState(void)
+{
+    int ret = -1;
+    ret = PWR_HBM_SetAllPwrState(0);
+    PrintResult("TEST_PWR_HBM_SetAllPwrState", ret);
+
+    ret = PWR_HBM_SetAllPwrState(1);
+    PrintResult("TEST_PWR_HBM_SetAllPwrState", ret);
+
+    ret = PWR_HBM_SetAllPwrState(2);
+    PrintResult("TEST_PWR_HBM_SetAllPwrState", ret);
+}
+
+
+/*************************** HBM END ************************/
+
 int main(int argc, const char *args[])
 {
     /********** Common **********/
@@ -619,6 +645,11 @@ int main(int argc, const char *args[])
     // TEST_PWR_COM_DcTaskMgr();
     /************ PROC ***********/
     TEST_PROC_AllFunc();
+
+    /************ HBM ***********/
+    TEST_PWR_HBM_GetSysState();
+    TEST_PWR_HBM_SetAllPwrState();
+
     // todo: 其他接口测试
     while (g_run) {
         sleep(MAIN_LOOP_INTERVAL);

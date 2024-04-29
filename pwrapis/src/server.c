@@ -36,6 +36,7 @@
 #include "procservice.h"
 #include "pwrerr.h"
 #include "utils.h"
+#include "hbmservice.h"
 #define COUNT_MAX 5
 #define THREAD_LOOP_INTERVAL 2000 // us
 
@@ -520,6 +521,8 @@ static OptToFunct g_optToFunct[] = {
     {PROC_SET_SMART_GRID_PROCS_LEVEL, ProcSetSmartGridProcsLevel},
     {PROC_GET_SMART_GRID_GOV, ProcGetSmartGridGov},
     {PROC_SET_SMART_GRID_GOV, ProcSetSmartGridGov},
+    {HBM_GET_SYS_STATE, GetHbmSysState},
+    {HBM_SET_ALL_POWER_STATE, SetHbmAllPowerState},
 };
 
 static void ProcessReqMsg(PwrMsg *req)
