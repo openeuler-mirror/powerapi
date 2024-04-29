@@ -1,7 +1,7 @@
 # powerapi
 
 #### 介绍
-Including a power API SO and the Power API Service.
+包括电源API SO和电源API服务。
 
 #### 软件架构
 软件架构说明
@@ -16,8 +16,8 @@ Including a power API SO and the Power API Service.
 #### 使用说明
 
 1. 编译：./build.sh
-2. 后台运行PowerAPI Service： ./release/pwrapis/pwrapis pwrapis/conf/pwrapis_config.ini &
-3. 运行PowerAPI demo： ./release/pwrapi_demo/pwrapic_demo
+2. 后台运行PowerAPI 服务： ./release/pwrapis/pwrapis pwrapis/conf/pwrapis_config.ini &
+3. 运行PowerAPI 演示： ./release/pwrapi_demo/pwrapic_demo
 
 #### 参与贡献
 
