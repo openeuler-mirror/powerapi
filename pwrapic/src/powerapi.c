@@ -28,17 +28,9 @@
 #include "pwrusb.h"
 #include "pwrproc.h"
 
-typedef enum PwrApiStatus {
-    STATUS_UNREGISTERED = 0,
-    STATUS_REGISTERTED = 1,
-    STATUS_AUTHED = 2,
-} PwrApiStatus;
-
-static PwrApiStatus g_status = STATUS_UNREGISTERED;
-
 #define CHECK_STATUS(s)                           \
     {                                             \
-        if ((s) > g_status) {                     \
+        if ((s) > GetPwrApiStatus()) {                     \
             if ((s) == STATUS_REGISTERTED) {      \
                 PwrLog(ERROR, "Not registed.");   \
                 return PWR_ERR_NOT_REGISTED;          \
@@ -107,14 +99,14 @@ int PWR_SetServerInfo(const char* socketPath)
 
 int PWR_Register(void)
 {
-    if (g_status != STATUS_UNREGISTERED) {
+    if (GetPwrApiStatus() != STATUS_UNREGISTERED) {
         return PWR_SUCCESS;
     }
     if (InitSockClient() != PWR_SUCCESS) {
         return PWR_ERR_COMMON;
     }
-    if (g_status == STATUS_UNREGISTERED) {
-        g_status = STATUS_REGISTERTED;
+    if (GetPwrApiStatus() == STATUS_UNREGISTERED) {
+        (void)SetPwrApiStatus(STATUS_REGISTERTED);
     }
     return PWR_SUCCESS;
 }
@@ -122,7 +114,7 @@ int PWR_Register(void)
 int PWR_UnRegister(void)
 {
     int ret = FiniSockClient();
-    g_status = STATUS_UNREGISTERED;
+    (void)SetPwrApiStatus(STATUS_UNREGISTERED);
     return ret;
 }
 
@@ -132,7 +124,7 @@ int PWR_RequestControlAuth(void)
     CHECK_STATUS(STATUS_REGISTERTED);
     int ret = RequestControlAuth();
     if (ret == PWR_SUCCESS) {
-        g_status = STATUS_AUTHED;
+        (void)SetPwrApiStatus(STATUS_AUTHED);
     }
     return ret;
 }
@@ -142,7 +134,7 @@ int PWR_ReleaseControlAuth(void)
     CHECK_STATUS(STATUS_AUTHED);
     int ret = ReleaseControlAuth();
     if (ret == PWR_SUCCESS) {
-        g_status = STATUS_REGISTERTED;
+        (void)SetPwrApiStatus(STATUS_REGISTERTED);
     }
     return ret;
 }

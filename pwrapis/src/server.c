@@ -139,7 +139,7 @@ static void StopListen(void)
     pthread_mutex_unlock(&g_listenFdLock);
 }
 
-static int PassCredVerification(const struct ucred *credSocket)
+static int PassCredVerification(const struct ucred *credSocket, char *userName)
 {
     int ret;
     UnixCredOS credOS = {0};
@@ -156,16 +156,16 @@ static int PassCredVerification(const struct ucred *credSocket)
     }
 
     if (!IsAdmin(credOS.user) && !IsObserver(credOS.user)) {
-        Logger(ERROR, MD_NM_SVR, "the client <%s> is not in white list", credOS.user);
+        Logger(ERROR, MD_NM_SVR, "the client <%s> has no admin permission!", credOS.user);
         return PWR_ERR_COMMON;
     }
-
+    strncpy(userName, credOS.user, PWR_MAX_ELEMENT_NAME_LEN);
     return PWR_SUCCESS;
 }
 
-static PWR_COM_EventInfo* CreateEventInfo(const char *info, PWR_COM_EVT_TYPE eventType)
+static PWR_COM_EventInfo* CreateEventInfo(PWR_COM_EVT_TYPE eventType, const void *info, uint32_t len)
 {
-    size_t eventInfoLen = sizeof(PWR_COM_EventInfo) + strlen(info) + 1;
+    size_t eventInfoLen = sizeof(PWR_COM_EventInfo) + len;
     PWR_COM_EventInfo *eventInfo = (PWR_COM_EventInfo *)malloc(eventInfoLen);
     if (!eventInfo) {
         return NULL;
@@ -174,12 +174,12 @@ static PWR_COM_EventInfo* CreateEventInfo(const char *info, PWR_COM_EVT_TYPE eve
     bzero(eventInfo, sizeof(eventInfoLen));
     GetCurFullTime(eventInfo->ctime, PWR_MAX_TIME_LEN);
     eventInfo->eventType = eventType;
-    eventInfo->infoLen = strlen(info) + 1;
-    strcpy(eventInfo->info, info);
+    eventInfo->infoLen = len;
+    memcpy(eventInfo->info, info, len);
     return eventInfo;
 }
 
-static int SendEventToClient(const int dstFd, const uint32_t sysId, char *data, uint32_t len);
+static int DoSendEventToClient(const int dstFd, const uint32_t sysId, char *data, uint32_t len);
 static void AcceptConnection(void)
 {
     Logger(INFO, MD_NM_SVR, "Received connection request.");
@@ -195,33 +195,32 @@ static void AcceptConnection(void)
         return;
     }
 
-    /*todo 链路保活，IPC场景下优先级放低，后续完善 */
     struct ucred credSocket;
     if (getsockopt(newClientFd, SOL_SOCKET, SO_PEERCRED, &credSocket, &socklen) < 0) {
         Logger(ERROR, MD_NM_SVR, "get sock options failed");
         return;
     }
 
-    if (PassCredVerification(&credSocket) != PWR_SUCCESS) {
+    PwrClient client = {0};
+    client.fd = newClientFd;
+    client.sysId = credSocket.pid;
+    if (PassCredVerification(&credSocket, client.userName) != PWR_SUCCESS) {
         Logger(ERROR, MD_NM_CRED, "credentials verification failed");
-        const char *info = "Server has closed connection. This client is not in white list";
+        const char *info = "Server has closed connection. This client has no admin permission.";
         /* eventData should be release in the function that uses it */
-        PWR_COM_EventInfo *eventInfo = CreateEventInfo(info, PWR_COM_EVTTYPE_CRED_FAILED);
+        PWR_COM_EventInfo *eventInfo = CreateEventInfo(PWR_COM_EVTTYPE_CRED_FAILED, info, strlen(info) + 1);
         if (!eventInfo) {
             Logger(ERROR, MD_NM_SVR, "Create event failed.");
             close(newClientFd);
             return;
         }
 
-        SendEventToClient(newClientFd, credSocket.pid, (char *)eventInfo,
+        DoSendEventToClient(newClientFd, credSocket.pid, (char *)eventInfo,
             sizeof(PWR_COM_EventInfo) + strlen(info) + 1);
         close(newClientFd);
         return;
     }
 
-    PwrClient client;
-    client.fd = newClientFd;
-    client.sysId = credSocket.pid;
     if (AddToClientList(g_pwrClients, client) != PWR_SUCCESS) {
         Logger(ERROR, MD_NM_SVR, "Reach maximum connections or client existed : %d ", MAX_CLIENT_NUM);
         close(newClientFd);
@@ -343,7 +342,7 @@ static int WriteMsg(const void *pData, size_t len, int dstFd)
     return PWR_SUCCESS;
 }
 
-static void SendMsgToClientAction(int dstFd, PwrMsg *msg)
+static void DoSendMsgToClient(int dstFd, PwrMsg *msg)
 {
     static char data[MAX_DATA_SIZE];
     size_t len = sizeof(PwrMsg) + msg->head.dataLen;
@@ -370,7 +369,7 @@ static void SendMsgToClientAction(int dstFd, PwrMsg *msg)
     }
 }
 
-static int SendEventToClient(const int dstFd, const uint32_t sysId, char *data, uint32_t len)
+static int DoSendEventToClient(const int dstFd, const uint32_t sysId, char *data, uint32_t len)
 {
     if (!data && len != 0) {
         return PWR_ERR_INVALIDE_PARAM;
@@ -393,7 +392,7 @@ static int SendEventToClient(const int dstFd, const uint32_t sysId, char *data, 
         return res;
     }
 
-    SendMsgToClientAction(dstFd, event);
+    DoSendMsgToClient(dstFd, event);
     Logger(INFO, MD_NM_SVR, "Send event notifcation success.");
     ReleasePwrMsg(&event);  // This will free(data)
     return PWR_SUCCESS;
@@ -415,7 +414,7 @@ static void ProcessSendMsgToClient(void)
             ReleasePwrMsg(&msg);
             continue;
         }
-        SendMsgToClientAction(dstFd, msg);
+        DoSendMsgToClient(dstFd, msg);
         Logger(DEBUG, MD_NM_SVR, "send msg. opt:%d, sysId:%d, rspCode:%d",
             msg->head.optType, msg->head.sysId, msg->head.rspCode);
         ReleasePwrMsg(&msg);
@@ -651,4 +650,25 @@ int SendMetadataToClient(uint32_t sysId, char *data, uint32_t len)
 int SendRspMsg(PwrMsg *rsp)
 {
     return AddToBufferTail(&g_sendBuff, rsp);
+}
+
+int SendEventToClient(uint32_t sysId, PWR_COM_EVT_TYPE type, void *info, uint32_t infoLen)
+{
+    PWR_COM_EventInfo *eventInfo = CreateEventInfo(type, info, infoLen);
+    if (!eventInfo) {
+        Logger(ERROR, MD_NM_SVR, "Create event failed.");
+        return PWR_ERR_SYS_EXCEPTION;
+    }
+    int fd = GetFdBySysId(g_pwrClients, sysId);
+    return DoSendEventToClient(fd, sysId, (char *)eventInfo, sizeof(PWR_COM_EventInfo) + infoLen);
+}
+
+static const char INTERNAL_USER[] = "eagle";
+int IsInternalUser(uint32_t sysId)
+{
+    const char *name = GetUserNameBySysId(g_pwrClients, sysId);
+    if (name && strcmp(INTERNAL_USER, name) == 0) {
+        return PWR_TRUE;
+    }
+    return PWR_FALSE;
 }

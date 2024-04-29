@@ -29,6 +29,12 @@ typedef struct RspOutputParam {
     char *rspData;
 } RspOutputParam;
 
+typedef enum PwrApiStatus {
+    STATUS_UNREGISTERED = 0,
+    STATUS_REGISTERTED = 1,
+    STATUS_AUTHED = 2,
+} PwrApiStatus;
+
 int SetServerInfo(const char* socketPath);
 int InitSockClient(void);
 int FiniSockClient(void);
@@ -36,4 +42,8 @@ int SetMetaDataCallback(void(MetaDataCallback)(const PWR_COM_CallbackData *));
 int SetEventCallback(void(EventCallback)(const PWR_COM_EventInfo *));
 int HasSetDataCallback(void);
 int SendReqAndWaitForRsp(const ReqInputParam input, RspOutputParam output);
+
+PwrApiStatus GetPwrApiStatus();
+int SetPwrApiStatus(PwrApiStatus status);
+
 #endif

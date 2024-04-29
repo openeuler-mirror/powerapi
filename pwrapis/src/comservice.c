@@ -32,19 +32,27 @@ static int DoAuthRequest(uint32_t client)
     UnixCredOS credOS;
     int ret = GetSockoptFromOS(client, &credOS);
     if (ret != PWR_SUCCESS) {
-        Logger(ERROR, MD_NM_SVR_TASK, "get sockopt from OS failed, ret : %d", ret);
+        Logger(ERROR, MD_NM_SVR_COM, "get sockopt from OS failed, ret : %d", ret);
         return PWR_ERR_COMMON;
     }
     if (!IsAdmin(credOS.user)) {
-        Logger(ERROR, MD_NM_SVR_TASK, "the client <%s> is not an admin", credOS.user);
+        Logger(ERROR, MD_NM_SVR_COM, "the client <%s> is not an admin", credOS.user);
         return PWR_ERR_CONTROL_AUTH_NO_PERMISSION;
     }
 
     if (g_authed) {
-        if (g_authOwner != client) { // Control has been granted to other app
-            return PWR_ERR_CONTROL_AUTH_REQUESTED;
+        if (g_authOwner == client) {
+            return PWR_SUCCESS;
         }
-        return PWR_SUCCESS;
+        // Control auth has been granted to other client
+        if (IsInternalUser(g_authOwner)) {
+            (void)SendEventToClient(g_authOwner, PWR_COM_EVTTYPE_AUTH_RELEASED, NULL, 0);
+            Logger(INFO, MD_NM_SVR_COM, "Auth owned by <id:%d> force released by %s<id:%d>",
+                g_authOwner, credOS.user, client);
+            g_authOwner = client;
+            return PWR_SUCCESS;
+        }
+        return PWR_ERR_CONTROL_AUTH_REQUESTED;
     }
     g_authOwner = client;
     g_authed = PWR_TRUE;
