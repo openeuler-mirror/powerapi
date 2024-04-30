@@ -546,10 +546,14 @@ int PWR_PROC_QueryProcs(const char *keywords, pid_t procs[], uint32_t *num)
     if (*num == 0) {
         return PWR_ERR_INVALIDE_PARAM;
     }
-    if (keywords && strlen(keywords) >= PWR_MAX_STRING_LEN) {
-        return PWR_ERR_INVALIDE_PARAM;
+    const char *kw = "";
+    if (keywords) {
+        if (strlen(keywords) >= PWR_MAX_STRING_LEN) {
+            return PWR_ERR_INVALIDE_PARAM;
+        }
+        kw = keywords;
     }
-    return QueryProcsByKeywords(keywords, procs, num);
+    return QueryProcsByKeywords(kw, procs, num);
 }
 
 int PWR_PROC_GetWattState(int *state)

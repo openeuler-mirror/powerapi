@@ -68,7 +68,7 @@
 static int QueryProcs(const char *keyWords, pid_t procs[], int maxNum, int *procNum)
 {
     char cmd[PWR_MAX_STRING_LEN] = GET_US_PROCS_CMD;
-    if (keyWords) {
+    if (keyWords && strlen(keyWords) != 0) {
         if (sprintf(cmd, QUERY_PROCS_CMD, keyWords) < 0) {
             return PWR_ERR_FILE_SPRINTF_FAILED;
         }
