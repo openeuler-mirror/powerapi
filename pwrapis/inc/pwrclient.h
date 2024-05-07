@@ -16,9 +16,11 @@
 #define PAPIS_CLIENT_H__
 
 #include <stdint.h>
+#include "pwrdata.h"
 typedef struct PwrClient {
     int fd;
     int sysId;
+    char userName[PWR_MAX_ELEMENT_NAME_LEN];
 } PwrClient;
 
 void InitPwrClient(PwrClient clients[]);
@@ -27,4 +29,6 @@ int DeleteFromClientList(PwrClient clients[], int idx);
 void CloseAllConnections(PwrClient clients[]);
 int GetFdBySysId(const PwrClient clients[], uint32_t sysId);
 int GetIdxByFd(const PwrClient clients[], int fd);
+const char *GetUserNameBySysId(const PwrClient clients[], uint32_t sysId);
+
 #endif

@@ -83,13 +83,21 @@ void MetaDataCallback(const PWR_COM_CallbackData *callbackData)
     }
 }
 
+static void PrintEventInfo(const PWR_COM_EventInfo *eventInfo)
+{
+    printf("[Event] ctime:%s, type:%d\n", eventInfo->ctime, eventInfo->eventType);
+    if (eventInfo->infoLen > 0 && eventInfo->info) {
+        printf("[Event] info:%s\n", eventInfo->info);
+    }
+}
+
 void EventCallback(const PWR_COM_EventInfo *eventInfo)
 {
     printf("[Event] Get event notification\n");
     switch (eventInfo->eventType) {
         case PWR_COM_EVTTYPE_CRED_FAILED:
-            printf("[Event] ctime:%s, type:%d\n", eventInfo->ctime, eventInfo->eventType);
-            printf("[Event] info:%s\n", eventInfo->info);
+        case PWR_COM_EVTTYPE_AUTH_RELEASED:
+            PrintEventInfo(eventInfo);
             break;
         default:
             printf("[Event] Get invalid event.\n");

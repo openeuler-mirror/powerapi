@@ -22,7 +22,7 @@
 
 #define MAIN_LOOP_INTERVAL 5
 #define TEST_FREQ 2400
-#define TEST_CORE_NUM 128
+#define TEST_CORE_NUM 4096
 #define AVG_LEN_PER_CORE 5
 #define TEST_CPU_DMA_LATENCY 2000
 #define TASK_INTERVAL 1000
@@ -42,6 +42,14 @@ static void PrintResult(char *function, int ret)
         printf("SUCCESS ret: %d\n", ret);
     } else {
         printf("ERROR   ret: %d\n", ret);
+    }
+}
+
+static void PrintEventInfo(const PWR_COM_EventInfo *eventInfo)
+{
+    printf("[Event]    ctime:%s, type: %d\n", eventInfo->ctime, eventInfo->eventType);
+    if (eventInfo->infoLen > 0 && eventInfo->info) {
+        printf("[Event] info:%s\n", eventInfo->info);
     }
 }
 
@@ -116,8 +124,12 @@ void EventCallback(const PWR_COM_EventInfo *eventInfo)
     printf("[Event]    Get event notification\n");
     switch (eventInfo->eventType) {
         case PWR_COM_EVTTYPE_CRED_FAILED:
-            printf("[Event]    ctime: %s, type: %d, info: %s\n", eventInfo->ctime,
-                eventInfo->eventType, eventInfo->info);
+            PrintEventInfo(eventInfo);
+            break;
+        case PWR_COM_EVTTYPE_AUTH_RELEASED:
+            PrintEventInfo(eventInfo);
+            printf("Control auth was released. app exit.\n");
+            g_run = 0;
             break;
         default:
             printf("[Event]    Get invalid event.\n");

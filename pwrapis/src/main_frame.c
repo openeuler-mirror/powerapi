@@ -42,7 +42,6 @@ static int BaseInit(void)
         return ret;
     }
 
-    // todo 其他必要的初始化
     return PWR_SUCCESS;
 }
 
@@ -98,7 +97,6 @@ int main(int argc, const char *args[])
     while (g_keepMainRunning) {
         sleep(MAIN_LOOP_INTERVAL);
         CheckAndUpdateConfig();
-        // todo 系统定时任务(比如配置文件更新)触发
     }
     StopServer();
     ClearEnv();

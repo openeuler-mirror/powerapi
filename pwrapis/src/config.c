@@ -124,16 +124,12 @@ static void DoReleaseWhiteList(char** whiteList)
         return;
     }
 
-    /**
-     * The pointer in whiteList only points to the beginning of a
-     * substring in a block of memory (storing multiple strings),
-     * without allocating memory and does not need to be released.
-    */
-    free(whiteList);
-    while (whiteList[i] != NULL) {
+    while (i < MAX_USER_NUM && whiteList[i] != NULL) {
+        free(whiteList[i]);
         whiteList[i] = NULL;
         i++;
     }
+    free(whiteList);
     whiteList = NULL;
 }
 
@@ -165,34 +161,54 @@ static int UpdateServCfg(enum CnfItemType type, char *value)
 
 static char** UpdateRoleArrayAction(const char *value)
 {
-    int maxNum = 0;
-    int i = 0;
-    char** tempRoleArray = NULL;
-    maxNum = strlen(value);
-    if (maxNum == 0) {
+    if (!value || strlen(value) == 0) {
         return NULL;
     }
-    tempRoleArray = calloc(maxNum + 1, sizeof(char *));
+
+    int userNum = MAX_USER_NUM;
+    char** tempRoleArray = calloc(MAX_USER_NUM, sizeof(char *));
     if (!tempRoleArray) {
         Logger(ERROR, MD_NM_CFG, "Calloc failed.");
         return NULL;
     }
-
-    if (StrSplit(value, ",", tempRoleArray, &maxNum) == NULL) {
-        DoReleaseWhiteList(tempRoleArray);
-        tempRoleArray = NULL;
+    char *pbuff = StrSplit(value, ",", tempRoleArray, &userNum);
+    if (!pbuff) {
+        free(tempRoleArray);
         return NULL;
     }
-    while (tempRoleArray[i] != NULL) {
+
+    char** users = calloc(MAX_USER_NUM, sizeof(char *));
+    if (!users) {
+        free(pbuff);
+        free(tempRoleArray);
+        return NULL;
+    }
+    bzero(users, MAX_USER_NUM * sizeof(char *));
+    int idx = 0;
+    for (int i = 0; i < userNum; i++) {
+        if (!tempRoleArray[i]) {
+            continue;
+        }
         LRtrim(tempRoleArray[i]);
-        i++;
+        char * user = malloc(strlen(tempRoleArray[i]) + 1);
+        if (!user) {
+            DoReleaseWhiteList(users);
+            free(pbuff);
+            free(tempRoleArray);
+            return NULL;
+        }
+
+        StrCopy(user, tempRoleArray[i], strlen(tempRoleArray[i]) + 1);
+        users[idx] = user;
+        idx++;
     }
 
     /**
-     * If success, return temp array.
-     * tempRoleArray will be release in UpdateRoleArray
+     * users will be release in UpdateRoleArray
     */
-    return tempRoleArray;
+    free(pbuff);
+    free(tempRoleArray);
+    return users;
 }
 
 static int IsSameArray(char **arr1, char **arr2)
@@ -232,17 +248,15 @@ static int UpdateRoleArray(enum CnfItemType type, const char *value)
     switch (type) {
         case E_CFG_IT_ADM:
             if (value == NULL) {
+                // tempRoleArray must be null
                 DoReleaseWhiteList(g_adminArray);
                 g_adminArray = NULL;
                 return PWR_SUCCESS;
             }
 
-            if (tempRoleArray == NULL) {
+            if (strlen(value) != 0 && tempRoleArray == NULL) {
                 Logger(INFO, MD_NM_CFG, "Admin in config is meaningless!%s", value);
                 return PWR_ERR_INVALIDE_PARAM;
-            }
-            if (IsSameArray(g_adminArray, tempRoleArray) == PWR_TRUE) {
-                return PWR_SUCCESS;
             }
 
             oldRoleArray = g_adminArray;
@@ -253,6 +267,7 @@ static int UpdateRoleArray(enum CnfItemType type, const char *value)
             break;
         case E_CFG_IT_OBSER:
             if (value == NULL) {
+                // tempRoleArray must be null
                 DoReleaseWhiteList(g_observerArray);
                 g_observerArray = NULL;
                 Logger(INFO, MD_NM_CFG, "Observer in config has been modified to null");
@@ -262,9 +277,6 @@ static int UpdateRoleArray(enum CnfItemType type, const char *value)
             if (strlen(value) != 0 && tempRoleArray == NULL) {
                 Logger(INFO, MD_NM_CFG, "Observer in config is meaningless!%s", value);
                 return PWR_ERR_INVALIDE_PARAM;
-            }
-            if (IsSameArray(g_observerArray, tempRoleArray) == PWR_TRUE) {
-                return PWR_SUCCESS;
             }
 
             oldRoleArray = g_observerArray;
@@ -284,7 +296,7 @@ static int UpdateRoleArray(enum CnfItemType type, const char *value)
 static int InitLogCfg(void)
 {
     bzero(&g_logCfg, sizeof(g_logCfg));
-    g_logCfg.logLevel = DEBUG; // todo 发布时修改为INFO
+    g_logCfg.logLevel = INFO;
     g_logCfg.maxFileSize = DEFAULT_FILE_SIZE * UNIT_FACTOR - MAX_LINE_LENGTH;
     g_logCfg.maxCmpCnt = DEFAULT_FILE_NUM;
     strncpy(g_logCfg.logPath, DEFAULT_LOG_PATH, sizeof(g_logCfg.logPath) - 1);
@@ -300,7 +312,7 @@ static int InitLogCfg(void)
 
 static int InitServCfg(void)
 {
-    strncpy(g_servCfg.sockFile, SERVER_ADDR, sizeof(g_servCfg.sockFile) - 1);
+    strncpy(g_servCfg.sockFile, DEFAULT_SERVER_SOCK_FILE, sizeof(g_servCfg.sockFile) - 1);
     g_servCfg.port = 0;
     return PWR_SUCCESS;
 }

@@ -30,7 +30,7 @@
 #include "pwrerr.h"
 #include "pwrbuffer.h"
 
-#define CLIENT_ADDR "pwrclient.sock."
+#define CLIENT_ADDR "pwrclient.sock"
 #define INVALID_FD (-1)
 #define SOCK_THREAD_LOOP_INTERVAL 2000 // us
 #define RECONNECTE_INTERVAL 3          // s
@@ -44,13 +44,23 @@ static ThreadInfo g_sockThread;
 static PwrMsgBuffer g_sendBuff;         // Send queue
 static PwrMsgBuffer g_recvBuff;         // Receive queue
 static ResultWaitingMsgList g_waitList; // Waiting for results list
-static char SERVER_ADDR[MAX_PATH_LEN] = "/etc/sysconfig/pwrapis/pwrserver.sock"; // Default server path
+static char g_serverAddr[MAX_PATH_LEN] = "/etc/sysconfig/pwrapis/pwrserver.sock"; // Default server path
+static PwrApiStatus g_status = STATUS_UNREGISTERED;
 
 #define CHECK_SOCKET_STATUS()                         \
     if (g_sockFd == INVALID_FD) {                     \
         PwrLog(ERROR, "check socket status failed."); \
         return PWR_ERR_DISCONNECTED;                      \
     }
+
+static char* GetClientSockDir(char *dir)
+{
+    const char *home = getenv("HOME");
+    if (!home || sprintf(dir, "%s/%s", home, CLIENT_ADDR) < 0) {
+        PwrLog(ERROR, "Get Client home dir failed.");
+    }
+    return dir;
+}
 
 static int ReadMsg(void *pData, int len)
 {
@@ -121,6 +131,18 @@ static void DoDataCallback(PwrMsg *msg)
     ReleasePwrMsg(&msg);
 }
 
+static int EventPreProcessing(const PWR_COM_EventInfo *event)
+{
+    switch (event->eventType) {
+        case PWR_COM_EVTTYPE_AUTH_RELEASED:
+            SetPwrApiStatus(STATUS_REGISTERTED);
+            break;
+        default:
+            break;
+    }
+    return PWR_SUCCESS;
+}
+
 static void DefaultEventCallback(const PWR_COM_EventInfo *eventInfo)
 {
     printf("[Event] ctime:%s, type:%d, info:%s\n", eventInfo->ctime,
@@ -136,13 +158,10 @@ static void DoEventCallback(PwrMsg *msg)
         return;
     }
     PWR_COM_EventInfo *callbackEvent = (PWR_COM_EventInfo *)msg->data;
-    if (callbackEvent->infoLen <= 0) {
-        PwrLog(DEBUG, "DoEventCallback. data empty. len: %d", callbackEvent->infoLen);
-        ReleasePwrMsg(&msg);
-        return;
-    }
+    (void)EventPreProcessing(callbackEvent);
+
     if (g_event_callback == NULL) {
-        PwrLog(ERROR, "No event callback.");
+        PwrLog(ERROR, "No event callback function.");
         ReleasePwrMsg(&msg);
         return;
     }
@@ -192,15 +211,25 @@ static void ProcessOtherMsg(PwrMsg *msg)
 static void RecvMsgFromSocket(void)
 {
     PwrMsg *msg = (PwrMsg *)malloc(sizeof(PwrMsg));
-    if (!msg || ReadMsg(msg, sizeof(PwrMsg)) != PWR_SUCCESS) {
-        ReleasePwrMsg(&msg);
+    if (!msg) {
+        return;
+    }
+    bzero(msg, sizeof(PwrMsg));
+    if (ReadMsg(msg, sizeof(PwrMsg)) != PWR_SUCCESS) {
+        free(msg);
         return;
     }
 
     if (msg->head.dataLen != 0) {
         char *msgcontent = malloc(msg->head.dataLen);
-        if (!msgcontent || ReadMsg(msgcontent, msg->head.dataLen) != PWR_SUCCESS) {
-            ReleasePwrMsg(&msg);
+        if (!msgcontent) {
+            free(msg);
+            return;
+        }
+        bzero(msgcontent, msg->head.dataLen);
+        if (ReadMsg(msgcontent, msg->head.dataLen) != PWR_SUCCESS) {
+            free(msg);
+            free(msgcontent);
             return;
         }
         msg->data = msgcontent;
@@ -269,15 +298,8 @@ static int CreateConnection(void)
     struct sockaddr_un clientAddr;
     bzero(&clientAddr, sizeof(clientAddr));
     clientAddr.sun_family = AF_UNIX;
-    char pidStr[MAX_PID_LEN];
-    pid_t pid = getpid();
-    if (sprintf(pidStr, "%d", pid) < 0) {
-        close(clientFd);
-        return PWR_ERR_SYS_EXCEPTION;
-    }
-    strncpy(clientAddr.sun_path, CLIENT_ADDR, sizeof(clientAddr.sun_path) - 1);
-    // socket file "pwrclient.sock.{$pid}"
-    strncat(clientAddr.sun_path, pidStr, sizeof(clientAddr.sun_path) - strlen(CLIENT_ADDR) - 1);
+    char sockDir[MAX_PATH_LEN] = CLIENT_ADDR;
+    strncpy(clientAddr.sun_path, GetClientSockDir(sockDir), sizeof(clientAddr.sun_path) - 1);
     size_t clen = SUN_LEN(&clientAddr);
     unlink(clientAddr.sun_path);
     if (bind(clientFd, (struct sockaddr *)&clientAddr, clen) < 0) {
@@ -289,10 +311,10 @@ static int CreateConnection(void)
     struct sockaddr_un serverAddr;
     bzero(&serverAddr, sizeof(serverAddr));
     serverAddr.sun_family = AF_UNIX;
-    strncpy(serverAddr.sun_path, SERVER_ADDR, sizeof(serverAddr.sun_path) - 1);
+    strncpy(serverAddr.sun_path, g_serverAddr, sizeof(serverAddr.sun_path) - 1);
     size_t slen = SUN_LEN(&serverAddr);
     if (connect(clientFd, (struct sockaddr *)&serverAddr, slen) < 0) {
-        if (access(SERVER_ADDR, F_OK) != 0) {
+        if (access(g_serverAddr, F_OK) != 0) {
             PwrLog(ERROR, "Server sock doesn't exist. Check server addr path please.");
         }
         PwrLog(ERROR, "Connect to server failed.");
@@ -325,7 +347,6 @@ static void *RunSocketProcess(void *none)
             SendMsgToSocket();
         }
 
-        // todo: select中增加断连异常事件监听
         int ret = select(g_sockFd + 1, &recvFdSet, NULL, NULL, &tv);
         if (ret > 0 && FD_ISSET(g_sockFd, &recvFdSet)) {
             RecvMsgFromSocket();
@@ -392,7 +413,7 @@ static int SendReqMsgAndWaitForRsp(PwrMsg *req, PwrMsg **rsp)
 // public****************************************************************************************/
 int SetServerInfo(const char* socketPath)
 {
-    strncpy(SERVER_ADDR, socketPath, sizeof(SERVER_ADDR) - 1);
+    strncpy(g_serverAddr, socketPath, sizeof(g_serverAddr) - 1);
     return PWR_SUCCESS;
 }
 
@@ -499,5 +520,16 @@ int SendReqAndWaitForRsp(const ReqInputParam input, RspOutputParam output)
     PwrLog(DEBUG, "Request succeed. optType: %d", input.optType);
     ReleasePwrMsg(&req);
     ReleasePwrMsg(&rsp);
+    return PWR_SUCCESS;
+}
+
+PwrApiStatus GetPwrApiStatus()
+{
+    return g_status;
+}
+
+int SetPwrApiStatus(PwrApiStatus status)
+{
+    g_status = status;
     return PWR_SUCCESS;
 }

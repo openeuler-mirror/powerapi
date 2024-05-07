@@ -18,11 +18,8 @@
 #define NOT_FOUND (-1)
 #define FAILED (-1)
 #define DEFAULT_VAL 0
-#define EMPTY_FD (-1)
 #define MAX_PEDDING_SOCKS 5
 #define MS_TO_SEC 1000
-#define ONE_HUNDRED 100
-#define ONE_THOUSAND 1000
 
 // Status code defination
 #define INTERACT_SUCCEED 2003
@@ -60,7 +57,9 @@
 #define MD_NM_SVR_DISK "DISK_SERVICE"
 #define MD_NM_SVR_TASK "TASK_SERVICE"
 #define MD_NM_SVR_PROC "PROC_SERVICE"
+#define MD_NM_SVR_COM "COM_SERVICE"
 #define MD_NM_CRED "CREDENTIALS"
+#define MD_NM_OTHS "OTHERS"
 
 // Define configuration section name
 #define CFG_NM_PST "persist"
@@ -271,13 +270,8 @@ enum RunStatus {
 
 #define INVALID_FD (-1)
 #define INVALID_INDEX (-1)
-
-#define MAX_CLIENT_NUM 3
-#define THREAD_LOOP_INTERVAL 2000 // us
-#define SERVER_ADDR "pwrserver.sock"
-#define CLIENT_ADDR "pwrclient.sock."
-#define MAX_SYSID_LEN 20
-#define MAX_PROC_NUM_ONE_LOOP 5
+#define MAX_CLIENT_NUM 10
+#define MAX_USER_NUM 10
 #define THOUSAND 1000
 
 #endif

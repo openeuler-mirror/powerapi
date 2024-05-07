@@ -19,13 +19,14 @@
 #include "list.h"
 #include "pwrerr.h"
 
-#define DEFAULT_LOG_PATH "/opt/os_data/log"
-#define DEFAULT_LOG_PATH_BAK "/opt/os_data/log/bak"
+#define DEFAULT_LOG_PATH "/var/log/pwrapis"
+#define DEFAULT_LOG_PATH_BAK "/var/log/pwrapis/bak"
 #define DEFAULT_LOG_PFX "papis.log"
 #define DEFAULT_FILE_SIZE 10 // MB
 #define DEFAULT_FILE_NUM 3
 #define MAX_SERVER_PORT 65535
 #define MD5_LEN 33
+#define DEFAULT_SERVER_SOCK_FILE "/etc/sysconfig/pwrapis/pwrserver.sock"
 
 // LogCfg
 enum LogLevel {

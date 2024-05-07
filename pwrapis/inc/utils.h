@@ -152,7 +152,7 @@ const char *GetMatchN(const char *fileName, regex_t *pRegex, int n, char *row, i
 int MatchCnt(const char *fileName, regex_t *pRegex);
 
 // Create a multi - level directory
-int MkDirs(const char *sDirName);
+int MkDirs(const char *sDirName, mode_t perm);
 
 /**
  * Crc32 - Return CRC check code
@@ -250,4 +250,5 @@ int WriteIntToFile(const char *path, int content);
 int GetMd5(const char *filename, char *md5);
 int NormalizeAndVerifyFilepath(const char *filename, char *realpathRes);
 int GetSockoptFromOS(const pid_t pid, UnixCredOS *credOS);
+int GetPath(const char *filepath, char *path);
 #endif
