@@ -167,6 +167,14 @@ static void TEST_PWR_SetServerInfo(void)
     PrintResult("PWR_SetServerInfo", ret);
 }
 
+static void TEST_PWR_SetClientSockPath(void)
+{
+    int ret = -1;
+    char str[] = "/opt/pwrapic";
+    ret = PWR_SetClientSockPath(str);
+    PrintResult("PWR_SetClientSockPath", ret);
+}
+
 static void TEST_PWR_Register(void)
 {
     while (PWR_Register() != PWR_SUCCESS) {
@@ -611,6 +619,7 @@ int main(int argc, const char *args[])
 {
     /********** Common **********/
     TEST_PWR_SetServerInfo();
+    TEST_PWR_SetClientSockPath();
     TEST_PWR_SetLogCallback();
     TEST_PWR_SetEventCallback();
     TEST_PWR_Register();
