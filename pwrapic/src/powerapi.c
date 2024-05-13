@@ -98,6 +98,14 @@ int PWR_SetServerInfo(const char* socketPath)
     return PWR_ERR_NULL_POINTER;
 }
 
+int PWR_SetClientSockPath(const char* socketPath)
+{
+    if (socketPath) {
+        return SetClientSockPath(socketPath);
+    }
+    return PWR_ERR_NULL_POINTER;
+}
+
 int PWR_Register(void)
 {
     if (GetPwrApiStatus() != STATUS_UNREGISTERED) {

@@ -29,6 +29,7 @@ extern "C" {
 // Common
 PWR_API int PWR_SetLogCallback(void(LogCallback)(int level, const char *fmt, va_list vl));
 PWR_API int PWR_SetServerInfo(const char* socketPath);
+PWR_API int PWR_SetClientSockPath(const char* socketPath);
 PWR_API int PWR_Register(void);
 PWR_API int PWR_UnRegister(void);
 PWR_API int PWR_RequestControlAuth(void);
