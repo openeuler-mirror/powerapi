@@ -82,6 +82,26 @@ int SetProcWattState(int state)
     return ret;
 }
 
+int SetWattFirstDomain(int cpuId)
+{
+    ReqInputParam input;
+    input.optType = PROC_SET_WATT_FIRST_DOMAIN;
+    input.dataLen = (uint32_t)sizeof(cpuId);
+    input.data = (char *)&cpuId;
+
+    RspOutputParam output;
+    output.rspBuffSize = NULL;
+    output.rspData = NULL;
+
+    int ret = SendReqAndWaitForRsp(input, output);
+    if (ret != PWR_SUCCESS) {
+        PwrLog(ERROR, "SetWattFirstDomain failed. ret:%d", ret);
+    } else {
+        PwrLog(DEBUG, "SetWattFirstDomain succeed.");
+    }
+    return ret;
+}
+
 int GetProcWattAttrs(PWR_PROC_WattAttrs *wattAttrs)
 {
     ReqInputParam input;

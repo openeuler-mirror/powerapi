@@ -20,6 +20,7 @@ void ProcQueryProcs(PwrMsg *req);
 void ProcGetWattState(PwrMsg *req);
 void ProcSetWattState(PwrMsg *req);
 void procGetWattAttrs(PwrMsg *req);
+void ProcSetWattFirstDomain(PwrMsg *req);
 void ProcSetWattAttrs(PwrMsg *req);
 void ProcGetWattProcs(PwrMsg *req);
 void ProcAddWattProcs(PwrMsg *req);

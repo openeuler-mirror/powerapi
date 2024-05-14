@@ -92,6 +92,7 @@ PWR_API int PWR_USB_SetAutoSuspend(PWR_USB_AutoSuspend usbAts[], uint32_t len);
 PWR_API int PWR_PROC_QueryProcs(const char *keywords, pid_t procs[], uint32_t *num);
 PWR_API int PWR_PROC_GetWattState(int *state);
 PWR_API int PWR_PROC_SetWattState(int state);
+PWR_API int PWR_PROC_SetWattFirstDomain(int cpuId);
 PWR_API int PWR_PROC_GetWattAttrs(PWR_PROC_WattAttrs *wattAttrs);
 PWR_API int PWR_PROC_SetWattAttrs(const PWR_PROC_WattAttrs *wattAttrs);
 PWR_API int PWR_PROC_GetWattProcs(pid_t wattProcs[], uint32_t *num);
