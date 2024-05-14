@@ -30,7 +30,7 @@
         pclose(fp); \
     } while (0)
 
-static int GetHbmMode(PWR_HBM_SysState *state) 
+static int GetHbmMode(PWR_HBM_SYS_STATE *state) 
 {
     char cache_mod_cmd[] = "find /sys/devices/LNXSYSTM* -name 'HISI04A1*'";
     char flat_mod_cmd[] = "find /sys/devices/LNXSYSTM* -name 'PNP0C80*'";
@@ -61,7 +61,7 @@ static int GetHbmMode(PWR_HBM_SysState *state)
 
 void GetHbmSysState(PwrMsg *req)
 {
-    PWR_HBM_SysState *state = (PWR_HBM_SysState *)malloc(sizeof(PWR_HBM_SysState));
+    PWR_HBM_SYS_STATE *state = (PWR_HBM_SYS_STATE *)malloc(sizeof(PWR_HBM_SYS_STATE));
     if (!state) {
         SendRspToClient(req, PWR_ERR_SYS_EXCEPTION, NULL, 0);
         return;
@@ -72,13 +72,13 @@ void GetHbmSysState(PwrMsg *req)
         free(state);
         SendRspToClient(req, rspCode, NULL, 0);
     } else {
-        SendRspToClient(req, rspCode, (char *)state, sizeof(PWR_HBM_SysState));
+        SendRspToClient(req, rspCode, (char *)state, sizeof(PWR_HBM_SYS_STATE));
     }
 }
 
 static int SetPowerState(int powerState)
 {
-    PWR_HBM_SysState hbmState = PWR_HBM_NOT_SUPPORT;
+    PWR_HBM_SYS_STATE hbmState = PWR_HBM_NOT_SUPPORT;
     if (GetHbmMode(&hbmState) != PWR_SUCCESS) {
         Logger(ERROR, MD_NM_SVR_HBM, "GetHbmMode failed");
         return PWR_ERR_COMMON;

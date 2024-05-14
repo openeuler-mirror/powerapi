@@ -106,7 +106,7 @@ PWR_API int PWR_PROC_GetSmartGridGov(PWR_PROC_SmartGridGov *sgGov);
 PWR_API int PWR_PROC_SetSmartGridGov(const PWR_PROC_SmartGridGov *sgGov);
 
 // HBM
-PWR_API int PWR_HBM_GetSysState(PWR_HBM_SysState *hbmState);
+PWR_API int PWR_HBM_GetSysState(PWR_HBM_SYS_STATE *hbmState);
 PWR_API int PWR_HBM_SetAllPwrState(int state);
 
 #endif // #ifndef RELEASE_MODE

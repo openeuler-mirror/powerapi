@@ -300,7 +300,7 @@ int PWR_CPU_DmaSetLatency(int latency)
 }
 
 // HBM
-int PWR_HBM_GetSysState(PWR_HBM_SysState *hbmState)
+int PWR_HBM_GetSysState(PWR_HBM_SYS_STATE *hbmState)
 {
     CHECK_STATUS(STATUS_REGISTERTED);
 
