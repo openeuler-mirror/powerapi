@@ -299,11 +299,11 @@ typedef struct PWR_PROC_SmartGridGov {
 } PWR_PROC_SmartGridGov;
 
 // HBM
-typedef enum PWR_HBM_SysState {
+typedef enum PWR_HBM_SYS_STATE {
     PWR_HBM_NOT_SUPPORT = 0,
     PWR_HBM_FLAT_MOD,
     PWR_HBM_CACHE_MOD,
     PWR_HBM_HYBRID_MOD,
-} PWR_HBM_SysState;
+} PWR_HBM_SYS_STATE;
 
 #endif
