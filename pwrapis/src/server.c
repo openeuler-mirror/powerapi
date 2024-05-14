@@ -510,6 +510,7 @@ static OptToFunct g_optToFunct[] = {
     {PROC_QUERY_PROCS, ProcQueryProcs},
     {PROC_GET_WATT_STATE, ProcGetWattState},
     {PROC_SET_WATT_STATE, ProcSetWattState},
+    {PROC_SET_WATT_FIRST_DOMAIN, ProcSetWattFirstDomain},
     {PROC_GET_WATT_ARRTS, procGetWattAttrs},
     {PROC_SET_WATT_ARRTS, ProcSetWattAttrs},
     {PROC_GET_WATT_PROCS, ProcGetWattProcs},

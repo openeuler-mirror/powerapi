@@ -580,6 +580,17 @@ int PWR_PROC_GetWattState(int *state)
     return GetProcWattState(state);
 }
 
+int PWR_PROC_SetWattFirstDomain(int cpuId)
+{
+    CHECK_STATUS(STATUS_AUTHED);
+
+    if (cpuId < 0) {
+        return PWR_ERR_INVALIDE_PARAM;
+    }
+
+    return SetWattFirstDomain(cpuId);
+}
+
 int PWR_PROC_SetWattState(int state)
 {
     CHECK_STATUS(STATUS_AUTHED);

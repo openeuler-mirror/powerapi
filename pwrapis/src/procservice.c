@@ -31,8 +31,10 @@
 #define WATT_ATTR_DOMAIN_MASK_PATH      "/sys/fs/cgroup/cpu/watt_sched/cpu.affinity_domain_mask"
 #define WATT_ATTR_SCALE_INTERVAL_PATH   "/sys/fs/cgroup/cpu/watt_sched/cpu.affinity_period_ms"
 #define WATT_PROC_PATH                  "/sys/fs/cgroup/cpu/watt_sched/tasks"
+#define WATT_REBUILD_AFFINITY_DOMAIN_PATH "/sys/fs/cgroup/cpu/watt_sched/cpu.rebuild_affinity_domain"
 #define ROOT_CGROUP_PROC_PATH           "/sys/fs/cgroup/cpu/tasks"
 #define ROOT_CGOUP_WATT_PATH            "/sys/fs/cgroup/cpu/cpu.dynamic_affinity_mode"
+#define ROOT_CGROUP_WATT_SET_DOMAIN_PATH "/sys/fs/cgroup/cpu/cpu.rebuild_affinity_domain"
 
 #define SMART_GRID_STATE_PATH "/proc/sys/kernel/smart_grid_strategy_ctrl"
 #define SMART_GRID_LEVEL_PATH_D "/proc/%d/smart_grid_level"
@@ -376,6 +378,56 @@ void ProcSetWattState(PwrMsg *req)
     }
     int rspCode = WriteIntToFile(WATT_STATE_PATH, *state);
     SendRspToClient(req, rspCode, NULL, 0);
+}
+
+#define CPUINFO_FILE "/sys/devices/system/cpu/cpu%d/online"
+static int checkIfCpuOnline(int cpuId)
+{
+    char fileName[MAX_FULL_NAME];
+
+    snprintf(fileName, sizeof(fileName), CPUINFO_FILE, cpuId);
+
+     // CPU0 is always online on some systems.
+    if (cpuId == 0 && access(fileName, F_OK) != 0) {
+        return PWR_TRUE;
+    }
+
+    int isOnline = PWR_FALSE;
+    if (ReadIntFromFile(fileName, &isOnline) != PWR_SUCCESS) {
+        return PWR_FALSE;
+    }
+    return isOnline;
+}
+
+void ProcSetWattFirstDomain(PwrMsg *req)
+{
+    CHECK_SUPPORT_WATT_SCHED();
+    if (req->head.dataLen != sizeof(int) || !req->data) {
+        SendRspToClient(req, PWR_ERR_INVALIDE_PARAM, NULL, 0);
+        return;
+    }
+    
+    int *cpuId = (int *)req->data;
+    if (*cpuId < 0 || GetCpuCoreNumber() <= *cpuId || !checkIfCpuOnline(*cpuId)) {
+        SendRspToClient(req, PWR_ERR_INVALIDE_PARAM, NULL, 0);
+        return;
+    }
+
+    if (access(ROOT_CGROUP_WATT_SET_DOMAIN_PATH, F_OK) != 0) {
+        SendRspToClient(req, PWR_ERR_WATT_NOT_SUPPORT_SET_DOMAIN, NULL, 0);
+        return;
+    }
+
+    int state = PWR_DISABLE;
+    int ret = ReadWattState(&state);
+    if (ret != PWR_SUCCESS) {
+        return SendRspToClient(req, ret, NULL, 0);
+    } else if (state == PWR_ENABLE) { // could set watt first domain only when watt is disabled
+        return SendRspToClient(req, PWR_ERR_WATT_NEED_DISABLE_TO_SET_DOMAIN, NULL, 0);
+    }
+
+    ret = WriteIntToFile(WATT_REBUILD_AFFINITY_DOMAIN_PATH, *cpuId);
+    SendRspToClient(req, ret, NULL, 0);
 }
 
 void procGetWattAttrs(PwrMsg *req)
