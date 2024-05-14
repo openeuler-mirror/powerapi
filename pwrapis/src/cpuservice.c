@@ -294,6 +294,7 @@ int PerfDataRead(PWR_CPU_PerfData *perfData)
     perfData->llcMiss = (double)cacheMiss / ins;
     perfData->ipc = (double)ins / cycles;
     pclose(fp);
+    remove("perf.txt");
     return PWR_SUCCESS;
 }
 
