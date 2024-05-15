@@ -104,6 +104,8 @@ PWR_API int PWR_PROC_GetSmartGridProcs(PWR_PROC_SMART_GRID_LEVEL level, PWR_PROC
 PWR_API int PWR_PROC_SetSmartGridLevel(const PWR_PROC_SmartGridProcs *sgProcs);
 PWR_API int PWR_PROC_GetSmartGridGov(PWR_PROC_SmartGridGov *sgGov);
 PWR_API int PWR_PROC_SetSmartGridGov(const PWR_PROC_SmartGridGov *sgGov);
+PWR_API int PWR_PROC_GetServiceState(PWR_PROC_ServiceStatus *sStatus);
+PWR_API int PWR_PROC_SetServiceState(PWR_PROC_ServiceState *sState);
 
 // HBM
 PWR_API int PWR_HBM_GetSysState(PWR_HBM_SYS_STATE *hbmState);

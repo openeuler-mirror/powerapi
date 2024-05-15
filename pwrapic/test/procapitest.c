@@ -164,6 +164,25 @@ static void TEST_PWR_PROC_RebuildAffinityDomain(void)
     printf("PWR_PROC_SetWattFirstDomain: ret:%d\n", ret);
 }
 
+static void TEST_PWR_PROC_GetServiceState(void)
+{
+    size_t size = sizeof(PWR_PROC_ServiceStatus);
+    PWR_PROC_ServiceStatus sStatus = {0};
+    sStatus.name = PWR_PROC_SERVICE_EAGLE;
+    int ret = PWR_PROC_GetServiceState(&sStatus);
+    printf("PWR_PROC_GetServiceState ret:%d status:%d\n", ret, sStatus.status);
+}
+
+static void TEST_PWR_PROC_SetServiceState(void)
+{
+    size_t size = sizeof(PWR_PROC_ServiceState);
+    PWR_PROC_ServiceState sState = {0};
+    sState.name = PWR_PROC_SERVICE_EAGLE;
+    sState.state = PWR_SERVICE_START;
+    int ret = PWR_PROC_SetServiceState(&sState);
+    printf("PWR_PROC_SetServiceState ret:%d\n", ret);
+}
+
 // public==============================================================================
 void TEST_PROC_AllFunc(void)
 {
@@ -175,4 +194,7 @@ void TEST_PROC_AllFunc(void)
     TEST_PWR_PROC_SetAndGetSmartGridProcs();
     TEST_PWR_PROC_SetAndGetSmartGridGov();
     TEST_PWR_PROC_RebuildAffinityDomain();
+    TEST_PWR_PROC_GetServiceState();
+    TEST_PWR_PROC_SetServiceState();
+    TEST_PWR_PROC_GetServiceState();
 }

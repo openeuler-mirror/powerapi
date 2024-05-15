@@ -42,6 +42,9 @@
 #define PROC_PATH "/proc"
 #define SMART_GRID_GOV_ENABL_PATH "/sys/devices/system/cpu/cpufreq/smart_grid_governor_enable"
 #define SMART_GRID_GOV_PATH "/sys/devices/system/cpu/cpufreq/smart_grid_governor"
+#define SERVICE_PATH "/usr/lib/systemd/system/%s.service"
+#define QUERY_SERVICE_STATE_CMD "systemctl status %s | grep -o 'Active:.*' | awk '{print $2, $3}'"
+#define MODIFY_SERVICE_STATE_CMD "systemctl %s %s"
 
 #define CHECK_SUPPORT_WATT_SCHED()                                              \
     {                                                                           \
@@ -66,6 +69,98 @@
             return;                                                             \
         }                                                                       \
     }
+
+static ServiceToString g_serToString[] = {
+    {PWR_PROC_SERVICE_EAGLE, "eagle"},
+    {PWR_PROC_SERVICE_MPCTOOL, "mpctool"},
+};
+
+static int Check_Service_Exist(PWR_PROC_SERVICE_NAME name, char *serviceName)
+{
+    int i;
+    int count = sizeof(g_serToString) / sizeof(g_serToString[0]);
+    char servicePath[MAX_PATH_NAME] = {0};
+    for (i = 0; i < count; i++) {
+        if (name == g_serToString[i].name) {
+            StrCopy(serviceName, g_serToString[i].nameString, MAX_SERVICE_LEN);
+            break;
+        }
+    }
+    if (i == count) {
+        return PWR_ERR_SERVICE_UNABLE;
+    }
+    if (sprintf(servicePath, SERVICE_PATH, g_serToString[i].nameString) < 0) {
+        return PWR_ERR_FILE_SPRINTF_FAILED;
+    }
+    if (access(servicePath, F_OK) != 0) {
+        return PWR_ERR_SERVICE_NOT_EXIST;
+    }
+    return PWR_SUCCESS;
+}
+
+static int ReadServiceState(PWR_PROC_ServiceStatus *sStatus, const char *serviceName)
+{
+    char state[PWR_MAX_NAME_LEN];
+    char cmd[PWR_MAX_STRING_LEN] = {0};
+    char buf[PWR_MAX_STRING_LEN] = {0};
+
+    if (sprintf(cmd, QUERY_SERVICE_STATE_CMD, serviceName) < 0) {
+        return PWR_ERR_FILE_SPRINTF_FAILED;
+    }
+
+    FILE *fp = popen(cmd, "r");
+    if (fp == NULL) {
+        return PWR_ERR_SYS_EXCEPTION;
+    }
+
+    if (fgets(buf, sizeof(buf) - 1, fp) == NULL) {
+        fclose(fp);
+        return PWR_ERR_COMMON;
+    }
+    DeleteChar(buf, '\n');
+
+    if (strcmp(buf, "inactive (dead)") == 0) {
+        sStatus->status = PWR_PROC_SRV_ST_INACTIVE;
+    } else if (strcmp(buf, "activating (auto-restart)") == 0) {
+        sStatus->status = PWR_PROC_SRV_ST_ACTIVATING;
+    } else if (strcmp(buf, "active (running)") == 0) {
+        sStatus->status = PWR_PROC_SRV_ST_RUNNING;
+    } else if (strcmp(buf, "active (exited)") == 0) {
+        sStatus->status = PWR_PROC_SRV_ST_EXITED;
+    } else if (strcmp(buf, "active (waiting)") == 0) {
+        sStatus->status = PWR_PROC_SRV_ST_WAITING;
+    } else if (strstr(buf, "failed") != NULL) {
+        sStatus->status = PWR_PROC_SRV_ST_FAILED;
+    } else {
+        sStatus->status = PWR_PROC_SRV_ST_UNKNOWN;
+    }
+
+    fclose(fp);
+    return PWR_SUCCESS;
+}
+
+static int ModifyServiceState(const PWR_PROC_ServiceState *sState, const char *serviceName)
+{
+    char cmd[PWR_MAX_STRING_LEN] = {0};
+    char buf[PWR_MAX_STRING_LEN] = {0};
+    char oper[PWR_MAX_NAME_LEN] = {0};
+    if (sState->state == PWR_SERVICE_START){
+        StrCopy(oper, "start", PWR_MAX_NAME_LEN);
+    } else {
+        StrCopy(oper, "stop", PWR_MAX_NAME_LEN);
+    }
+
+    if (sprintf(cmd, MODIFY_SERVICE_STATE_CMD, oper, serviceName) < 0) {
+        return PWR_ERR_FILE_SPRINTF_FAILED;
+    }
+
+    FILE *fp = popen(cmd, "r");
+    if (fp == NULL) {
+        return PWR_ERR_SYS_EXCEPTION;
+    }
+    fclose(fp);
+    return PWR_SUCCESS;
+}
 
 static int QueryProcs(const char *keyWords, pid_t procs[], int maxNum, int *procNum)
 {
@@ -652,4 +747,47 @@ void ProcSetSmartGridGov(PwrMsg *req)
         return;
     }
     SendRspToClient(req, WriteSmartGridGov(sgGov), NULL, 0);
+}
+
+void ProcGetServiceState(PwrMsg *req)
+{
+    if (req->head.dataLen != sizeof(PWR_PROC_ServiceStatus) || !req->data) {
+        SendRspToClient(req, PWR_ERR_SYS_EXCEPTION, NULL, 0);
+        return;
+    }
+    PWR_PROC_ServiceStatus *sStatus = (PWR_PROC_ServiceStatus *)req->data;
+    size_t size = sizeof(PWR_PROC_ServiceStatus);
+    char serviceName[MAX_SERVICE_LEN] = {0};
+    int ret = Check_Service_Exist(sStatus->name, serviceName);
+    if (ret != PWR_SUCCESS) {
+        SendRspToClient(req, ret, NULL, 0);
+    }
+    ret = ReadServiceState(sStatus, serviceName);
+    if (ret != PWR_SUCCESS) {
+        SendRspToClient(req, ret, NULL, 0);
+    } else {
+        req->data = NULL; // move the memory to rsp msg
+        SendRspToClient(req, ret, (char *)sStatus, size);
+    }
+}
+
+void ProcSetServiceState(PwrMsg *req)
+{
+    if (req->head.dataLen < sizeof(PWR_PROC_ServiceState) || !req->data) {
+        SendRspToClient(req, PWR_ERR_INVALIDE_PARAM, NULL, 0);
+        return;
+    }
+    PWR_PROC_ServiceState *sState = (PWR_PROC_ServiceState *)req->data;
+    if (sState->state != PWR_SERVICE_START && sState->state != PWR_SERVICE_STOP) {
+        SendRspToClient(req, PWR_ERR_INVALIDE_PARAM, NULL, 0);
+        return;
+    }
+    char serviceName[MAX_SERVICE_LEN] = {0};
+    int ret = Check_Service_Exist(sState->name, serviceName);
+    if (ret != PWR_SUCCESS) {
+        SendRspToClient(req, ret, NULL, 0);
+    }
+    ret = ModifyServiceState(sState, serviceName);
+
+    SendRspToClient(req, ret, NULL, 0);
 }

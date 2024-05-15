@@ -54,6 +54,8 @@
 #define PWR_ENABLE 1
 #define PWR_DISABLE 0
 #define PWR_STATE_LEN 4
+#define PWR_SERVICE_START 1
+#define PWR_SERVICE_STOP 0
 
 enum PWR_Arch {
     PWR_AARCH_64 = 0,
@@ -82,6 +84,22 @@ typedef enum PWR_PROC_SMART_GRID_LEVEL {
     PWR_PROC_SG_LEVEL_0 = 0,
     PWR_PROC_SG_LEVEL_1 = 1,
 } PWR_PROC_SMART_GRID_LEVEL;
+
+typedef enum PWR_PROC_SERVICE_NAME {
+    PWR_PROC_SERVICE_INVALIDE = 0,
+    PWR_PROC_SERVICE_MPCTOOL,
+    PWR_PROC_SERVICE_EAGLE,
+} PWR_PROC_SERVICE_NAME;
+
+typedef enum PWR_PROC_SERVICE_STATUS {
+    PWR_PROC_SRV_ST_INACTIVE = 0,
+    PWR_PROC_SRV_ST_ACTIVATING,
+    PWR_PROC_SRV_ST_RUNNING,
+    PWR_PROC_SRV_ST_EXITED,
+    PWR_PROC_SRV_ST_WAITING,
+    PWR_PROC_SRV_ST_FAILED = 5,
+    PWR_PROC_SRV_ST_UNKNOWN = 99,
+} PWR_PROC_SERVICE_STATUS;
 
 typedef enum PWR_COM_COL_DATATYPE {
     PWR_COM_DATATYPE_CPU_PERF = 1,
@@ -297,6 +315,16 @@ typedef struct PWR_PROC_SmartGridGov {
     char sgLevel0Gov[PWR_MAX_ELEMENT_NAME_LEN];
     char sgLevel1Gov[PWR_MAX_ELEMENT_NAME_LEN];
 } PWR_PROC_SmartGridGov;
+
+typedef struct PWR_PROC_ServiceStatus {
+    PWR_PROC_SERVICE_NAME name;
+    PWR_PROC_SERVICE_STATUS status;
+} PWR_PROC_ServiceStatus;
+
+typedef struct PWR_PROC_ServiceState {
+    PWR_PROC_SERVICE_NAME name;
+    int state;
+} PWR_PROC_ServiceState;
 
 // HBM
 typedef enum PWR_HBM_SYS_STATE {
