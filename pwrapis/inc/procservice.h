@@ -15,6 +15,12 @@
 #ifndef PAPIS_PROC_SERVICE_H__
 #define PAPIS_PROC_SERVICE_H__
 #include "pwrmsg.h"
+#define MAX_SERVICE_LEN 100
+
+typedef struct ServiceToString {
+    PWR_PROC_SERVICE_NAME name;
+    char nameString[MAX_SERVICE_LEN];
+} ServiceToString;
 
 void ProcQueryProcs(PwrMsg *req);
 void ProcGetWattState(PwrMsg *req);
@@ -31,4 +37,6 @@ void ProcGetSmartGridProcs(PwrMsg *req);
 void ProcSetSmartGridProcsLevel(PwrMsg *req);
 void ProcGetSmartGridGov(PwrMsg *req);
 void ProcSetSmartGridGov(PwrMsg *req);
+void ProcGetServiceState(PwrMsg *req);
+void ProcSetServiceState(PwrMsg *req);
 #endif

@@ -711,4 +711,21 @@ int PWR_PROC_SetSmartGridGov(const PWR_PROC_SmartGridGov *sgGov)
     return SetSmartGridGov(sgGov);
 }
 
+int PWR_PROC_GetServiceState(PWR_PROC_ServiceStatus *sStatus)
+{
+    CHECK_STATUS(STATUS_REGISTERTED);
+    CHECK_NULL_POINTER(sStatus);
+    return GetServiceState(sStatus);
+}
+
+int PWR_PROC_SetServiceState(PWR_PROC_ServiceState *sState)
+{
+    CHECK_STATUS(STATUS_AUTHED);
+    CHECK_NULL_POINTER(sState);
+    if (sState->state != PWR_SERVICE_START && sState->state != PWR_SERVICE_STOP) {
+        return PWR_ERR_INVALIDE_PARAM;
+    }
+    return SetServiceState(sState);
+}
+
 #endif  // #ifndef RELEASE_MODE
