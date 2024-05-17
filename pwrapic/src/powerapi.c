@@ -148,6 +148,45 @@ int PWR_ReleaseControlAuth(void)
     return ret;
 }
 
+int PWR_SetMetaDataCallback(void(MetaDataCallback)(const PWR_COM_CallbackData *))
+{
+    if (MetaDataCallback) {
+        return SetMetaDataCallback(MetaDataCallback);
+    }
+    return PWR_ERR_NULL_POINTER;
+}
+
+int PWR_CreateDcTask(const PWR_COM_BasicDcTaskInfo *basicDcTaskInfo)
+{
+    CHECK_STATUS(STATUS_REGISTERTED);
+    CHECK_NULL_POINTER(basicDcTaskInfo);
+
+    if (basicDcTaskInfo->interval < PWR_MIN_DC_INTERVAL || basicDcTaskInfo->interval > PWR_MAX_DC_INTERVAL) {
+        return PWR_ERR_INVALIDE_PARAM;
+    }
+
+    if (!HasSetDataCallback()) {
+        return PWR_ERR_CALLBACK_FUNCTION_SHOULD_BE_SET_FIRST;
+    }
+
+    return CreateDcTask(basicDcTaskInfo);
+}
+
+int PWR_DeleteDcTask(PWR_COM_COL_DATATYPE dataType)
+{
+    CHECK_STATUS(STATUS_REGISTERTED);
+
+    return DeleteDcTask(dataType);
+}
+
+int PWR_SetEventCallback(void(EventCallback)(const PWR_COM_EventInfo *))
+{
+    if (EventCallback) {
+        return SetEventCallback(EventCallback);
+    }
+    return PWR_ERR_NULL_POINTER;
+}
+
 int PWR_CPU_GetInfo(PWR_CPU_Info *cpuInfo)
 {
     CHECK_STATUS(STATUS_REGISTERTED);
@@ -299,110 +338,6 @@ int PWR_CPU_DmaSetLatency(int latency)
     return SetCpuDmaLatency(latency);
 }
 
-// HBM
-int PWR_HBM_GetSysState(PWR_HBM_SYS_STATE *hbmState)
-{
-    CHECK_STATUS(STATUS_REGISTERTED);
-
-    return GetHbmSysState(hbmState);
-}
-
-int PWR_HBM_SetAllPwrState(int state)
-{
-    CHECK_STATUS(STATUS_AUTHED);
-    if (state < 0 || state > 1) {
-        return PWR_ERR_INVALIDE_PARAM;
-    }
-    return SetAllHbmPowerState(state);
-}
-
-#ifndef RELEASE_MODE
-int PWR_SetMetaDataCallback(void(MetaDataCallback)(const PWR_COM_CallbackData *))
-{
-    if (MetaDataCallback) {
-        return SetMetaDataCallback(MetaDataCallback);
-    }
-    return PWR_ERR_NULL_POINTER;
-}
-
-int PWR_CreateDcTask(const PWR_COM_BasicDcTaskInfo *basicDcTaskInfo)
-{
-    CHECK_STATUS(STATUS_REGISTERTED);
-    CHECK_NULL_POINTER(basicDcTaskInfo);
-
-    if (basicDcTaskInfo->interval < PWR_MIN_DC_INTERVAL || basicDcTaskInfo->interval > PWR_MAX_DC_INTERVAL) {
-        return PWR_ERR_INVALIDE_PARAM;
-    }
-
-    if (!HasSetDataCallback()) {
-        return PWR_ERR_CALLBACK_FUNCTION_SHOULD_BE_SET_FIRST;
-    }
-
-    return CreateDcTask(basicDcTaskInfo);
-}
-
-int PWR_DeleteDcTask(PWR_COM_COL_DATATYPE dataType)
-{
-    CHECK_STATUS(STATUS_REGISTERTED);
-
-    return DeleteDcTask(dataType);
-}
-
-int PWR_SetEventCallback(void(EventCallback)(const PWR_COM_EventInfo *))
-{
-    if (EventCallback) {
-        return SetEventCallback(EventCallback);
-    }
-    return PWR_ERR_NULL_POINTER;
-}
-
-
-int PWR_SYS_SetPowerState(const int powerState)
-{
-    CHECK_STATUS(STATUS_AUTHED);
-    if (powerState != PWR_MEM && powerState != PWR_DISK) {
-        return PWR_ERR_INVALIDE_PARAM;
-    }
-
-    return SetSysPowerState(powerState);
-}
-
-int PWR_SYS_GetCappedPower(int *cappedPower)
-{
-    CHECK_STATUS(STATUS_REGISTERTED);
-    CHECK_NULL_POINTER(cappedPower);
-
-    return GetCappedPower(cappedPower);
-}
-
-int PWR_SYS_SetCappedPower(const int cappedPower)
-{
-    CHECK_STATUS(STATUS_AUTHED);
-    if (cappedPower <= 0) {
-        return PWR_ERR_INVALIDE_PARAM;
-    }
-
-    return SetCappedPower(cappedPower);
-}
-
-int PWR_SYS_GetRtPowerInfo(PWR_SYS_PowerInfo *powerInfo)
-{
-    CHECK_STATUS(STATUS_REGISTERTED);
-    CHECK_NULL_POINTER(powerInfo);
-
-    return GetSysRtPowerInfo(powerInfo);
-}
-
-int PWR_SYS_GetStatisticPowerInfo(PWR_SYS_StatisticPowerInfo *stcPowerInfo)
-{
-    CHECK_STATUS(STATUS_REGISTERTED);
-    CHECK_NULL_POINTER(stcPowerInfo);
-
-    return GetStatisticPowerInfo(stcPowerInfo);
-}
-
-
-
 int PWR_CPU_GetUsage(PWR_CPU_Usage *usage, uint32_t bufferSize)
 {
     CHECK_STATUS(STATUS_REGISTERTED);
@@ -422,144 +357,39 @@ PWR_API int PWR_CPU_GetPerfData(PWR_CPU_PerfData *perfData)
     return GetCpuPerfData(perfData);
 }
 
-// Disk
-int PWR_DISK_GetList(char diskList[][PWR_MAX_ELEMENT_NAME_LEN], uint32_t *len)
-{
-    CHECK_STATUS(STATUS_REGISTERTED);
-    CHECK_NULL_POINTER(diskList);
-    CHECK_NULL_POINTER(len);
-    if (!len || *len == 0) {
-        return PWR_ERR_INVALIDE_PARAM;
-    }
-
-    return GetDiskList(diskList, len);
-}
-
-int PWR_DISK_GetLoad(PWR_DISK_Load load[], uint32_t *len, int spec)
-{
-    CHECK_STATUS(STATUS_REGISTERTED);
-    CHECK_NULL_POINTER(load);
-    CHECK_NULL_POINTER(len);
-    if (!len || *len == 0 || (spec != PWR_TRUE && spec != PWR_FALSE)) {
-        return PWR_ERR_INVALIDE_PARAM;
-    }
-
-    return GetDiskLoad(load, len, spec);
-}
-
-int PWR_DISK_GetPwrLevel(PWR_DISK_PwrLevel pwrLevel[], uint32_t *len, int spec)
-{
-    CHECK_STATUS(STATUS_REGISTERTED);
-    CHECK_NULL_POINTER(pwrLevel);
-    CHECK_NULL_POINTER(len);
-    if (!len || *len == 0 || (spec != PWR_TRUE && spec != PWR_FALSE)) {
-        return PWR_ERR_INVALIDE_PARAM;
-    }
-
-    return GetDiskPwrLevel(pwrLevel, len, spec);
-}
-
-int PWR_DISK_SetPwrLevel(PWR_DISK_PwrLevel pwrLevel[], uint32_t len)
+// SYS
+int PWR_SYS_SetPowerState(const int powerState)
 {
     CHECK_STATUS(STATUS_AUTHED);
-    CHECK_NULL_POINTER(pwrLevel);
-    if (len == 0) {
+    if (powerState != PWR_MEM && powerState != PWR_DISK) {
         return PWR_ERR_INVALIDE_PARAM;
     }
 
-    return SetDiskPwrLevel(pwrLevel, len);
+    return SetSysPowerState(powerState);
 }
 
-int PWR_DISK_GetScsiPolicy(PWR_DISK_ScsiPolicy scsiPolicy[], uint32_t *len, int spec)
+int PWR_SYS_GetCappedPower(int *cappedPower)
 {
     CHECK_STATUS(STATUS_REGISTERTED);
-    CHECK_NULL_POINTER(scsiPolicy);
-    CHECK_NULL_POINTER(len);
-    if (!len || *len == 0 || (spec != PWR_TRUE && spec != PWR_FALSE)) {
-        return PWR_ERR_INVALIDE_PARAM;
-    }
+    CHECK_NULL_POINTER(cappedPower);
 
-    return GetDiskScsiPolicy(scsiPolicy, len, spec);
+    return GetCappedPower(cappedPower);
+}
+// HBM
+int PWR_HBM_GetSysState(PWR_HBM_SYS_STATE *hbmState)
+{
+    CHECK_STATUS(STATUS_REGISTERTED);
+
+    return GetHbmSysState(hbmState);
 }
 
-int PWR_DISK_SetScsiPolicy(PWR_DISK_ScsiPolicy scsiPolicy[], uint32_t len)
+int PWR_HBM_SetAllPwrState(int state)
 {
     CHECK_STATUS(STATUS_AUTHED);
-    CHECK_NULL_POINTER(scsiPolicy);
-    if (len == 0) {
+    if (state < 0 || state > 1) {
         return PWR_ERR_INVALIDE_PARAM;
     }
-
-    return SetDiskScsiPolicy(scsiPolicy, len);
-}
-
-
-// NET
-int PWR_NET_GetInfo(PWR_NET_Info *netInfo, uint32_t bufferSize)
-{
-    CHECK_STATUS(STATUS_REGISTERTED);
-    CHECK_NULL_POINTER(netInfo);
-    if (bufferSize <= sizeof(PWR_NET_Info)) {
-        return PWR_ERR_INVALIDE_PARAM;
-    }
-
-    return GetNetInfo(netInfo, bufferSize);
-}
-
-int PWR_NET_GetThrouth(char ethName[], PWR_NET_Through *ethThrough)
-{
-    CHECK_STATUS(STATUS_REGISTERTED);
-    CHECK_NULL_POINTER(ethName);
-    CHECK_NULL_POINTER(ethThrough);
-
-    if (strlen(ethName) == 0 || strlen(ethName) >= PWR_MAX_ELEMENT_NAME_LEN) {
-        return PWR_ERR_INVALIDE_PARAM;
-    }
-
-    return GetNetThrough(ethName, ethThrough);
-}
-
-int PWR_NET_GetSpeedMod(char ethName[], uint32_t *speedMod)
-{
-    CHECK_STATUS(STATUS_REGISTERTED);
-    CHECK_NULL_POINTER(ethName);
-    CHECK_NULL_POINTER(speedMod);
-    if (strlen(ethName) == 0 || strlen(ethName) >= PWR_MAX_ELEMENT_NAME_LEN) {
-        return PWR_ERR_INVALIDE_PARAM;
-    }
-    return GetNetSpeedMod(ethName, speedMod);
-}
-
-int PWR_NET_SetSpeedMod(char ethName[], uint32_t speedMod)
-{
-    CHECK_STATUS(STATUS_AUTHED);
-    CHECK_NULL_POINTER(ethName);
-    // todo 限制speedMod取值 100 1000 10000
-    return SetNetSpeedMod(ethName, speedMod);
-}
-
-// USB
-int PWR_USB_GetAutoSuspend(PWR_USB_AutoSuspend usbAts[], uint32_t *len)
-{
-    CHECK_STATUS(STATUS_REGISTERTED);
-    CHECK_NULL_POINTER(usbAts);
-    CHECK_NULL_POINTER(len);
-    if (!len || *len == 0) {
-        return PWR_ERR_INVALIDE_PARAM;
-    }
-
-    return GetUsbAutoSuspend(usbAts, len);
-}
-
-int PWR_USB_SetAutoSuspend(PWR_USB_AutoSuspend usbAts[], uint32_t len)
-{
-    CHECK_STATUS(STATUS_AUTHED);
-    CHECK_NULL_POINTER(usbAts);
-    if (len == 0) {
-        return PWR_ERR_INVALIDE_PARAM;
-    }
-
-    return SetUsbAutoSuspend(usbAts, len);
+    return SetAllHbmPowerState(state);
 }
 
 // PROC
@@ -727,5 +557,174 @@ int PWR_PROC_SetServiceState(PWR_PROC_ServiceState *sState)
     }
     return SetServiceState(sState);
 }
+
+#ifndef RELEASE_MODE
+
+int PWR_SYS_SetCappedPower(const int cappedPower)
+{
+    CHECK_STATUS(STATUS_AUTHED);
+    if (cappedPower <= 0) {
+        return PWR_ERR_INVALIDE_PARAM;
+    }
+
+    return SetCappedPower(cappedPower);
+}
+
+int PWR_SYS_GetRtPowerInfo(PWR_SYS_PowerInfo *powerInfo)
+{
+    CHECK_STATUS(STATUS_REGISTERTED);
+    CHECK_NULL_POINTER(powerInfo);
+
+    return GetSysRtPowerInfo(powerInfo);
+}
+
+int PWR_SYS_GetStatisticPowerInfo(PWR_SYS_StatisticPowerInfo *stcPowerInfo)
+{
+    CHECK_STATUS(STATUS_REGISTERTED);
+    CHECK_NULL_POINTER(stcPowerInfo);
+
+    return GetStatisticPowerInfo(stcPowerInfo);
+}
+
+// Disk
+int PWR_DISK_GetList(char diskList[][PWR_MAX_ELEMENT_NAME_LEN], uint32_t *len)
+{
+    CHECK_STATUS(STATUS_REGISTERTED);
+    CHECK_NULL_POINTER(diskList);
+    CHECK_NULL_POINTER(len);
+    if (!len || *len == 0) {
+        return PWR_ERR_INVALIDE_PARAM;
+    }
+
+    return GetDiskList(diskList, len);
+}
+
+int PWR_DISK_GetLoad(PWR_DISK_Load load[], uint32_t *len, int spec)
+{
+    CHECK_STATUS(STATUS_REGISTERTED);
+    CHECK_NULL_POINTER(load);
+    CHECK_NULL_POINTER(len);
+    if (!len || *len == 0 || (spec != PWR_TRUE && spec != PWR_FALSE)) {
+        return PWR_ERR_INVALIDE_PARAM;
+    }
+
+    return GetDiskLoad(load, len, spec);
+}
+
+int PWR_DISK_GetPwrLevel(PWR_DISK_PwrLevel pwrLevel[], uint32_t *len, int spec)
+{
+    CHECK_STATUS(STATUS_REGISTERTED);
+    CHECK_NULL_POINTER(pwrLevel);
+    CHECK_NULL_POINTER(len);
+    if (!len || *len == 0 || (spec != PWR_TRUE && spec != PWR_FALSE)) {
+        return PWR_ERR_INVALIDE_PARAM;
+    }
+
+    return GetDiskPwrLevel(pwrLevel, len, spec);
+}
+
+int PWR_DISK_SetPwrLevel(PWR_DISK_PwrLevel pwrLevel[], uint32_t len)
+{
+    CHECK_STATUS(STATUS_AUTHED);
+    CHECK_NULL_POINTER(pwrLevel);
+    if (len == 0) {
+        return PWR_ERR_INVALIDE_PARAM;
+    }
+
+    return SetDiskPwrLevel(pwrLevel, len);
+}
+
+int PWR_DISK_GetScsiPolicy(PWR_DISK_ScsiPolicy scsiPolicy[], uint32_t *len, int spec)
+{
+    CHECK_STATUS(STATUS_REGISTERTED);
+    CHECK_NULL_POINTER(scsiPolicy);
+    CHECK_NULL_POINTER(len);
+    if (!len || *len == 0 || (spec != PWR_TRUE && spec != PWR_FALSE)) {
+        return PWR_ERR_INVALIDE_PARAM;
+    }
+
+    return GetDiskScsiPolicy(scsiPolicy, len, spec);
+}
+
+int PWR_DISK_SetScsiPolicy(PWR_DISK_ScsiPolicy scsiPolicy[], uint32_t len)
+{
+    CHECK_STATUS(STATUS_AUTHED);
+    CHECK_NULL_POINTER(scsiPolicy);
+    if (len == 0) {
+        return PWR_ERR_INVALIDE_PARAM;
+    }
+
+    return SetDiskScsiPolicy(scsiPolicy, len);
+}
+
+
+// NET
+int PWR_NET_GetInfo(PWR_NET_Info *netInfo, uint32_t bufferSize)
+{
+    CHECK_STATUS(STATUS_REGISTERTED);
+    CHECK_NULL_POINTER(netInfo);
+    if (bufferSize <= sizeof(PWR_NET_Info)) {
+        return PWR_ERR_INVALIDE_PARAM;
+    }
+
+    return GetNetInfo(netInfo, bufferSize);
+}
+
+int PWR_NET_GetThrouth(char ethName[], PWR_NET_Through *ethThrough)
+{
+    CHECK_STATUS(STATUS_REGISTERTED);
+    CHECK_NULL_POINTER(ethName);
+    CHECK_NULL_POINTER(ethThrough);
+
+    if (strlen(ethName) == 0 || strlen(ethName) >= PWR_MAX_ELEMENT_NAME_LEN) {
+        return PWR_ERR_INVALIDE_PARAM;
+    }
+
+    return GetNetThrough(ethName, ethThrough);
+}
+
+int PWR_NET_GetSpeedMod(char ethName[], uint32_t *speedMod)
+{
+    CHECK_STATUS(STATUS_REGISTERTED);
+    CHECK_NULL_POINTER(ethName);
+    CHECK_NULL_POINTER(speedMod);
+    if (strlen(ethName) == 0 || strlen(ethName) >= PWR_MAX_ELEMENT_NAME_LEN) {
+        return PWR_ERR_INVALIDE_PARAM;
+    }
+    return GetNetSpeedMod(ethName, speedMod);
+}
+
+int PWR_NET_SetSpeedMod(char ethName[], uint32_t speedMod)
+{
+    CHECK_STATUS(STATUS_AUTHED);
+    CHECK_NULL_POINTER(ethName);
+    // todo 限制speedMod取值 100 1000 10000
+    return SetNetSpeedMod(ethName, speedMod);
+}
+
+// USB
+int PWR_USB_GetAutoSuspend(PWR_USB_AutoSuspend usbAts[], uint32_t *len)
+{
+    CHECK_STATUS(STATUS_REGISTERTED);
+    CHECK_NULL_POINTER(usbAts);
+    CHECK_NULL_POINTER(len);
+    if (!len || *len == 0) {
+        return PWR_ERR_INVALIDE_PARAM;
+    }
+
+    return GetUsbAutoSuspend(usbAts, len);
+}
+
+int PWR_USB_SetAutoSuspend(PWR_USB_AutoSuspend usbAts[], uint32_t len)
+{
+    CHECK_STATUS(STATUS_AUTHED);
+    CHECK_NULL_POINTER(usbAts);
+    if (len == 0) {
+        return PWR_ERR_INVALIDE_PARAM;
+    }
+
+    return SetUsbAutoSuspend(usbAts, len);
+}
+
 
 #endif  // #ifndef RELEASE_MODE
