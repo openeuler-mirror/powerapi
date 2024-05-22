@@ -6,8 +6,8 @@ sudo systemctl disable pwrapis.service
 if [ -f "./build/install_manifest.txt" ];then
     cd build
     xargs rm < install_manifest.txt
-    else
-    rm /usr/include/pwrapic/*
+else
+    rm -R /usr/include/pwrapic
     rm /usr/lib64/libpwrapi.so
 
     rm /usr/sbin/pwrapis
