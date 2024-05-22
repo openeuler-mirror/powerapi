@@ -26,6 +26,11 @@ set ( CMAKE_INSTALL_PREFIX "/usr" CACHE PATH "Install path prefix" FORCE)
 #install (TARGETS ${PG_NAME} DESTINATION sbin)
 install (TARGETS ${PG_NAME} DESTINATION lib64)
 
+# Install head files
+install (FILES "${PROJECT_SOURCE_DIR}/../inc/powerapi.h" DESTINATION /usr/include/pwrapic)
+install (FILES "${PROJECT_SOURCE_DIR}/../../common/inc/pwrdata.h" DESTINATION /usr/include/pwrapic)
+install (FILES "${PROJECT_SOURCE_DIR}/../../common/inc/pwrerr.h"  DESTINATION /usr/include/pwrapic)
+
 # Release compile mode
 # set(CMAKE_BUILD_TYPE "Release")
 # set(CMAKE_CXX_FLAGS_RELEASE "$ENV{CXXFLAGS} -O3 -Wall")

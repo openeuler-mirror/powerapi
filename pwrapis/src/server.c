@@ -510,6 +510,7 @@ static OptToFunct g_optToFunct[] = {
     {PROC_QUERY_PROCS, ProcQueryProcs},
     {PROC_GET_WATT_STATE, ProcGetWattState},
     {PROC_SET_WATT_STATE, ProcSetWattState},
+    {PROC_SET_WATT_FIRST_DOMAIN, ProcSetWattFirstDomain},
     {PROC_GET_WATT_ARRTS, procGetWattAttrs},
     {PROC_SET_WATT_ARRTS, ProcSetWattAttrs},
     {PROC_GET_WATT_PROCS, ProcGetWattProcs},
@@ -521,6 +522,8 @@ static OptToFunct g_optToFunct[] = {
     {PROC_SET_SMART_GRID_PROCS_LEVEL, ProcSetSmartGridProcsLevel},
     {PROC_GET_SMART_GRID_GOV, ProcGetSmartGridGov},
     {PROC_SET_SMART_GRID_GOV, ProcSetSmartGridGov},
+    {PROC_GET_SERVICE_STATE, ProcGetServiceState},
+    {PROC_SET_SERVICE_STATE, ProcSetServiceState},
     {HBM_GET_SYS_STATE, GetHbmSysState},
     {HBM_SET_ALL_POWER_STATE, SetHbmAllPowerState},
 };

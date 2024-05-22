@@ -36,6 +36,8 @@ static void TEST_PWR_PROC_SetAndGetWattState(void)
     printf("PWR_PROC_GetWattState. ret: %d state:%d\n", ret, state);
     ret = PWR_PROC_SetWattState(PWR_ENABLE);
     printf("PWR_PROC_SetWattState. ret: %d state:%d\n", ret, PWR_ENABLE);
+    ret = PWR_PROC_SetWattState(PWR_DISABLE);
+    printf("PWR_PROC_SetWattState. ret: %d state:%d\n", ret, PWR_DISABLE);
 }
 
 #define TEST_WATT_TH 60
@@ -143,6 +145,44 @@ static void TEST_PWR_PROC_SetAndGetSmartGridGov(void)
         ret, sgGov.sgAgentState, sgGov.sgLevel0Gov, sgGov.sgLevel1Gov);
 }
 
+static void TEST_PWR_PROC_RebuildAffinityDomain(void)
+{
+    int cpuId = 0;
+    int ret = PWR_PROC_SetWattFirstDomain(cpuId);
+    printf("PWR_PROC_SetWattFirstDomain: ret:%d\n", ret);
+
+    cpuId = 1234;
+    ret = PWR_PROC_SetWattFirstDomain(cpuId);
+    printf("PWR_PROC_SetWattFirstDomain: ret:%d\n", ret);
+
+    cpuId = 23;
+    ret = PWR_PROC_SetWattFirstDomain(cpuId);
+    printf("PWR_PROC_SetWattFirstDomain: ret:%d\n", ret);
+
+    ret = PWR_PROC_SetWattState(PWR_ENABLE);
+    ret = PWR_PROC_SetWattFirstDomain(cpuId);
+    printf("PWR_PROC_SetWattFirstDomain: ret:%d\n", ret);
+}
+
+static void TEST_PWR_PROC_GetServiceState(void)
+{
+    size_t size = sizeof(PWR_PROC_ServiceStatus);
+    PWR_PROC_ServiceStatus sStatus = {0};
+    sStatus.name = PWR_PROC_SERVICE_EAGLE;
+    int ret = PWR_PROC_GetServiceState(&sStatus);
+    printf("PWR_PROC_GetServiceState ret:%d status:%d\n", ret, sStatus.status);
+}
+
+static void TEST_PWR_PROC_SetServiceState(void)
+{
+    size_t size = sizeof(PWR_PROC_ServiceState);
+    PWR_PROC_ServiceState sState = {0};
+    sState.name = PWR_PROC_SERVICE_EAGLE;
+    sState.state = PWR_SERVICE_START;
+    int ret = PWR_PROC_SetServiceState(&sState);
+    printf("PWR_PROC_SetServiceState ret:%d\n", ret);
+}
+
 // public==============================================================================
 void TEST_PROC_AllFunc(void)
 {
@@ -153,4 +193,8 @@ void TEST_PROC_AllFunc(void)
     TEST_PWR_PROC_SetAndGetSmartGridState();
     TEST_PWR_PROC_SetAndGetSmartGridProcs();
     TEST_PWR_PROC_SetAndGetSmartGridGov();
+    TEST_PWR_PROC_RebuildAffinityDomain();
+    TEST_PWR_PROC_GetServiceState();
+    TEST_PWR_PROC_SetServiceState();
+    TEST_PWR_PROC_GetServiceState();
 }

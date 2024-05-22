@@ -82,6 +82,26 @@ int SetProcWattState(int state)
     return ret;
 }
 
+int SetWattFirstDomain(int cpuId)
+{
+    ReqInputParam input;
+    input.optType = PROC_SET_WATT_FIRST_DOMAIN;
+    input.dataLen = (uint32_t)sizeof(cpuId);
+    input.data = (char *)&cpuId;
+
+    RspOutputParam output;
+    output.rspBuffSize = NULL;
+    output.rspData = NULL;
+
+    int ret = SendReqAndWaitForRsp(input, output);
+    if (ret != PWR_SUCCESS) {
+        PwrLog(ERROR, "SetWattFirstDomain failed. ret:%d", ret);
+    } else {
+        PwrLog(DEBUG, "SetWattFirstDomain succeed.");
+    }
+    return ret;
+}
+
 int GetProcWattAttrs(PWR_PROC_WattAttrs *wattAttrs)
 {
     ReqInputParam input;
@@ -308,6 +328,48 @@ int SetSmartGridGov(const PWR_PROC_SmartGridGov *sgGov)
         PwrLog(ERROR, "SetSmartGridGov failed. ret:%d", ret);
     } else {
         PwrLog(DEBUG, "SetSmartGridGov succeed.");
+    }
+    return ret;
+}
+
+int GetServiceState(PWR_PROC_ServiceStatus *sStatus)
+{
+    uint32_t size = (uint32_t)sizeof(PWR_PROC_ServiceStatus);
+    ReqInputParam input;
+    input.optType = PROC_GET_SERVICE_STATE;
+    input.dataLen = size;
+    input.data = (char *)sStatus;
+
+    RspOutputParam output;
+    output.rspBuffSize = &size;
+    output.rspData = (char *)sStatus;
+
+    int ret = SendReqAndWaitForRsp(input, output);
+    if (ret != PWR_SUCCESS) {
+        PwrLog(ERROR, "GetServiceState failed. ret:%d", ret);
+    } else {
+        PwrLog(DEBUG, "GetServiceState succeed.");
+    }
+    return ret;
+}
+
+int SetServiceState(const PWR_PROC_ServiceState *sState)
+{
+    ReqInputParam input;
+    input.optType = PROC_SET_SERVICE_STATE;
+    uint32_t size = (uint32_t)sizeof(PWR_PROC_ServiceState);
+    input.dataLen = size;
+    input.data = (char *)sState;
+
+    RspOutputParam output;
+    output.rspBuffSize = NULL;
+    output.rspData = NULL;
+
+    int ret = SendReqAndWaitForRsp(input, output);
+    if (ret != PWR_SUCCESS) {
+        PwrLog(ERROR, "SetServiceState failed. ret:%d", ret);
+    } else {
+        PwrLog(DEBUG, "SetServiceState succeed.");
     }
     return ret;
 }

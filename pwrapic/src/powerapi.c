@@ -98,6 +98,14 @@ int PWR_SetServerInfo(const char* socketPath)
     return PWR_ERR_NULL_POINTER;
 }
 
+int PWR_SetClientSockPath(const char* socketPath)
+{
+    if (socketPath) {
+        return SetClientSockPath(socketPath);
+    }
+    return PWR_ERR_NULL_POINTER;
+}
+
 int PWR_Register(void)
 {
     if (GetPwrApiStatus() != STATUS_UNREGISTERED) {
@@ -138,6 +146,45 @@ int PWR_ReleaseControlAuth(void)
         (void)SetPwrApiStatus(STATUS_REGISTERTED);
     }
     return ret;
+}
+
+int PWR_SetMetaDataCallback(void(MetaDataCallback)(const PWR_COM_CallbackData *))
+{
+    if (MetaDataCallback) {
+        return SetMetaDataCallback(MetaDataCallback);
+    }
+    return PWR_ERR_NULL_POINTER;
+}
+
+int PWR_CreateDcTask(const PWR_COM_BasicDcTaskInfo *basicDcTaskInfo)
+{
+    CHECK_STATUS(STATUS_REGISTERTED);
+    CHECK_NULL_POINTER(basicDcTaskInfo);
+
+    if (basicDcTaskInfo->interval < PWR_MIN_DC_INTERVAL || basicDcTaskInfo->interval > PWR_MAX_DC_INTERVAL) {
+        return PWR_ERR_INVALIDE_PARAM;
+    }
+
+    if (!HasSetDataCallback()) {
+        return PWR_ERR_CALLBACK_FUNCTION_SHOULD_BE_SET_FIRST;
+    }
+
+    return CreateDcTask(basicDcTaskInfo);
+}
+
+int PWR_DeleteDcTask(PWR_COM_COL_DATATYPE dataType)
+{
+    CHECK_STATUS(STATUS_REGISTERTED);
+
+    return DeleteDcTask(dataType);
+}
+
+int PWR_SetEventCallback(void(EventCallback)(const PWR_COM_EventInfo *))
+{
+    if (EventCallback) {
+        return SetEventCallback(EventCallback);
+    }
+    return PWR_ERR_NULL_POINTER;
 }
 
 int PWR_CPU_GetInfo(PWR_CPU_Info *cpuInfo)
@@ -291,64 +338,26 @@ int PWR_CPU_DmaSetLatency(int latency)
     return SetCpuDmaLatency(latency);
 }
 
-// HBM
-int PWR_HBM_GetSysState(PWR_HBM_SysState *hbmState)
+int PWR_CPU_GetUsage(PWR_CPU_Usage *usage, uint32_t bufferSize)
 {
     CHECK_STATUS(STATUS_REGISTERTED);
-
-    return GetHbmSysState(hbmState);
-}
-
-int PWR_HBM_SetAllPwrState(int state)
-{
-    CHECK_STATUS(STATUS_AUTHED);
-    if (state < 0 || state > 1) {
-        return PWR_ERR_INVALIDE_PARAM;
-    }
-    return SetAllHbmPowerState(state);
-}
-
-#ifndef RELEASE_MODE
-int PWR_SetMetaDataCallback(void(MetaDataCallback)(const PWR_COM_CallbackData *))
-{
-    if (MetaDataCallback) {
-        return SetMetaDataCallback(MetaDataCallback);
-    }
-    return PWR_ERR_NULL_POINTER;
-}
-
-int PWR_CreateDcTask(const PWR_COM_BasicDcTaskInfo *basicDcTaskInfo)
-{
-    CHECK_STATUS(STATUS_REGISTERTED);
-    CHECK_NULL_POINTER(basicDcTaskInfo);
-
-    if (basicDcTaskInfo->interval < PWR_MIN_DC_INTERVAL || basicDcTaskInfo->interval > PWR_MAX_DC_INTERVAL) {
+    CHECK_NULL_POINTER(usage);
+    if (bufferSize < sizeof(PWR_CPU_Usage)) {
         return PWR_ERR_INVALIDE_PARAM;
     }
 
-    if (!HasSetDataCallback()) {
-        return PWR_ERR_CALLBACK_FUNCTION_SHOULD_BE_SET_FIRST;
-    }
-
-    return CreateDcTask(basicDcTaskInfo);
+    return GetCpuUsage(usage, bufferSize);
 }
 
-int PWR_DeleteDcTask(PWR_COM_COL_DATATYPE dataType)
+PWR_API int PWR_CPU_GetPerfData(PWR_CPU_PerfData *perfData)
 {
     CHECK_STATUS(STATUS_REGISTERTED);
+    CHECK_NULL_POINTER(perfData);
 
-    return DeleteDcTask(dataType);
+    return GetCpuPerfData(perfData);
 }
 
-int PWR_SetEventCallback(void(EventCallback)(const PWR_COM_EventInfo *))
-{
-    if (EventCallback) {
-        return SetEventCallback(EventCallback);
-    }
-    return PWR_ERR_NULL_POINTER;
-}
-
-
+// SYS
 int PWR_SYS_SetPowerState(const int powerState)
 {
     CHECK_STATUS(STATUS_AUTHED);
@@ -366,6 +375,190 @@ int PWR_SYS_GetCappedPower(int *cappedPower)
 
     return GetCappedPower(cappedPower);
 }
+// HBM
+int PWR_HBM_GetSysState(PWR_HBM_SYS_STATE *hbmState)
+{
+    CHECK_STATUS(STATUS_REGISTERTED);
+
+    return GetHbmSysState(hbmState);
+}
+
+int PWR_HBM_SetAllPwrState(int state)
+{
+    CHECK_STATUS(STATUS_AUTHED);
+    if (state < 0 || state > 1) {
+        return PWR_ERR_INVALIDE_PARAM;
+    }
+    return SetAllHbmPowerState(state);
+}
+
+// PROC
+int PWR_PROC_QueryProcs(const char *keywords, pid_t procs[], uint32_t *num)
+{
+    CHECK_STATUS(STATUS_REGISTERTED);
+    CHECK_NULL_POINTER(procs);
+    CHECK_NULL_POINTER(num);
+    if (*num == 0) {
+        return PWR_ERR_INVALIDE_PARAM;
+    }
+    const char *kw = "";
+    if (keywords) {
+        if (strlen(keywords) >= PWR_MAX_STRING_LEN) {
+            return PWR_ERR_INVALIDE_PARAM;
+        }
+        kw = keywords;
+    }
+    return QueryProcsByKeywords(kw, procs, num);
+}
+
+int PWR_PROC_GetWattState(int *state)
+{
+    CHECK_STATUS(STATUS_REGISTERTED);
+    CHECK_NULL_POINTER(state);
+    return GetProcWattState(state);
+}
+
+int PWR_PROC_SetWattFirstDomain(int cpuId)
+{
+    CHECK_STATUS(STATUS_AUTHED);
+
+    if (cpuId < 0) {
+        return PWR_ERR_INVALIDE_PARAM;
+    }
+
+    return SetWattFirstDomain(cpuId);
+}
+
+int PWR_PROC_SetWattState(int state)
+{
+    CHECK_STATUS(STATUS_AUTHED);
+    if (state != PWR_ENABLE && state != PWR_DISABLE) {
+        return PWR_ERR_INVALIDE_PARAM;
+    }
+    return SetProcWattState(state);
+}
+
+int PWR_PROC_GetWattAttrs(PWR_PROC_WattAttrs *wattAttrs)
+{
+    CHECK_STATUS(STATUS_REGISTERTED);
+    CHECK_NULL_POINTER(wattAttrs);
+    return GetProcWattAttrs(wattAttrs);
+}
+
+int PWR_PROC_SetWattAttrs(const PWR_PROC_WattAttrs *wattAttrs)
+{
+    CHECK_STATUS(STATUS_AUTHED);
+    CHECK_NULL_POINTER(wattAttrs);
+    if (wattAttrs->scaleThreshold < 0 || wattAttrs->scaleThreshold > PWR_ONE_HUNDRED ||
+        wattAttrs->scaleInterval < 0 || wattAttrs->scaleInterval > PWR_MAX_WATT_SCALE_INTERVAL ||
+        wattAttrs->domainMask < 0) {
+        return PWR_ERR_INVALIDE_PARAM;
+    }
+    return SetProcWattAttrs(wattAttrs);
+}
+
+int PWR_PROC_GetWattProcs(pid_t wattProcs[], uint32_t *num)
+{
+    CHECK_STATUS(STATUS_REGISTERTED);
+    CHECK_NULL_POINTER(wattProcs);
+    CHECK_NULL_POINTER(num);
+    if (*num == 0) {
+        return PWR_ERR_INVALIDE_PARAM;
+    }
+    return GetWattProcs(wattProcs, num);
+}
+
+int PWR_PROC_AddWattProcs(const pid_t wattProcs[], uint32_t num)
+{
+    CHECK_STATUS(STATUS_AUTHED);
+    CHECK_NULL_POINTER(wattProcs);
+    if (num == 0 || num > PWR_MAX_PROC_NUM) {
+        return PWR_ERR_INVALIDE_PARAM;
+    }
+    return AddWattProcs(wattProcs, num);
+}
+
+int PWR_PROC_DelWattProcs(const pid_t wattProcs[], uint32_t num)
+{
+    CHECK_STATUS(STATUS_AUTHED);
+    CHECK_NULL_POINTER(wattProcs);
+    if (num == 0 || num > PWR_MAX_PROC_NUM) {
+        return PWR_ERR_INVALIDE_PARAM;
+    }
+    return DelWattProcs(wattProcs, num);
+}
+
+int PWR_PROC_GetSmartGridState(int *state)
+{
+    CHECK_STATUS(STATUS_REGISTERTED);
+    CHECK_NULL_POINTER(state);
+    return GetSmartGridState(state);
+}
+
+int PWR_PROC_SetSmartGridState(int state)
+{
+    CHECK_STATUS(STATUS_AUTHED);
+    if (state != PWR_ENABLE && state != PWR_DISABLE) {
+        return PWR_ERR_INVALIDE_PARAM;
+    }
+    return SetSmartGridState(state);
+}
+
+int PWR_PROC_GetSmartGridProcs(PWR_PROC_SMART_GRID_LEVEL level, PWR_PROC_SmartGridProcs *sgProcs)
+{
+    CHECK_STATUS(STATUS_REGISTERTED);
+    CHECK_NULL_POINTER(sgProcs);
+    if (sgProcs->procNum == 0) {
+        return PWR_ERR_INVALIDE_PARAM;
+    }
+    return GetSmartGridProcs(level, sgProcs);
+}
+
+int PWR_PROC_SetSmartGridLevel(const PWR_PROC_SmartGridProcs *sgProcs)
+{
+    CHECK_STATUS(STATUS_AUTHED);
+    CHECK_NULL_POINTER(sgProcs);
+    if (sgProcs->procNum == 0  || sgProcs->procNum > PWR_MAX_PROC_NUM) {
+        return PWR_ERR_INVALIDE_PARAM;
+    }
+    return SetSmartGridLevel(sgProcs);
+}
+
+int PWR_PROC_GetSmartGridGov(PWR_PROC_SmartGridGov *sgGov)
+{
+    CHECK_STATUS(STATUS_REGISTERTED);
+    CHECK_NULL_POINTER(sgGov);
+    return GetSmartGridGov(sgGov);
+}
+
+int PWR_PROC_SetSmartGridGov(const PWR_PROC_SmartGridGov *sgGov)
+{
+    CHECK_STATUS(STATUS_AUTHED);
+    CHECK_NULL_POINTER(sgGov);
+    if (sgGov->sgAgentState != PWR_ENABLE && sgGov->sgAgentState != PWR_DISABLE) {
+        return PWR_ERR_INVALIDE_PARAM;
+    }
+    return SetSmartGridGov(sgGov);
+}
+
+int PWR_PROC_GetServiceState(PWR_PROC_ServiceStatus *sStatus)
+{
+    CHECK_STATUS(STATUS_REGISTERTED);
+    CHECK_NULL_POINTER(sStatus);
+    return GetServiceState(sStatus);
+}
+
+int PWR_PROC_SetServiceState(PWR_PROC_ServiceState *sState)
+{
+    CHECK_STATUS(STATUS_AUTHED);
+    CHECK_NULL_POINTER(sState);
+    if (sState->state != PWR_SERVICE_START && sState->state != PWR_SERVICE_STOP) {
+        return PWR_ERR_INVALIDE_PARAM;
+    }
+    return SetServiceState(sState);
+}
+
+#ifndef RELEASE_MODE
 
 int PWR_SYS_SetCappedPower(const int cappedPower)
 {
@@ -391,27 +584,6 @@ int PWR_SYS_GetStatisticPowerInfo(PWR_SYS_StatisticPowerInfo *stcPowerInfo)
     CHECK_NULL_POINTER(stcPowerInfo);
 
     return GetStatisticPowerInfo(stcPowerInfo);
-}
-
-
-
-int PWR_CPU_GetUsage(PWR_CPU_Usage *usage, uint32_t bufferSize)
-{
-    CHECK_STATUS(STATUS_REGISTERTED);
-    CHECK_NULL_POINTER(usage);
-    if (bufferSize < sizeof(PWR_CPU_Usage)) {
-        return PWR_ERR_INVALIDE_PARAM;
-    }
-
-    return GetCpuUsage(usage, bufferSize);
-}
-
-PWR_API int PWR_CPU_GetPerfData(PWR_CPU_PerfData *perfData)
-{
-    CHECK_STATUS(STATUS_REGISTERTED);
-    CHECK_NULL_POINTER(perfData);
-
-    return GetCpuPerfData(perfData);
 }
 
 // Disk
@@ -554,142 +726,5 @@ int PWR_USB_SetAutoSuspend(PWR_USB_AutoSuspend usbAts[], uint32_t len)
     return SetUsbAutoSuspend(usbAts, len);
 }
 
-// PROC
-int PWR_PROC_QueryProcs(const char *keywords, pid_t procs[], uint32_t *num)
-{
-    CHECK_STATUS(STATUS_REGISTERTED);
-    CHECK_NULL_POINTER(procs);
-    CHECK_NULL_POINTER(num);
-    if (*num == 0) {
-        return PWR_ERR_INVALIDE_PARAM;
-    }
-    const char *kw = "";
-    if (keywords) {
-        if (strlen(keywords) >= PWR_MAX_STRING_LEN) {
-            return PWR_ERR_INVALIDE_PARAM;
-        }
-        kw = keywords;
-    }
-    return QueryProcsByKeywords(kw, procs, num);
-}
-
-int PWR_PROC_GetWattState(int *state)
-{
-    CHECK_STATUS(STATUS_REGISTERTED);
-    CHECK_NULL_POINTER(state);
-    return GetProcWattState(state);
-}
-
-int PWR_PROC_SetWattState(int state)
-{
-    CHECK_STATUS(STATUS_AUTHED);
-    if (state != PWR_ENABLE && state != PWR_DISABLE) {
-        return PWR_ERR_INVALIDE_PARAM;
-    }
-    return SetProcWattState(state);
-}
-
-int PWR_PROC_GetWattAttrs(PWR_PROC_WattAttrs *wattAttrs)
-{
-    CHECK_STATUS(STATUS_REGISTERTED);
-    CHECK_NULL_POINTER(wattAttrs);
-    return GetProcWattAttrs(wattAttrs);
-}
-
-int PWR_PROC_SetWattAttrs(const PWR_PROC_WattAttrs *wattAttrs)
-{
-    CHECK_STATUS(STATUS_AUTHED);
-    CHECK_NULL_POINTER(wattAttrs);
-    if (wattAttrs->scaleThreshold < 0 || wattAttrs->scaleThreshold > PWR_ONE_HUNDRED ||
-        wattAttrs->scaleInterval < 0 || wattAttrs->scaleInterval > PWR_MAX_WATT_SCALE_INTERVAL ||
-        wattAttrs->domainMask < 0) {
-        return PWR_ERR_INVALIDE_PARAM;
-    }
-    return SetProcWattAttrs(wattAttrs);
-}
-
-int PWR_PROC_GetWattProcs(pid_t wattProcs[], uint32_t *num)
-{
-    CHECK_STATUS(STATUS_REGISTERTED);
-    CHECK_NULL_POINTER(wattProcs);
-    CHECK_NULL_POINTER(num);
-    if (*num == 0) {
-        return PWR_ERR_INVALIDE_PARAM;
-    }
-    return GetWattProcs(wattProcs, num);
-}
-
-int PWR_PROC_AddWattProcs(const pid_t wattProcs[], uint32_t num)
-{
-    CHECK_STATUS(STATUS_AUTHED);
-    CHECK_NULL_POINTER(wattProcs);
-    if (num == 0 || num > PWR_MAX_PROC_NUM) {
-        return PWR_ERR_INVALIDE_PARAM;
-    }
-    return AddWattProcs(wattProcs, num);
-}
-
-int PWR_PROC_DelWattProcs(const pid_t wattProcs[], uint32_t num)
-{
-    CHECK_STATUS(STATUS_AUTHED);
-    CHECK_NULL_POINTER(wattProcs);
-    if (num == 0 || num > PWR_MAX_PROC_NUM) {
-        return PWR_ERR_INVALIDE_PARAM;
-    }
-    return DelWattProcs(wattProcs, num);
-}
-
-int PWR_PROC_GetSmartGridState(int *state)
-{
-    CHECK_STATUS(STATUS_REGISTERTED);
-    CHECK_NULL_POINTER(state);
-    return GetSmartGridState(state);
-}
-
-int PWR_PROC_SetSmartGridState(int state)
-{
-    CHECK_STATUS(STATUS_AUTHED);
-    if (state != PWR_ENABLE && state != PWR_DISABLE) {
-        return PWR_ERR_INVALIDE_PARAM;
-    }
-    return SetSmartGridState(state);
-}
-
-int PWR_PROC_GetSmartGridProcs(PWR_PROC_SMART_GRID_LEVEL level, PWR_PROC_SmartGridProcs *sgProcs)
-{
-    CHECK_STATUS(STATUS_REGISTERTED);
-    CHECK_NULL_POINTER(sgProcs);
-    if (sgProcs->procNum == 0) {
-        return PWR_ERR_INVALIDE_PARAM;
-    }
-    return GetSmartGridProcs(level, sgProcs);
-}
-
-int PWR_PROC_SetSmartGridLevel(const PWR_PROC_SmartGridProcs *sgProcs)
-{
-    CHECK_STATUS(STATUS_AUTHED);
-    CHECK_NULL_POINTER(sgProcs);
-    if (sgProcs->procNum == 0  || sgProcs->procNum > PWR_MAX_PROC_NUM) {
-        return PWR_ERR_INVALIDE_PARAM;
-    }
-    return SetSmartGridLevel(sgProcs);
-}
-
-int PWR_PROC_GetSmartGridGov(PWR_PROC_SmartGridGov *sgGov)
-{
-    CHECK_STATUS(STATUS_REGISTERTED);
-    CHECK_NULL_POINTER(sgGov);
-    return GetSmartGridGov(sgGov);
-}
-
-int PWR_PROC_SetSmartGridGov(const PWR_PROC_SmartGridGov *sgGov)
-{
-    CHECK_STATUS(STATUS_AUTHED);
-    CHECK_NULL_POINTER(sgGov);
-    if (sgGov->sgAgentState != PWR_ENABLE && sgGov->sgAgentState != PWR_DISABLE) {
-        return PWR_ERR_INVALIDE_PARAM;
-    }
-    return SetSmartGridGov(sgGov);
-}
 
 #endif  // #ifndef RELEASE_MODE

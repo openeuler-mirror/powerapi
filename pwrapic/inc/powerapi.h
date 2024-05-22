@@ -29,10 +29,16 @@ extern "C" {
 // Common
 PWR_API int PWR_SetLogCallback(void(LogCallback)(int level, const char *fmt, va_list vl));
 PWR_API int PWR_SetServerInfo(const char* socketPath);
+PWR_API int PWR_SetClientSockPath(const char* socketPath);
 PWR_API int PWR_Register(void);
 PWR_API int PWR_UnRegister(void);
 PWR_API int PWR_RequestControlAuth(void);
 PWR_API int PWR_ReleaseControlAuth(void);
+PWR_API int PWR_SetMetaDataCallback(void(MetaDataCallback)(const PWR_COM_CallbackData *callbackData));
+PWR_API int PWR_CreateDcTask(const PWR_COM_BasicDcTaskInfo *basicDcTaskInfo);
+PWR_API int PWR_DeleteDcTask(PWR_COM_COL_DATATYPE dataType);
+PWR_API int PWR_SetEventCallback(void(EventCallback)(const PWR_COM_EventInfo* eventInfo));
+
 // CPU
 PWR_API int PWR_CPU_GetInfo(PWR_CPU_Info *cpuInfo);
 PWR_API int PWR_CPU_GetFreqAbility(PWR_CPU_FreqAbility *freqAbi, uint32_t bufferSize);
@@ -50,24 +56,42 @@ PWR_API int PWR_CPU_GetIdleGovernor(char idleGov[], uint32_t size); // unit: us
 PWR_API int PWR_CPU_SetIdleGovernor(const char idleGov[]);
 PWR_API int PWR_CPU_DmaGetLatency(int *latency); // unit: us
 PWR_API int PWR_CPU_DmaSetLatency(int latency);
-
-#ifndef RELEASE_MODE
-// Common
-PWR_API int PWR_SetMetaDataCallback(void(MetaDataCallback)(const PWR_COM_CallbackData *callbackData));
-PWR_API int PWR_CreateDcTask(const PWR_COM_BasicDcTaskInfo *basicDcTaskInfo);
-PWR_API int PWR_DeleteDcTask(PWR_COM_COL_DATATYPE dataType);
-PWR_API int PWR_SetEventCallback(void(EventCallback)(const PWR_COM_EventInfo* eventInfo));
-
-// SYS
-PWR_API int PWR_SYS_SetPowerState(const int powerState);
-PWR_API int PWR_SYS_GetCappedPower(int *cappedPower);
-PWR_API int PWR_SYS_SetCappedPower(const int cappedPower);
-PWR_API int PWR_SYS_GetRtPowerInfo(PWR_SYS_PowerInfo *powerInfo);
-PWR_API int PWR_SYS_GetStatisticPowerInfo(PWR_SYS_StatisticPowerInfo *stcPowerInfo);
-
-// CPU
 PWR_API int PWR_CPU_GetUsage(PWR_CPU_Usage *usage, uint32_t bufferSize);
 PWR_API int PWR_CPU_GetPerfData(PWR_CPU_PerfData *perfData);
+
+//SYS
+PWR_API int PWR_SYS_SetPowerState(const int powerState);
+PWR_API int PWR_SYS_GetRtPowerInfo(PWR_SYS_PowerInfo *powerInfo);
+
+// PROC
+PWR_API int PWR_PROC_QueryProcs(const char *keywords, pid_t procs[], uint32_t *num);
+PWR_API int PWR_PROC_GetWattState(int *state);
+PWR_API int PWR_PROC_SetWattState(int state);
+PWR_API int PWR_PROC_SetWattFirstDomain(int cpuId);
+PWR_API int PWR_PROC_GetWattAttrs(PWR_PROC_WattAttrs *wattAttrs);
+PWR_API int PWR_PROC_SetWattAttrs(const PWR_PROC_WattAttrs *wattAttrs);
+PWR_API int PWR_PROC_GetWattProcs(pid_t wattProcs[], uint32_t *num);
+PWR_API int PWR_PROC_AddWattProcs(const pid_t wattProcs[], uint32_t num);
+PWR_API int PWR_PROC_DelWattProcs(const pid_t wattProcs[], uint32_t num);
+PWR_API int PWR_PROC_GetSmartGridState(int *state);
+PWR_API int PWR_PROC_SetSmartGridState(int state);
+PWR_API int PWR_PROC_GetSmartGridProcs(PWR_PROC_SMART_GRID_LEVEL level, PWR_PROC_SmartGridProcs *sgProcs);
+PWR_API int PWR_PROC_SetSmartGridLevel(const PWR_PROC_SmartGridProcs *sgProcs);
+PWR_API int PWR_PROC_GetSmartGridGov(PWR_PROC_SmartGridGov *sgGov);
+PWR_API int PWR_PROC_SetSmartGridGov(const PWR_PROC_SmartGridGov *sgGov);
+PWR_API int PWR_PROC_GetServiceState(PWR_PROC_ServiceStatus *sStatus);
+PWR_API int PWR_PROC_SetServiceState(PWR_PROC_ServiceState *sState);
+
+// HBM
+PWR_API int PWR_HBM_GetSysState(PWR_HBM_SYS_STATE *hbmState);
+PWR_API int PWR_HBM_SetAllPwrState(int state);
+
+#ifndef RELEASE_MODE
+
+// SYS
+PWR_API int PWR_SYS_GetCappedPower(int *cappedPower);
+PWR_API int PWR_SYS_SetCappedPower(const int cappedPower);
+PWR_API int PWR_SYS_GetStatisticPowerInfo(PWR_SYS_StatisticPowerInfo *stcPowerInfo);
 
 // Disk
 PWR_API int PWR_DISK_GetList(char diskList[][PWR_MAX_ELEMENT_NAME_LEN], uint32_t *len);
@@ -87,25 +111,6 @@ PWR_API int PWR_NET_SetSpeedMod(char ethName[], uint32_t speedMod);
 PWR_API int PWR_USB_GetAutoSuspend(PWR_USB_AutoSuspend usbAts[], uint32_t *len);
 PWR_API int PWR_USB_SetAutoSuspend(PWR_USB_AutoSuspend usbAts[], uint32_t len);
 
-// PROC
-PWR_API int PWR_PROC_QueryProcs(const char *keywords, pid_t procs[], uint32_t *num);
-PWR_API int PWR_PROC_GetWattState(int *state);
-PWR_API int PWR_PROC_SetWattState(int state);
-PWR_API int PWR_PROC_GetWattAttrs(PWR_PROC_WattAttrs *wattAttrs);
-PWR_API int PWR_PROC_SetWattAttrs(const PWR_PROC_WattAttrs *wattAttrs);
-PWR_API int PWR_PROC_GetWattProcs(pid_t wattProcs[], uint32_t *num);
-PWR_API int PWR_PROC_AddWattProcs(const pid_t wattProcs[], uint32_t num);
-PWR_API int PWR_PROC_DelWattProcs(const pid_t wattProcs[], uint32_t num);
-PWR_API int PWR_PROC_GetSmartGridState(int *state);
-PWR_API int PWR_PROC_SetSmartGridState(int state);
-PWR_API int PWR_PROC_GetSmartGridProcs(PWR_PROC_SMART_GRID_LEVEL level, PWR_PROC_SmartGridProcs *sgProcs);
-PWR_API int PWR_PROC_SetSmartGridLevel(const PWR_PROC_SmartGridProcs *sgProcs);
-PWR_API int PWR_PROC_GetSmartGridGov(PWR_PROC_SmartGridGov *sgGov);
-PWR_API int PWR_PROC_SetSmartGridGov(const PWR_PROC_SmartGridGov *sgGov);
-
-// HBM
-PWR_API int PWR_HBM_GetSysState(PWR_HBM_SysState *hbmState);
-PWR_API int PWR_HBM_SetAllPwrState(int state);
 
 #endif // #ifndef RELEASE_MODE
 

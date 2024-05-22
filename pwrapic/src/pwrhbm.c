@@ -18,14 +18,14 @@
 #include "pwrerr.h"
 #include "sockclient.h"
 
-int GetHbmSysState(PWR_HBM_SysState *hmbState)
+int GetHbmSysState(PWR_HBM_SYS_STATE *hmbState)
 {
     ReqInputParam input;
     input.optType = HBM_GET_SYS_STATE;
     input.dataLen = 0;
     input.data = NULL;
 
-    uint32_t size = sizeof(PWR_HBM_SysState);
+    uint32_t size = sizeof(PWR_HBM_SYS_STATE);
     RspOutputParam output;
     output.rspBuffSize = &size;
     output.rspData = (void *)hmbState;

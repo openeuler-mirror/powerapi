@@ -167,6 +167,14 @@ static void TEST_PWR_SetServerInfo(void)
     PrintResult("PWR_SetServerInfo", ret);
 }
 
+static void TEST_PWR_SetClientSockPath(void)
+{
+    int ret = -1;
+    char str[] = "/opt/pwrapic";
+    ret = PWR_SetClientSockPath(str);
+    PrintResult("PWR_SetClientSockPath", ret);
+}
+
 static void TEST_PWR_Register(void)
 {
     while (PWR_Register() != PWR_SUCCESS) {
@@ -585,7 +593,7 @@ static void TEST_PWR_DISK_GetList(void)
 static void TEST_PWR_HBM_GetSysState(void)
 {
     int ret = -1;
-    PWR_HBM_SysState state = PWR_HBM_HYBRID_MOD;
+    PWR_HBM_SYS_STATE state = PWR_HBM_HYBRID_MOD;
     ret = PWR_HBM_GetSysState(&state);
     PrintResult("TEST_PWR_HBM_GetSysState", ret);
     printf("hbm state is %d.\n", (int)state);
@@ -611,6 +619,7 @@ int main(int argc, const char *args[])
 {
     /********** Common **********/
     TEST_PWR_SetServerInfo();
+    TEST_PWR_SetClientSockPath();
     TEST_PWR_SetLogCallback();
     TEST_PWR_SetEventCallback();
     TEST_PWR_Register();
