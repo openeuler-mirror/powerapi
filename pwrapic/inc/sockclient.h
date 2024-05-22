@@ -36,6 +36,7 @@ typedef enum PwrApiStatus {
 } PwrApiStatus;
 
 int SetServerInfo(const char* socketPath);
+int SetClientSockPath(const char* socketPath);
 int InitSockClient(void);
 int FiniSockClient(void);
 int SetMetaDataCallback(void(MetaDataCallback)(const PWR_COM_CallbackData *));

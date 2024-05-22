@@ -24,6 +24,7 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <sys/types.h>
+#include <sys/stat.h>
 #include <errno.h>
 #include <regex.h>
 #include "pwrlog.h"
@@ -45,6 +46,7 @@ static PwrMsgBuffer g_sendBuff;         // Send queue
 static PwrMsgBuffer g_recvBuff;         // Receive queue
 static ResultWaitingMsgList g_waitList; // Waiting for results list
 static char g_serverAddr[MAX_PATH_LEN] = "/etc/sysconfig/pwrapis/pwrserver.sock"; // Default server path
+static char cus_clientAddr[MAX_PATH_LEN] = ""; // User defined client path
 static PwrApiStatus g_status = STATUS_UNREGISTERED;
 
 #define CHECK_SOCKET_STATUS()                         \
@@ -53,10 +55,15 @@ static PwrApiStatus g_status = STATUS_UNREGISTERED;
         return PWR_ERR_DISCONNECTED;                      \
     }
 
-static char* GetClientSockDir(char *dir)
+static char* GetClientSockDir(char *dir, char *cus_dir)
 {
-    const char *home = getenv("HOME");
-    if (!home || sprintf(dir, "%s/%s", home, CLIENT_ADDR) < 0) {
+    char *prefix;
+    if (strlen(cus_dir) > 0) {
+        prefix = cus_dir;
+    } else {
+        prefix = getenv("HOME");
+    }
+    if (!prefix || sprintf(dir, "%s/%s", prefix, CLIENT_ADDR) < 0) {
         PwrLog(ERROR, "Get Client home dir failed.");
     }
     return dir;
@@ -299,13 +306,18 @@ static int CreateConnection(void)
     bzero(&clientAddr, sizeof(clientAddr));
     clientAddr.sun_family = AF_UNIX;
     char sockDir[MAX_PATH_LEN] = CLIENT_ADDR;
-    strncpy(clientAddr.sun_path, GetClientSockDir(sockDir), sizeof(clientAddr.sun_path) - 1);
+    strncpy(clientAddr.sun_path, GetClientSockDir(sockDir, cus_clientAddr), sizeof(clientAddr.sun_path) - 1);
     size_t clen = SUN_LEN(&clientAddr);
     unlink(clientAddr.sun_path);
     if (bind(clientFd, (struct sockaddr *)&clientAddr, clen) < 0) {
         PwrLog(ERROR, "Bind socket failed.");
         close(clientFd);
         return PWR_ERR_COMMON;
+    }
+    mode_t mode = 0400;
+    if (chmod(clientAddr.sun_path, mode) == -1) {
+        PwrLog(ERROR, "set permission error");
+        return PWR_ERR_SYS_EXCEPTION;
     }
     // connect
     struct sockaddr_un serverAddr;
@@ -414,6 +426,15 @@ static int SendReqMsgAndWaitForRsp(PwrMsg *req, PwrMsg **rsp)
 int SetServerInfo(const char* socketPath)
 {
     strncpy(g_serverAddr, socketPath, sizeof(g_serverAddr) - 1);
+    return PWR_SUCCESS;
+}
+
+int SetClientSockPath(const char* socketPath)
+{
+    if (access(socketPath, W_OK) != 0) {
+        return PWR_ERR_PATH_VERIFY;
+    }
+    strncpy(cus_clientAddr, socketPath, sizeof(cus_clientAddr) - 1);
     return PWR_SUCCESS;
 }
 

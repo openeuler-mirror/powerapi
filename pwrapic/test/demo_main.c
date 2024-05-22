@@ -167,6 +167,14 @@ static void TEST_PWR_SetServerInfo(void)
     PrintResult("PWR_SetServerInfo", ret);
 }
 
+static void TEST_PWR_SetClientSockPath(void)
+{
+    int ret = -1;
+    char str[] = "/opt/pwrapic";
+    ret = PWR_SetClientSockPath(str);
+    PrintResult("PWR_SetClientSockPath", ret);
+}
+
 static void TEST_PWR_Register(void)
 {
     while (PWR_Register() != PWR_SUCCESS) {
@@ -581,10 +589,37 @@ static void TEST_PWR_DISK_GetList(void)
 }
 /*************************** DISK END ************************/
 
+/***************************** HBM **************************/
+static void TEST_PWR_HBM_GetSysState(void)
+{
+    int ret = -1;
+    PWR_HBM_SYS_STATE state = PWR_HBM_HYBRID_MOD;
+    ret = PWR_HBM_GetSysState(&state);
+    PrintResult("TEST_PWR_HBM_GetSysState", ret);
+    printf("hbm state is %d.\n", (int)state);
+}
+
+static void TEST_PWR_HBM_SetAllPwrState(void)
+{
+    int ret = -1;
+    ret = PWR_HBM_SetAllPwrState(0);
+    PrintResult("TEST_PWR_HBM_SetAllPwrState", ret);
+
+    ret = PWR_HBM_SetAllPwrState(1);
+    PrintResult("TEST_PWR_HBM_SetAllPwrState", ret);
+
+    ret = PWR_HBM_SetAllPwrState(2);
+    PrintResult("TEST_PWR_HBM_SetAllPwrState", ret);
+}
+
+
+/*************************** HBM END ************************/
+
 int main(int argc, const char *args[])
 {
     /********** Common **********/
     TEST_PWR_SetServerInfo();
+    TEST_PWR_SetClientSockPath();
     TEST_PWR_SetLogCallback();
     TEST_PWR_SetEventCallback();
     TEST_PWR_Register();
@@ -619,6 +654,11 @@ int main(int argc, const char *args[])
     // TEST_PWR_COM_DcTaskMgr();
     /************ PROC ***********/
     TEST_PROC_AllFunc();
+
+    /************ HBM ***********/
+    TEST_PWR_HBM_GetSysState();
+    TEST_PWR_HBM_SetAllPwrState();
+
     // todo: 其他接口测试
     while (g_run) {
         sleep(MAIN_LOOP_INTERVAL);

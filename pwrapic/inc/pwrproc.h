@@ -27,8 +27,11 @@ int AddWattProcs(const pid_t wattProcs[], uint32_t num);
 int DelWattProcs(const pid_t wattProcs[], uint32_t num);
 int GetSmartGridState(int *state);
 int SetSmartGridState(int state);
+int SetWattFirstDomain(int cpuId);
 int GetSmartGridProcs(PWR_PROC_SMART_GRID_LEVEL level, PWR_PROC_SmartGridProcs *sgProcs);
 int SetSmartGridLevel(const PWR_PROC_SmartGridProcs *sgProcs);
 int GetSmartGridGov(PWR_PROC_SmartGridGov *sgGov);
 int SetSmartGridGov(const PWR_PROC_SmartGridGov *sgGov);
+int GetServiceState(PWR_PROC_ServiceStatus *sStatus);
+int SetServiceState(const PWR_PROC_ServiceState *sState);
 #endif
