@@ -22,7 +22,9 @@
 #include "utils.h"
 #include "cpuservice.h"
 
-#define GET_US_PROCS_CMD "pstree -pn 1 | grep -o '([[:digit:]]*)' | grep -o '[[:digit:]]*'"
+#define GET_US_PROCS_CMD                                                                 \
+    "pstree -pn 1 | grep -v pstree | grep -v grep | grep -o '([[:digit:]]*)' | grep -o " \
+    "'[[:digit:]]*'"
 #define QUERY_PROCS_CMD "ps -ef | grep -E '%s' | grep -v grep | awk '{print $2}'"
 
 #define WATT_CGROUP_PATH "/sys/fs/cgroup/cpu/watt_sched"
