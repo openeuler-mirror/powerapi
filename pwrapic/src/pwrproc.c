@@ -171,7 +171,7 @@ int AddWattProcs(const pid_t wattProcs[], uint32_t num)
     ReqInputParam input;
     input.optType = PROC_ADD_WATT_PROCS;
     input.dataLen = (uint32_t)sizeof(pid_t) * num;
-    input.data = (char *)&wattProcs;
+    input.data = (char *)wattProcs;
 
     RspOutputParam output;
     output.rspBuffSize = NULL;
@@ -191,7 +191,7 @@ int DelWattProcs(const pid_t wattProcs[], uint32_t num)
     ReqInputParam input;
     input.optType = PROC_DEL_WATT_PROCS;
     input.dataLen = (uint32_t)sizeof(pid_t) * num;
-    input.data = (char *)&wattProcs;
+    input.data = (char *)wattProcs;
 
     RspOutputParam output;
     output.rspBuffSize = NULL;
