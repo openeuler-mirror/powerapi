@@ -139,6 +139,8 @@ void ReleaseResultWaitingMsgNode(ResultWaitingMsgNode *node)
     pthread_cond_destroy((pthread_cond_t *)&(node->waitCond));
     pthread_mutex_unlock((pthread_mutex_t *)&(node->waitMutex));
     pthread_mutex_destroy((pthread_mutex_t *)&(node->waitMutex));
+    free(node);
+    node = NULL;
 }
 
 void InitResultWaitingList(ResultWaitingMsgList *rwm)
