@@ -51,7 +51,7 @@ static int GetHbmMode(PWR_HBM_SYS_STATE *state)
         return PWR_ERR_COMMON;
     }
     char flat_buf[PWR_MAX_STRING_LEN] = {0};
-    if (fgets(cache_buf, PWR_MAX_STRING_LEN, cache_mod_fp) != NULL) {
+    if (fgets(flat_buf, PWR_MAX_STRING_LEN, flat_mod_fp) != NULL) {
         *state |= PWR_HBM_CACHE_MOD;
     }
     pclose(cache_mod_fp);
@@ -106,6 +106,8 @@ static int SetPowerState(int powerState)
                  state_str);
         EXEC_COMMAND(cmd);
     }
+
+    return PWR_SUCCESS;
 }
 
 void SetHbmAllPowerState(PwrMsg *req)

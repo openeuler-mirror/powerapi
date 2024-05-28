@@ -95,7 +95,7 @@ PwrMsg *ClonePwrMsg(PwrMsg *msg)
     return c;
 }
 
-int InitMsgFactory(void)
+void InitMsgFactory(void)
 {
     g_pid = getpid();
     pthread_mutex_init((pthread_mutex_t *)&g_seqLock, NULL);
@@ -124,6 +124,8 @@ int GenerateMetadataMsg(PwrMsg *metadata, uint32_t sysId, char *data, uint32_t l
     metadata->head.dataLen = len;
     metadata->head.sysId = sysId;
     metadata->data = data;
+
+    return PWR_SUCCESS;
 }
 
 int GenerateRspMsg(const PwrMsg *req, PwrMsg *rsp, int rspCode, char *data, int dataLen)

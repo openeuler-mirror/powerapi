@@ -38,7 +38,6 @@ static regex_t g_avgquszRegx;
 static regex_t g_svctmRegx;
 static regex_t g_utilRegx;
 static regex_t g_awaitRegx;
-static struct ListHead hanlerMap;
 
 typedef struct IoHdRef {
     regex_t* regx;
@@ -47,7 +46,6 @@ typedef struct IoHdRef {
 
 static const char* GetStatInfo(const char* diskName, char statLine[], int bufLen)
 {
-    int res;
     int majorNum;
     int minorNum;
     regex_t prxRgx;
@@ -220,8 +218,8 @@ static Ios GetIos(const char* dataName)
 
     ios.rdIos = GetFdVal(dataName, R_MEGR_FD_NUM);
     ios.wrIos = GetFdVal(dataName, W_MEGR_FD_NUM);
-    ios.dcIos = GetFdVal(dataName, DC_IOS_FD_NUM);
-    ios.dcIos = ios.dcIos < 0 ? 0 : ios.dcIos;
+    int64_t dcIosTmp = GetFdVal(dataName, DC_IOS_FD_NUM);
+    ios.dcIos = dcIosTmp < 0 ? 0 : dcIosTmp;
     return ios;
 }
 
@@ -242,8 +240,8 @@ static Sectors GetSectors(const char* dataName)
 
     sectors.rdSect = GetFdVal(dataName, RKB_FD_NUM);
     sectors.wrSect = GetFdVal(dataName, WKB_FD_NUM);
-    sectors.dcSect = GetFdVal(dataName, DC_SECT_FD_NUM);
-    sectors.dcSect = sectors.dcSect < 0 ? 0 : sectors.dcSect;
+    int64_t dcSectTmp = GetFdVal(dataName, DC_SECT_FD_NUM);
+    sectors.dcSect = dcSectTmp < 0 ? 0 : dcSectTmp;
     return sectors;
 }
 
@@ -323,7 +321,7 @@ static CollVal DiskUtil(void* args)
 
     pTmKp = args;
     colVal.collSec = 0;
-    resVal = GetValPerSec(args, TOL_TK_FD_NUM, UTIL_FACTOR);
+    resVal = GetValPerSec(pTmKp, TOL_TK_FD_NUM, UTIL_FACTOR);
     if (sprintf(strVal, "%.5f", resVal) < 0) {
         colVal.pVal = ERR_VAL;
     } else {
@@ -348,8 +346,8 @@ static Ticks GetTicks(const char* dataName)
     Ticks ticks;
     ticks.rdTicks = GetFdVal(dataName, RD_TICKS_FD_NUM);
     ticks.wrTicks = GetFdVal(dataName, WR_TICKS_FD_NUM);
-    ticks.dcTicks = GetFdVal(dataName, DC_TICKS_FD_NUM);
-    ticks.dcTicks = ticks.dcTicks < 0 ? 0 : ticks.dcTicks;
+    int64_t dcTicksTmp = GetFdVal(dataName, DC_TICKS_FD_NUM);
+    ticks.dcTicks = dcTicksTmp < 0 ? 0 : dcTicksTmp;
     return ticks;
 }
 
@@ -434,7 +432,7 @@ IoHdRef hdArr[] = {
 
 static CollHandler GetColHdl(const char* dataName)
 {
-    int idx;
+    size_t idx;
     size_t len;
 
     len = sizeof(hdArr) / sizeof(IoHdRef);
@@ -486,7 +484,7 @@ void InitIoColl(void)
 
 void ClearIoColl(void)
 {
-    int i;
+    size_t i;
     size_t length;
 
     length = sizeof(hdArr) / sizeof(IoHdRef);
@@ -578,20 +576,25 @@ void GetDiskinfo(PwrMsg *req)
 
 void GetDiskLoad(PwrMsg *req)
 {
+    (void)req;
 }
 
 void GetDiskPowerStatus(PwrMsg *req)
 {
+    (void)req;
 }
 
 void SetDiskPowerStatus(PwrMsg *req)
 {
+    (void)req;
 }
 
 void GetDiskScsiPolicy(PwrMsg *req)
 {
+    (void)req;
 }
 
 void SetDiskScsiPolicy(PwrMsg *req)
 {
+    (void)req;
 }

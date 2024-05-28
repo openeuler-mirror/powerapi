@@ -256,6 +256,8 @@ static void *RunDcTaskProcess(void *arg)
         gettimeofday(&before, NULL);
         actionFunc(task, &before);
     }
+
+    return NULL;
 }
 
 static int CreateNewTask(const PWR_COM_BasicDcTaskInfo *taskInfo, uint32_t subscriber)
@@ -333,7 +335,7 @@ static void FiniAllTask(void)
     pthread_mutex_unlock(&g_taskListMutex);
 }
 
-static int DeleteAllTaskByClient(uint32_t subscriber)
+static void DeleteAllTaskByClient(uint32_t subscriber)
 {
     pthread_mutex_lock(&g_taskListMutex);
     if (g_taskNum != 0) {

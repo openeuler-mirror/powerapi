@@ -28,7 +28,6 @@ int CreateDcTask(const PWR_COM_BasicDcTaskInfo *basicDcTaskInfo)
     input.data = (char *)basicDcTaskInfo;
 
     RspOutputParam output;
-    size_t size = sizeof(int);
     output.rspBuffSize = NULL;
     output.rspData = NULL;
 

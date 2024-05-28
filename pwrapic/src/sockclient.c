@@ -97,7 +97,7 @@ static int ReadMsg(void *pData, int len)
 static int WriteMsg(const void *pData, size_t len)
 {
     size_t leftLen;
-    size_t sendLen;
+    ssize_t sendLen;
     size_t wrLen = 0;
 
     leftLen = len;
@@ -341,6 +341,7 @@ static int CreateConnection(void)
 
 static void *RunSocketProcess(void *none)
 {
+    (void)none; // used to avoid unused parameter warning
     fd_set recvFdSet;
     struct timeval tv;
     while (g_sockThread.keepRunning) {

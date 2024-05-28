@@ -61,7 +61,7 @@ static inline int IsFullBuffer(const PwrMsgBuffer *smb)
         return 0;
     }
     int t = (smb->head + 1) % PWR_BUFFER_SIZE;
-    return t == smb->head;
+    return t == smb->tail;
 }
 
 ResultWaitingMsgNode *CreateResultWaitingMsgNode(void);

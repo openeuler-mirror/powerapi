@@ -302,7 +302,7 @@ static void ProcessRecvMsgFromClient(int clientIdx)
         return;
     }
 
-    if (msg->head.sysId != g_pwrClients[clientIdx].sysId) {
+    if (msg->head.sysId != (uint32_t)g_pwrClients[clientIdx].sysId) {
         ReleasePwrMsg(&msg);
         return;
     }
@@ -319,7 +319,7 @@ static void ProcessRecvMsgFromClient(int clientIdx)
 static int WriteMsg(const void *pData, size_t len, int dstFd)
 {
     size_t leftLen;
-    size_t sendLen;
+    ssize_t sendLen;
     size_t wrLen = 0;
 
     leftLen = len;
@@ -429,6 +429,7 @@ static void ProcessSendMsgToClient(void)
  */
 static void *RunServerSocketProcess(void *none)
 {
+    (void)none; // avoid unused parameter warning
     fd_set recvFdSet;
     int maxFd = INVALID_FD;
     struct timeval tv;
@@ -468,6 +469,8 @@ static void *RunServerSocketProcess(void *none)
     } // while
 
     CloseAllConnections(g_pwrClients);
+
+    return NULL;
 }
 
 static void WaitForMsg(void)
@@ -548,6 +551,7 @@ static void ProcessReqMsg(PwrMsg *req)
  */
 static void *RunServiceProcess(void *none)
 {
+    (void)none; // avoid unused parameter warning
     while (g_serviceThread.keepRunning) {
         if (IsEmptyBuffer(&g_recvBuff)) {
             WaitForMsg();
@@ -558,6 +562,8 @@ static void *RunServiceProcess(void *none)
         }
         ProcessReqMsg(msg);
     } // while
+
+    return NULL;
 }
 
 static inline int SendMsg(PwrMsg *msg)
@@ -651,6 +657,7 @@ int SendMetadataToClient(uint32_t sysId, char *data, uint32_t len)
     if (SendMsg(metadata)) {
         ReleasePwrMsg(&metadata);
     }
+    return PWR_SUCCESS;
 }
 
 int SendRspMsg(PwrMsg *rsp)

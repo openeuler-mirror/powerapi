@@ -132,7 +132,7 @@ static inline void ReleasePwrMsg(PwrMsg **msg)
 
 PwrMsg *ClonePwrMsg(PwrMsg *msg);
 PwrMsg *CreateReqMsg(enum OperationType optType, uint32_t taskNo, uint32_t dataLen, char *data);
-int InitMsgFactory(void);
+void InitMsgFactory(void);
 void DestroyMsgFactory(void);
 int GenerateMetadataMsg(PwrMsg *metadata, uint32_t sysId, char *data, uint32_t len);
 int GenerateRspMsg(const PwrMsg *req, PwrMsg *rsp, int rspCode, char *data, int dataLen);
