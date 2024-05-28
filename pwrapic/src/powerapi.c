@@ -375,6 +375,15 @@ int PWR_SYS_GetCappedPower(int *cappedPower)
 
     return GetCappedPower(cappedPower);
 }
+
+int PWR_SYS_GetRtPowerInfo(PWR_SYS_PowerInfo *powerInfo)
+{
+    CHECK_STATUS(STATUS_REGISTERTED);
+    CHECK_NULL_POINTER(powerInfo);
+
+    return GetSysRtPowerInfo(powerInfo);
+}
+
 // HBM
 int PWR_HBM_GetSysState(PWR_HBM_SYS_STATE *hbmState)
 {
@@ -568,14 +577,6 @@ int PWR_SYS_SetCappedPower(const int cappedPower)
     }
 
     return SetCappedPower(cappedPower);
-}
-
-int PWR_SYS_GetRtPowerInfo(PWR_SYS_PowerInfo *powerInfo)
-{
-    CHECK_STATUS(STATUS_REGISTERTED);
-    CHECK_NULL_POINTER(powerInfo);
-
-    return GetSysRtPowerInfo(powerInfo);
 }
 
 int PWR_SYS_GetStatisticPowerInfo(PWR_SYS_StatisticPowerInfo *stcPowerInfo)
