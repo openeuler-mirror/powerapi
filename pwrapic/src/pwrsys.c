@@ -26,9 +26,9 @@ int SetSysPowerState(const int powerState)
     input.optType = SYS_SET_POWER_STATE;
     char state[PWR_MAX_NAME_LEN] = {0};
     if (powerState == PWR_MEM) {
-        strncpy(state, "mem", strlen("mem"));
+        strncpy(state, "mem", strlen("mem") + 1);
     } else if (powerState == PWR_DISK) {
-        strncpy(state, "disk", strlen("disk"));
+        strncpy(state, "disk", strlen("disk") + 1);
     }
     size_t dataLen = strlen(state);
     input.dataLen = dataLen;

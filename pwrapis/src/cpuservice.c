@@ -53,7 +53,7 @@ static void FreqSortByPolicy(PWR_CPU_CurFreq *rstData, int len)
     }
 }
 
-int CpuInfoCopy(char *att, char *value, PWR_CPU_Info *rstData)
+static void CpuInfoCopy(char *att, char *value, PWR_CPU_Info *rstData)
 {
     int attId = GetCpuArrId(att);
     switch (attId) {
@@ -267,7 +267,6 @@ int PerfDataRead(PWR_CPU_PerfData *perfData)
         return 1;
     }
     char buf[PWR_MAX_STRING_LEN] = {0};
-    int i = 0;
     unsigned long cacheMiss = 0;
     unsigned long ins = 0;
     unsigned long cycles = 0;
@@ -868,7 +867,6 @@ static int ReadCpuIdleCstates(PWR_CPU_Cstate cstates[], int *cstateNum, int maxN
     int num = 0;
     struct dirent *dt;
     char path[MAX_FULL_NAME] = {0};
-    char strInt[STR_LEN_FOR_INT] = {0};
     int ret = PWR_SUCCESS;
     while ((dt = readdir(dir)) != NULL && num < maxNum) {
         if (StrMatch(dt->d_name, CPU_IDLE_CSTATE_DIR_FREFIX) == NULL) {
@@ -895,7 +893,7 @@ static int ReadCpuIdleCstates(PWR_CPU_Cstate cstates[], int *cstateNum, int maxN
         if (sprintf(path, CPU_IDLE_CSTATE_LATENCY, dt->d_name) < 0) {
             return PWR_ERR_FILE_SPRINTF_FAILED;
         }
-        ret = ReadIntFromFile(path, &cstates[num].latency);
+        ret = ReadIntFromFile(path, (int *)&cstates[num].latency);
         if (ret != PWR_SUCCESS) {
             return PWR_ERR_FILE_ACCESS_FAILED;
         }
@@ -929,7 +927,7 @@ static int ReadCpuIdleInfo(PWR_CPU_IdleInfo *idleInfo, int maxNum)
     if (ret != PWR_SUCCESS) {
         return ret;
     }
-    return ReadCpuIdleCstates(idleInfo->cstates, &idleInfo->cstateNum, maxNum);
+    return ReadCpuIdleCstates(idleInfo->cstates, (int *)&idleInfo->cstateNum, maxNum);
 }
 
 // public===========================================================================================
@@ -939,7 +937,7 @@ void GetCpuinfo(PwrMsg *req)
     if (!rstData) {
         return;
     }
-    bzero(rstData, sizeof(rstData));
+    bzero(rstData, sizeof(PWR_CPU_Info));
     int rspCode = CpuInfoRead(rstData);
     SendRspToClient(req, rspCode, (char *)rstData, sizeof(PWR_CPU_Info));
 }
@@ -1289,7 +1287,7 @@ void GetCpuDmaLatency(PwrMsg *req)
         SendRspToClient(req, PWR_ERR_FILE_ACCESS_FAILED, NULL, 0);
         return;
     }
-    if (fread(latency, sizeof(int), 1, fd) < 0) {
+    if (fread(latency, sizeof(int), 1, fd) == 0) {
         (void)fclose(fd);
         SendRspToClient(req, PWR_ERR_FILE_ACCESS_FAILED, NULL, 0);
         return;
@@ -1321,7 +1319,7 @@ void SetCpuDmaLatency(PwrMsg *req)
             }
         }
 
-        if (fwrite(latency, sizeof(int), 1, g_cpuDmaLatencyWriteFd) < 0) {
+        if (fwrite(latency, sizeof(int), 1, g_cpuDmaLatencyWriteFd) == 0) {
             ret = PWR_ERR_FILE_ACCESS_FAILED;
             break;
         }

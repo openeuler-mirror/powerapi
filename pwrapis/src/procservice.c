@@ -77,7 +77,7 @@ static ServiceToString g_serToString[] = {
     {PWR_PROC_SERVICE_MPCTOOL, "mpctool"},
 };
 
-static int Check_Service_Exist(PWR_PROC_SERVICE_NAME name, char *serviceName)
+static int CheckServiceExist(const PWR_PROC_SERVICE_NAME name, char *serviceName)
 {
     int i;
     int count = sizeof(g_serToString) / sizeof(g_serToString[0]);
@@ -91,7 +91,7 @@ static int Check_Service_Exist(PWR_PROC_SERVICE_NAME name, char *serviceName)
     if (i == count) {
         return PWR_ERR_SERVICE_UNABLE;
     }
-    if (sprintf(servicePath, SERVICE_PATH, g_serToString[i].nameString) < 0) {
+    if (snprintf(servicePath, sizeof(servicePath), SERVICE_PATH, g_serToString[i].nameString) < 0) {
         return PWR_ERR_FILE_SPRINTF_FAILED;
     }
     if (access(servicePath, F_OK) != 0) {
@@ -102,7 +102,6 @@ static int Check_Service_Exist(PWR_PROC_SERVICE_NAME name, char *serviceName)
 
 static int ReadServiceState(PWR_PROC_ServiceStatus *sStatus, const char *serviceName)
 {
-    char state[PWR_MAX_NAME_LEN];
     char cmd[PWR_MAX_STRING_LEN] = {0};
     char buf[PWR_MAX_STRING_LEN] = {0};
 
@@ -144,7 +143,6 @@ static int ReadServiceState(PWR_PROC_ServiceStatus *sStatus, const char *service
 static int ModifyServiceState(const PWR_PROC_ServiceState *sState, const char *serviceName)
 {
     char cmd[PWR_MAX_STRING_LEN] = {0};
-    char buf[PWR_MAX_STRING_LEN] = {0};
     char oper[PWR_MAX_NAME_LEN] = {0};
     if (sState->state == PWR_SERVICE_START){
         StrCopy(oper, "start", PWR_MAX_NAME_LEN);
@@ -299,7 +297,7 @@ static int ReadSmartGridProcsByLevel(PWR_PROC_SMART_GRID_LEVEL level,
         if (ReadFile(procLevelPath, strLevel, STR_LEN_FOR_INT) != PWR_SUCCESS) {
             continue;
         }
-        if (atoi(strLevel) == level) {
+        if (atoi(strLevel) == (int)level) {
             sgProcs->procs[sgProcs->procNum] = (pid_t)atoi(dt->d_name);
             sgProcs->procNum++;
         }
@@ -760,7 +758,7 @@ void ProcGetServiceState(PwrMsg *req)
     PWR_PROC_ServiceStatus *sStatus = (PWR_PROC_ServiceStatus *)req->data;
     size_t size = sizeof(PWR_PROC_ServiceStatus);
     char serviceName[MAX_SERVICE_LEN] = {0};
-    int ret = Check_Service_Exist(sStatus->name, serviceName);
+    int ret = CheckServiceExist(sStatus->name, serviceName);
     if (ret != PWR_SUCCESS) {
         SendRspToClient(req, ret, NULL, 0);
     }
@@ -785,7 +783,7 @@ void ProcSetServiceState(PwrMsg *req)
         return;
     }
     char serviceName[MAX_SERVICE_LEN] = {0};
-    int ret = Check_Service_Exist(sState->name, serviceName);
+    int ret = CheckServiceExist(sState->name, serviceName);
     if (ret != PWR_SUCCESS) {
         SendRspToClient(req, ret, NULL, 0);
     }

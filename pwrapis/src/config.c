@@ -211,36 +211,6 @@ static char** UpdateRoleArrayAction(const char *value)
     return users;
 }
 
-static int IsSameArray(char **arr1, char **arr2)
-{
-    if (arr1 == NULL && arr2 == NULL) {
-        return PWR_TRUE;
-    }
-    if (arr1 == NULL || arr2 == NULL) {
-        return PWR_FALSE;
-    }
-
-    int len1 = 0;
-    int len2 = 0;
-    while (arr1[len1] != NULL && strlen(arr1[len1]) > 0) {
-        len1++;
-    }
-    while (arr2[len2] != NULL && strlen(arr2[len2]) > 0) {
-        len2++;
-    }
-    if (len1 != len2) {
-        return PWR_FALSE;
-    }
-
-    for (int i = 0; i < len1; i++) {
-        if (strcmp(arr1[i], arr2[i]) != 0) {
-            return PWR_FALSE;
-        }
-    }
-
-    return PWR_TRUE;
-}
-
 static int UpdateRoleArray(enum CnfItemType type, const char *value)
 {
     char** tempRoleArray = UpdateRoleArrayAction(value);
@@ -475,6 +445,8 @@ static int HandleInvalidUpdate(char *key, char *value)
                 return PWR_ERR_COMMON;
             }
             break;
+        default:
+            break;
     }
     return PWR_SUCCESS;
 }
@@ -491,7 +463,7 @@ int UpdateConfig(char *key, char *value)
                 Logger(ERROR, MD_NM_CFG, "File_size in config is invalid, current valid value is %d", curFileSize);
                 return PWR_ERR_INVALIDE_PARAM;
             }
-            int maxFileSize = actualValue * UNIT_FACTOR - MAX_LINE_LENGTH;
+            uint64_t maxFileSize = actualValue * UNIT_FACTOR - MAX_LINE_LENGTH;
             if (maxFileSize != g_logCfg.maxFileSize) {
                 g_logCfg.maxFileSize = maxFileSize;
                 Logger(INFO, MD_NM_CFG, "File_size in config has been modified to %d", actualValue);
@@ -503,7 +475,7 @@ int UpdateConfig(char *key, char *value)
                 Logger(ERROR, MD_NM_CFG, "Cmp_cnt in config is invalid, current valid value is %d", g_logCfg.maxCmpCnt);
                 return PWR_ERR_INVALIDE_PARAM;
             }
-            if (actualValue != g_logCfg.maxCmpCnt) {
+            if ((uint64_t)actualValue != g_logCfg.maxCmpCnt) {
                 g_logCfg.maxCmpCnt = actualValue;
                 Logger(INFO, MD_NM_CFG, "Cmp_cnt in config has been modified to %d", actualValue);
             }
@@ -515,7 +487,7 @@ int UpdateConfig(char *key, char *value)
                 Logger(ERROR, MD_NM_CFG, "Log_level in config is invalid, current valid value is %d", curLogLevel);
                 return PWR_ERR_INVALIDE_PARAM;
             }
-            if (actualValue != g_logCfg.logLevel) {
+            if ((uint64_t)actualValue != g_logCfg.logLevel) {
                 UpdateLogLevel(actualValue);
                 Logger(INFO, MD_NM_CFG, "Log_level in config has been modified to %d", actualValue);
             }
@@ -552,25 +524,6 @@ int CheckAndUpdateConfig(void)
 int GetLogLevel(void)
 {
     return g_logCfg.logLevel;
-}
-
-static enum LogLevel CauLeve(int level)
-{
-    enum LogLevel lgLvl;
-    switch (level) {
-        case DEBUG:
-            lgLvl = DEBUG;
-            break;
-        case INFO:
-            lgLvl = INFO;
-            break;
-        case WARNING:
-            lgLvl = WARNING;
-            break;
-        default:
-            lgLvl = ERROR;
-    }
-    return lgLvl;
 }
 
 int IsAdmin(const char* user)

@@ -105,10 +105,10 @@ const char *GetCurFmtTmStr(const char *fmt, char *strTime, int bufLen)
     }
     curTime = GetCurTv();
     tmp = localtime_r(&curTime.tv_sec, &tmpTm);
-    if (strftime(strStdTime, sizeof(strStdTime), fmt, tmp) < 0) {
+    if (strftime(strStdTime, sizeof(strStdTime), fmt, tmp) == 0) {
         return NULL;
     }
-    if (strlen(strStdTime) > bufLen - 1) {
+    if ((int)strlen(strStdTime) > bufLen - 1) {
         return NULL;
     }
     strcpy(strTime, strStdTime);
@@ -128,14 +128,14 @@ const char *GetCurFullTime(char *fullTime, int bufLen)
     curTime = GetCurTv();
 
     tmp = localtime_r(&curTime.tv_sec, &tmpTm);
-    if (strftime(strStdTime, sizeof(strStdTime), "%F %T", tmp) < 0) {
+    if (strftime(strStdTime, sizeof(strStdTime), "%F %T", tmp) == 0) {
         return NULL;
     }
     res = snprintf(strTime, sizeof(strTime) - 1, "%s.%ld", strStdTime, curTime.tv_usec / MS_TO_SEC);
     if (res < 0) {
         return NULL;
     }
-    if (strlen(strTime) > bufLen - 1) {
+    if ((int)strlen(strTime) > bufLen - 1) {
         return NULL;
     }
     strcpy(fullTime, strTime);
@@ -263,7 +263,7 @@ const char *GetNthField(const char *src, const char *sep, int nth, char *pField,
     const char *ps = src;
     const char *ptail = NULL;
 
-    if (src == NULL || sep == NULL || pField == NULL || nth < 1 || bufLen < 0) {
+    if (src == NULL || sep == NULL || pField == NULL || nth < 1) {
         return NULL;
     }
     ptail = src + strlen(src);
@@ -300,7 +300,7 @@ const char *GetNthLine(const char *fileName, int nth, char *lineBuf, size_t bufL
     const char *pRes = NULL;
     char line[MAX_LINE_NUM] = {0};
 
-    if (fileName == NULL || nth < 1 || bufLen < 0) {
+    if (fileName == NULL || nth < 1) {
         return NULL;
     }
     if (access(fileName, F_OK | R_OK) != 0) {
@@ -335,9 +335,6 @@ const char *GetVal(struct FieldLocation fdLt, char *valBuf, size_t bufLen)
     const char *pRes = NULL;
     char lineBuf[MAX_LINE_NUM] = {0};
 
-    if (bufLen < 0) {
-        return NULL;
-    }
     pRes = GetNthLine(fdLt.fileName, fdLt.lineNum, lineBuf, sizeof(lineBuf) - 1);
     if (pRes == NULL) {
         return NULL;
@@ -544,7 +541,7 @@ const char *GetMatchN(const char *fileName, regex_t *pRegex, int n, char *row, i
         return NULL;
     }
     if (cnt == n) {
-        if (strlen(line) > bufLen - 1) {
+        if ((int)strlen(line) > bufLen - 1) {
             return NULL;
         } else {
             strcpy(row, line);
@@ -638,7 +635,7 @@ int GetFileCrc32Val(const char *fileName, unsigned int *fileCrc)
 int IsNumStr(const char *pStr)
 {
     size_t len;
-    int idx;
+    size_t idx;
     if (pStr == NULL) {
         return 0;
     }
@@ -838,7 +835,7 @@ const char *StrJoin(char **strArr, int itemNum, const char *joinStr, char *buf, 
         pos += (fieldLen + sepLen);
     }
     strcat(pos, strArr[idx]);
-    if (strlen(tmpBuf) > bufLen) {
+    if ((int)strlen(tmpBuf) > bufLen) {
         return NULL;
     }
     strcpy(buf, tmpBuf);
@@ -874,7 +871,7 @@ void DeleteChar(char str[], char a)
 {
     size_t strLength = strlen(str);
     int point = 0;
-    for (int i = 0; i < strLength; i++) {
+    for (size_t i = 0; i < strLength; i++) {
         if ((str[i] == a)) {
             continue;
         } else {
@@ -978,7 +975,7 @@ int WriteFile(const char *strInfo, const char *buf, int bufLen)
         Logger(ERROR, MD_NM_OTHS, "Open file[%s] failed. errno:%d, %s", strInfo, errno, strerror(errno));
         return PWR_ERR_FILE_OPEN_FAILED;
     }
-    if (fprintf(fp, "%s", buf) < 0) {
+    if (fwrite(buf, 1, bufLen, fp) != (size_t)bufLen) {
         Logger(ERROR, MD_NM_OTHS, "Write file[%s] failed. errno:%d, %s", strInfo, errno, strerror(errno));
         fclose(fp);
         return PWR_ERR_FILE_FPRINT_FAILED;
@@ -1044,7 +1041,7 @@ int GetMd5(const char *filename, char *md5)
         pclose(fp);
         return PWR_ERR_COMMON;
     }
-    strncpy(md5, buf, sizeof(buf));
+    strncpy(md5, buf, MD5_LEN);
     pclose(fp);
     return PWR_SUCCESS;
 }

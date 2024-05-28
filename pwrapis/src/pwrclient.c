@@ -96,7 +96,7 @@ void CloseAllConnections(PwrClient clients[])
 int GetFdBySysId(const PwrClient clients[], uint32_t sysId)
 {
     for (int i = 0; i < MAX_CLIENT_NUM; i++) {
-        if (clients[i].sysId == sysId) {
+        if (clients[i].sysId == (int)sysId) {
             return clients[i].fd;
         }
     }
@@ -116,7 +116,7 @@ int GetIdxByFd(const PwrClient clients[], int fd)
 const char *GetUserNameBySysId(const PwrClient clients[], uint32_t sysId)
 {
     for (int i = 0; i < MAX_CLIENT_NUM; i++) {
-        if (clients[i].sysId == sysId) {
+        if (clients[i].sysId == (int)sysId) {
             return clients[i].userName;
         }
     }

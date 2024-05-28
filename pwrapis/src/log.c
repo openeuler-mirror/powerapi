@@ -69,15 +69,20 @@ static int LogCmpFileFilter(const struct dirent *item)
 // Release space by deleting the earlier compressed files
 static void SpaceChkAndDel(void)
 {
-    int cnt;
-    int fileCnt;
+    uint64_t cnt;
+    uint64_t fileCnt;
     const char *fileName = NULL;
     const char *pTmpPth = NULL;
     struct dirent **fileList = NULL;
     char fullPath[MAX_FILE_NAME] = {0};
 
     pTmpPth = GetLogCfg()->logBkp;
-    fileCnt = scandir(pTmpPth, &fileList, LogCmpFileFilter, alphasort);
+    int fileCntTmp = scandir(pTmpPth, &fileList, LogCmpFileFilter, alphasort);
+    if (fileCntTmp < 0) {
+        perror("scandir error!!!");
+        return;
+    }
+    fileCnt = (uint64_t)fileCntTmp;
     cnt = fileCnt > GetLogCfg()->maxCmpCnt ? fileCnt - GetLogCfg()->maxCmpCnt : 0;
     // Delete old compressed files
     while (fileCnt--) {
@@ -202,9 +207,13 @@ void Logger(enum LogLevel level, const char *moduleName, const char *format, ...
         return;
     }
     GetCurFullTime(curTime, sizeof(curTime) - 1);
-    ret = sprintf(logLine, "%s %s %s: %s\n", curTime, GetLevelName(level), moduleName, message);
+    ret = snprintf(logLine, sizeof(logLine), "%s %s %s: %s\n", curTime, GetLevelName(level), moduleName, message);
     if (ret < 0) {
         return;
+    } else if (ret >= (int)sizeof(logLine)) {
+        memcpy(logLine + sizeof(logLine) - 5, "...", 3);  // 添加省略号表示截断
+        logLine[sizeof(logLine) - 2] = '\n';
+        logLine[sizeof(logLine) - 1] = '\0';
     }
     if (fputs(logLine, g_pFile) < 0) {
         return;

@@ -53,6 +53,7 @@ static void ClearEnv(void)
 
 static void SignalHandler(int none)
 {
+    (void)none; // used to avoid unused parameter warning
     g_keepMainRunning = EXIT;
 }
 
