@@ -422,7 +422,7 @@ static int WriteSmartGridGov(PWR_PROC_SmartGridGov *sgGov)
 void ProcQueryProcs(PwrMsg *req)
 {
     char *keyWords = NULL;
-    if (req->head.dataLen != 0 && !req->data && strlen(req->data) != 0) {
+    if (req->head.dataLen != 0 && req->data && strlen(req->data) != 0) {
         keyWords = req->data;
     }
 
