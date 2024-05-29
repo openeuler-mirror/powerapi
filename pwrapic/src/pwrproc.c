@@ -35,6 +35,7 @@ int QueryProcsByKeywords(const char *keywords, pid_t procs[], uint32_t *num)
     *num = (uint32_t)(size / sizeof(pid_t));
     if (ret != PWR_SUCCESS) {
         PwrLog(ERROR, "QueryProcsByKeywords failed. ret:%d", ret);
+        *num = 0;
     } else {
         PwrLog(DEBUG, "QueryProcsByKeywords succeed.");
     }
