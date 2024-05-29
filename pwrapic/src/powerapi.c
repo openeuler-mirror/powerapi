@@ -161,7 +161,10 @@ int PWR_CreateDcTask(const PWR_COM_BasicDcTaskInfo *basicDcTaskInfo)
     CHECK_STATUS(STATUS_REGISTERTED);
     CHECK_NULL_POINTER(basicDcTaskInfo);
 
-    if (basicDcTaskInfo->interval < PWR_MIN_DC_INTERVAL || basicDcTaskInfo->interval > PWR_MAX_DC_INTERVAL) {
+    if (basicDcTaskInfo->interval < PWR_MIN_DC_INTERVAL ||
+        basicDcTaskInfo->interval > PWR_MAX_DC_INTERVAL ||
+        (basicDcTaskInfo->dataType != PWR_COM_DATATYPE_CPU_USAGE &&
+         basicDcTaskInfo->dataType != PWR_COM_DATATYPE_CPU_PERF)) {
         return PWR_ERR_INVALIDE_PARAM;
     }
 

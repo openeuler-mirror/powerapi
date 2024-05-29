@@ -316,9 +316,11 @@ static int DeleteTask(PWR_COM_COL_DATATYPE dataType, uint32_t subscriber)
 {
     pthread_mutex_lock(&g_taskListMutex);
     int index = FindCollTaskByType(dataType);
-    if (index != INVALID_INDEX) {
-        DeleteSubscriber(index, subscriber);
+    if (index == INVALID_INDEX) {
+        pthread_mutex_unlock(&g_taskListMutex);
+        return PWR_ERR_TASK_NOT_EXISTS;
     }
+    DeleteSubscriber(index, subscriber);
     pthread_mutex_unlock(&g_taskListMutex);
     Logger(INFO, MD_NM_SVR_TASK, "DeleteTask. sysId:%d dataType:%d taskNum:%d", subscriber, dataType, g_taskNum);
     return PWR_SUCCESS;
@@ -375,7 +377,13 @@ void CreateDataCollTask(PwrMsg *req)
     if (!req || req->head.dataLen != sizeof(PWR_COM_BasicDcTaskInfo)) {
         return;
     }
-    int rspCode = CreateTask((PWR_COM_BasicDcTaskInfo *)req->data, req->head.sysId);
+
+    PWR_COM_BasicDcTaskInfo *task = (PWR_COM_BasicDcTaskInfo *)req->data;
+    if (task->dataType != PWR_COM_DATATYPE_CPU_PERF && task->dataType != PWR_COM_DATATYPE_CPU_USAGE) {
+        Logger(ERROR, MD_NM_SVR_TASK, "Not support data collect task type %d", task->dataType);
+        return SendRspToClient(req, PWR_ERR_NOT_SUPPORT_TASK_TYPE, NULL, 0);
+    }
+    int rspCode = CreateTask(task, req->head.sysId);
     SendRspToClient(req, rspCode, NULL, 0);
 }
 
