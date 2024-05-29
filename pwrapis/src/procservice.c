@@ -115,7 +115,7 @@ static int ReadServiceState(PWR_PROC_ServiceStatus *sStatus, const char *service
     }
 
     if (fgets(buf, sizeof(buf) - 1, fp) == NULL) {
-        fclose(fp);
+        pclose(fp);
         return PWR_ERR_COMMON;
     }
     DeleteChar(buf, '\n');
@@ -136,7 +136,7 @@ static int ReadServiceState(PWR_PROC_ServiceStatus *sStatus, const char *service
         sStatus->status = PWR_PROC_SRV_ST_UNKNOWN;
     }
 
-    fclose(fp);
+    pclose(fp);
     return PWR_SUCCESS;
 }
 
@@ -158,7 +158,7 @@ static int ModifyServiceState(const PWR_PROC_ServiceState *sState, const char *s
     if (fp == NULL) {
         return PWR_ERR_SYS_EXCEPTION;
     }
-    fclose(fp);
+    pclose(fp);
     return PWR_SUCCESS;
 }
 

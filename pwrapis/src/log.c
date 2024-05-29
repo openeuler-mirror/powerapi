@@ -88,7 +88,7 @@ static void SpaceChkAndDel(void)
     while (fileCnt--) {
         if (fileCnt < cnt) {
             fileName = fileList[fileCnt]->d_name;
-            if (sprintf(fullPath, "%s/%s", GetLogCfg()->logBkp, fileName) < 0) {
+            if (snprintf(fullPath, sizeof(fullPath), "%s/%s", GetLogCfg()->logBkp, fileName) < 0) {
                 perror("set full path error!!!");
             }
             if (unlink(fullPath) != 0) {
