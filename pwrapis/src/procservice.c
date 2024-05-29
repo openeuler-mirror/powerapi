@@ -187,6 +187,12 @@ static int QueryProcs(const char *keyWords, pid_t procs[], int maxNum, int *proc
 static inline int ReadWattState(int *state)
 {
     char buff[PWR_STATE_LEN] = {0};
+
+    // already check whether watt scheduler is supported
+    if (access(WATT_CGROUP_PATH, F_OK) != 0 && MkDirs(WATT_CGROUP_PATH, CRT_DIR_MODE) != PWR_SUCCESS) {
+        return PWR_ERR_SYS_EXCEPTION;
+    }
+
     int ret = ReadFile(WATT_STATE_PATH, buff, PWR_STATE_LEN);
     if (ret == PWR_SUCCESS) {
         *state = atoi(buff);
@@ -451,8 +457,8 @@ void ProcGetWattState(PwrMsg *req)
         return;
     }
     *state = PWR_DISABLE;
-    int ret = ReadWattState(state);
-    SendRspToClient(req, ret, (char *)state, sizeof(int));
+    (void)ReadWattState(state);
+    SendRspToClient(req, PWR_SUCCESS, (char *)state, sizeof(int));
 }
 
 void ProcSetWattState(PwrMsg *req)
@@ -501,7 +507,7 @@ void ProcSetWattFirstDomain(PwrMsg *req)
         SendRspToClient(req, PWR_ERR_INVALIDE_PARAM, NULL, 0);
         return;
     }
-    
+
     int *cpuId = (int *)req->data;
     if (*cpuId < 0 || GetCpuCoreNumber() <= *cpuId || !checkIfCpuOnline(*cpuId)) {
         SendRspToClient(req, PWR_ERR_INVALIDE_PARAM, NULL, 0);
@@ -515,9 +521,7 @@ void ProcSetWattFirstDomain(PwrMsg *req)
 
     int state = PWR_DISABLE;
     int ret = ReadWattState(&state);
-    if (ret != PWR_SUCCESS) {
-        return SendRspToClient(req, ret, NULL, 0);
-    } else if (state == PWR_ENABLE) { // could set watt first domain only when watt is disabled
+    if (state == PWR_ENABLE) { // could set watt first domain only when watt is disabled
         return SendRspToClient(req, PWR_ERR_WATT_NEED_DISABLE_TO_SET_DOMAIN, NULL, 0);
     }
 
