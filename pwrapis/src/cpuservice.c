@@ -271,10 +271,6 @@ int PerfDataRead(PWR_CPU_PerfData *perfData)
     unsigned long ins = 0;
     unsigned long cycles = 0;
     while (fgets(buf, sizeof(buf) - 1, fp) != NULL) {
-        if (buf == NULL) {
-            pclose(fp);
-            return 1;
-        }
         DeleteChar(buf, '\n');
         DeleteChar(buf, ' ');
         DeleteChar(buf, ',');
@@ -292,7 +288,7 @@ int PerfDataRead(PWR_CPU_PerfData *perfData)
     }
     perfData->llcMiss = (double)cacheMiss / ins;
     perfData->ipc = (double)ins / cycles;
-    pclose(fp);
+    fclose(fp);
     remove("perf.txt");
     return PWR_SUCCESS;
 }
