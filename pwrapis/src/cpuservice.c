@@ -160,7 +160,7 @@ static int UsageToLong(char *buf, unsigned long paras[], int line)
     int j = 0;
     int k;
     char temp[PWR_MAX_STRING_LEN];
-    while (i <= PWR_CPU_USAGE_COLUMN) {
+    while (i < PWR_CPU_USAGE_COLUMN) {
         bzero(temp, sizeof(temp));
         k = 0;
         while (buf[j] != ' ') {

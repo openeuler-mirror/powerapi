@@ -271,7 +271,9 @@ static void SendMsgToSocket(void)
 
         if (len <= MAX_DATA_SIZE) {
             memcpy(data, msg, sizeof(PwrMsg));
-            memcpy(data + sizeof(PwrMsg), msg->data, msg->head.dataLen);
+            if (msg->data && msg->head.dataLen > 0) {
+                memcpy(data + sizeof(PwrMsg), msg->data, msg->head.dataLen);
+            }
             WriteMsg(data, len);
         } else {
             memcpy(data, msg, sizeof(PwrMsg));
