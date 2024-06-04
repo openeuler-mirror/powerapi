@@ -158,7 +158,7 @@ static int PassCredVerification(const struct ucred *credSocket, char *userName)
 
     if (!IsAdmin(credOS.user) && !IsObserver(credOS.user)) {
         Logger(ERROR, MD_NM_SVR, "the client <%s> has no admin permission!", credOS.user);
-        return PWR_ERR_COMMON;
+        return PWR_ERR_NOT_AUTHED;
     }
     strncpy(userName, credOS.user, PWR_MAX_ELEMENT_NAME_LEN);
     return PWR_SUCCESS;
@@ -205,7 +205,7 @@ static void AcceptConnection(void)
     PwrClient client = {0};
     client.fd = newClientFd;
     client.sysId = credSocket.pid;
-    if (PassCredVerification(&credSocket, client.userName) != PWR_SUCCESS) {
+    if (PassCredVerification(&credSocket, client.userName) == PWR_ERR_NOT_AUTHED) {
         Logger(ERROR, MD_NM_CRED, "credentials verification failed");
         const char *info = "Server has closed connection. This client has no admin permission.";
         /* eventData should be release in the function that uses it */
@@ -232,6 +232,10 @@ static void AcceptConnection(void)
 
 static void CleanClientResource(PwrClient clients[], int idx)
 {
+    if (idx < 0 || idx >= MAX_CLIENT_NUM) {
+        Logger(ERROR, MD_NM_SVR, "Invalid client index %d", idx);
+        return;
+    }
     CleanControlAuth(clients[idx].sysId);
     CleanDataCollTaskByClient(clients[idx].sysId);
     DeleteFromClientList(g_pwrClients, idx);
