@@ -65,6 +65,7 @@ static void SetupSignal(void)
     (void)signal(SIGUSR2, SignalHandler);
     (void)signal(SIGTERM, SignalHandler);
     (void)signal(SIGKILL, SignalHandler);
+    (void)signal(SIGPIPE, SIG_IGN);
 }
 
 int main(int argc, const char *args[])
