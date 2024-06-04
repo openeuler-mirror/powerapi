@@ -199,13 +199,15 @@ static void AcceptConnection(void)
     struct ucred credSocket;
     if (getsockopt(newClientFd, SOL_SOCKET, SO_PEERCRED, &credSocket, &socklen) < 0) {
         Logger(ERROR, MD_NM_SVR, "get sock options failed");
+        close(newClientFd);
         return;
     }
 
     PwrClient client = {0};
     client.fd = newClientFd;
     client.sysId = credSocket.pid;
-    if (PassCredVerification(&credSocket, client.userName) == PWR_ERR_NOT_AUTHED) {
+    int ret = PassCredVerification(&credSocket, client.userName);
+    if (ret == PWR_ERR_NOT_AUTHED) {
         Logger(ERROR, MD_NM_CRED, "credentials verification failed");
         const char *info = "Server has closed connection. This client has no admin permission.";
         /* eventData should be release in the function that uses it */
@@ -218,6 +220,10 @@ static void AcceptConnection(void)
 
         DoSendEventToClient(newClientFd, credSocket.pid, (char *)eventInfo,
             sizeof(PWR_COM_EventInfo) + strlen(info) + 1);
+        close(newClientFd);
+        return;
+    } else if (ret == PWR_ERR_COMMON) {
+        Logger(ERROR, MD_NM_CRED, "credentials verification failed with common error");
         close(newClientFd);
         return;
     }
