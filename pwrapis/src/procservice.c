@@ -206,11 +206,13 @@ static int ReadWattAttrs(PWR_PROC_WattAttrs *wattAttrs)
         return ret;
     }
     wattAttrs->scaleThreshold = atoi(buff);
+    memset(buff, 0, sizeof(buff));
     ret = ReadFile(WATT_ATTR_DOMAIN_MASK_PATH, buff, STR_LEN_FOR_INT);
     if (ret != PWR_SUCCESS) {
         return ret;
     }
     wattAttrs->domainMask = atoi(buff);
+    memset(buff, 0, sizeof(buff));
     ret = ReadFile(WATT_ATTR_SCALE_INTERVAL_PATH, buff, STR_LEN_FOR_INT);
     if (ret != PWR_SUCCESS) {
         return ret;
