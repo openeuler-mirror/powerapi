@@ -322,7 +322,7 @@ static int WriteSmartGridProcsLevel(const PWR_PROC_SmartGridProcs *sgProcs)
         if (sprintf(procLevelPath, SMART_GRID_LEVEL_PATH_D, sgProcs->procs[i]) < 0) {
             return PWR_ERR_FILE_SPRINTF_FAILED;
         }
-        (void)WriteFile(procLevelPath, strLevel, STR_LEN_FOR_INT);
+        (void)WriteFile(procLevelPath, strLevel, strlen(strLevel));
     }
     return PWR_SUCCESS;
 }
@@ -409,7 +409,7 @@ static int WriteSmartGridGov(PWR_PROC_SmartGridGov *sgGov)
         if (sprintf(gov, "0-%s", sgGov->sgLevel0Gov) < 0) {
             return PWR_ERR_FILE_SPRINTF_FAILED;
         }
-        int ret = WriteFile(SMART_GRID_GOV_PATH, gov, EXT_GOV_NAME_LEN);
+        int ret = WriteFile(SMART_GRID_GOV_PATH, gov, strlen(gov));
         if (ret != PWR_SUCCESS) {
             return ret;
         }
@@ -419,7 +419,7 @@ static int WriteSmartGridGov(PWR_PROC_SmartGridGov *sgGov)
         if (sprintf(gov, "1-%s", sgGov->sgLevel1Gov) < 0) {
             return PWR_ERR_FILE_SPRINTF_FAILED;
         }
-        return WriteFile(SMART_GRID_GOV_PATH, gov, EXT_GOV_NAME_LEN);
+        return WriteFile(SMART_GRID_GOV_PATH, gov, strlen(gov));
     }
     return PWR_SUCCESS;
 }
@@ -676,7 +676,7 @@ void ProcSetSmartGridState(PwrMsg *req)
             ret = PWR_ERR_SYS_EXCEPTION;
             break;
         }
-        ret = WriteFile(SMART_GRID_STATE_PATH, buff, PWR_STATE_LEN);
+        ret = WriteFile(SMART_GRID_STATE_PATH, buff, strlen(buff));
     } while (PWR_FALSE);
 
     SendRspToClient(req, ret, NULL, 0);
