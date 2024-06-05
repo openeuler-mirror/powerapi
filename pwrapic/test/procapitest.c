@@ -80,11 +80,11 @@ static void TEST_PWR_PROC_AddAndDelWattProcs(void)
     bzero(procs, sizeof(procs));
     ret = PWR_PROC_GetWattProcs(procs, &num);
     printf("PWR_PROC_GetWattProcs: ret:%d num:%d\n", ret, num);
-    for (int i = 0; i < TEST_PID_NUM; i++) {
+    for (int i = 0; i < num; i++) {
         printf("\tPWR_PROC_GetWattProcs. procs%d: %d.\n", i, procs[i]);
     }
 
-    ret = PWR_PROC_DelWattProcs(procs, num - 1);
+    ret = PWR_PROC_DelWattProcs(procs, num);
     printf("PWR_PROC_DelWattProcs: ret:%d\n", ret);
     bzero(procs, sizeof(procs));
     (void)PWR_PROC_GetWattProcs(procs, &num);
