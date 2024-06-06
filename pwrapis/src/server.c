@@ -288,7 +288,8 @@ static void ProcessRecvMsgFromClient(int clientIdx)
         free(msg);
         return;
     }
-    Logger(DEBUG, MD_NM_SVR, "receivd msg. opt:%d,sysId:%d", msg->head.optType, msg->head.sysId);
+    Logger(DEBUG, MD_NM_SVR, "Receive msg. opt:%d,sysId:%d, seqId:%d",
+        msg->head.optType, msg->head.sysId, msg->head.seqId);
 
     if (msg->head.dataLen > 0) {
         char *msgcontent = malloc(msg->head.dataLen);
@@ -404,7 +405,7 @@ static int DoSendEventToClient(const int dstFd, const uint32_t sysId, char *data
     }
 
     DoSendMsgToClient(dstFd, event);
-    Logger(INFO, MD_NM_SVR, "Send event notifcation success.");
+    Logger(INFO, MD_NM_SVR, "Send event to client. sysId: %d", sysId);
     ReleasePwrMsg(&event);  // This will free(data)
     return PWR_SUCCESS;
 }
@@ -426,8 +427,8 @@ static void ProcessSendMsgToClient(void)
             continue;
         }
         DoSendMsgToClient(dstFd, msg);
-        Logger(DEBUG, MD_NM_SVR, "send msg. opt:%d, sysId:%d, rspCode:%d",
-            msg->head.optType, msg->head.sysId, msg->head.rspCode);
+        Logger(DEBUG, MD_NM_SVR, "Send msg. opt:%d, sysId:%d, seqId:%d, rspCode:%d",
+            msg->head.optType, msg->head.sysId, msg->head.seqId, msg->head.rspCode);
         ReleasePwrMsg(&msg);
     }
 }
@@ -543,8 +544,6 @@ static OptToFunct g_optToFunct[] = {
 
 static void ProcessReqMsg(PwrMsg *req)
 {
-    Logger(DEBUG, MD_NM_SVR, "Get Req msg. seqId:%u, sysId:%d, optType:%d",
-        req->head.seqId, req->head.sysId, req->head.optType);
     int count = sizeof(g_optToFunct) / sizeof(g_optToFunct[0]);
     for (int i = 0; i < count; i++) {
         if (req->head.optType == g_optToFunct[i].type) {
