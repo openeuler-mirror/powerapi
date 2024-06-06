@@ -403,7 +403,7 @@ static int SendMsgSyn(PwrMsg *msg, PwrMsg **rsp)
     node->reqMsg = NULL;
     node->rspMsg = NULL;
     ReleaseResultWaitingMsgNode(node);
-    return PWR_SUCCESS;
+    return ret;
 }
 
 static int SendReqMsgAndWaitForRsp(PwrMsg *req, PwrMsg **rsp)
@@ -413,9 +413,11 @@ static int SendReqMsgAndWaitForRsp(PwrMsg *req, PwrMsg **rsp)
     }
     CHECK_SOCKET_STATUS();
 
-    if (SendMsgSyn(req, rsp) != PWR_SUCCESS) {
-        PwrLog(ERROR, "Send msg to server failed. optType: %d, seqId: %u", req->head.optType, req->head.seqId);
-        return PWR_ERR_SYS_EXCEPTION;
+    int ret = SendMsgSyn(req, rsp);
+    if (ret != PWR_SUCCESS) {
+        PwrLog(ERROR, "Send msg to server failed. optType: %d, seqId: %u, ret: %d",
+            req->head.optType, req->head.seqId, ret);
+        return ret;
     }
 
     if (*rsp == NULL || (*rsp)->head.rspCode != PWR_SUCCESS) {

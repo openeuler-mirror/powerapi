@@ -145,7 +145,7 @@ static void TEST_PWR_PROC_SetAndGetSmartGridGov(void)
         ret, sgGov.sgAgentState, sgGov.sgLevel0Gov, sgGov.sgLevel1Gov);
 }
 
-static void TEST_PWR_PROC_RebuildAffinityDomain(void)
+static void TEST_PWR_PROC_SetWattFirstDomain(void)
 {
     int cpuId = 0;
     int ret = PWR_PROC_SetWattFirstDomain(cpuId);
@@ -193,7 +193,7 @@ void TEST_PROC_AllFunc(void)
     TEST_PWR_PROC_SetAndGetSmartGridState();
     TEST_PWR_PROC_SetAndGetSmartGridProcs();
     TEST_PWR_PROC_SetAndGetSmartGridGov();
-    TEST_PWR_PROC_RebuildAffinityDomain();
+    TEST_PWR_PROC_SetWattFirstDomain();
     TEST_PWR_PROC_GetServiceState();
     TEST_PWR_PROC_SetServiceState();
     TEST_PWR_PROC_GetServiceState();
