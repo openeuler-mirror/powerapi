@@ -298,7 +298,7 @@ static void SendMsgToSocket(void)
 static int CreateConnection(void)
 {
     int clientFd;
-    clientFd = socket(AF_UNIX, SOCK_STREAM, 0);
+    clientFd = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
     if (clientFd < 0) {
         PwrLog(ERROR, "Create socket failed. ret: %d", clientFd);
         return PWR_ERR_COMMON;
@@ -505,6 +505,10 @@ int SendReqAndWaitForRsp(const ReqInputParam input, RspOutputParam output)
 {
     if ((output.rspData && (!output.rspBuffSize || *output.rspBuffSize == 0))) {
         return PWR_ERR_INVALIDE_PARAM;
+    }
+    if (IsFullBuffer(&g_sendBuff)) {
+        PwrLog(ERROR, "Msg buffer is full. optType: %d", input.optType);
+        return PWR_ERR_MSG_BUFFER_FULL;
     }
 
     char *inputData = NULL;

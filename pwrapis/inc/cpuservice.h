@@ -17,7 +17,6 @@
 #include "pwrmsg.h"
 #include "pwrdata.h"
 
-int GetArch(void);
 void GetCpuinfo(PwrMsg *req);
 void GetCpuUsage(PwrMsg *req);
 void GetCpuPerfData(PwrMsg *req);
