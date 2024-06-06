@@ -16,6 +16,7 @@
 #include "procservice.h"
 #include <unistd.h>
 #include <string.h>
+#include <errno.h>
 #include "pwrerr.h"
 #include "server.h"
 #include "log.h"
@@ -245,39 +246,24 @@ static int WriteWattAttrs(const PWR_PROC_WattAttrs *wattAttrs)
     return PWR_SUCCESS;
 }
 
-static int ReadWattProcs(pid_t *wattProcs, size_t size, int *procNum)
+static int ReadWattProcs(pid_t *wattProcs, int len, int *procNum)
 {
-    char *content = (char *)malloc(size);
-    if (!content) {
-        return PWR_ERR_SYS_EXCEPTION;
+    FILE *fp = fopen(WATT_PROC_PATH, "r");
+    if (fp == NULL) {
+        Logger(ERROR, MD_NM_SVR_PROC, "Failed to open file %s. errno:%d, %s", WATT_PROC_PATH, errno, strerror(errno));
+        return PWR_ERR_FILE_OPEN_FAILED;
     }
 
-    int ret = ReadFile(WATT_PROC_PATH, content, size);
-    if (ret != PWR_SUCCESS) {
-        free(content);
-        return ret;
+    char line[PWR_MAX_STRING_LEN] = {0};
+    int idx = 0;
+    while (fgets(line, PWR_MAX_STRING_LEN - 1, fp) != NULL && idx < len) {
+        LRtrim(line);
+        wattProcs[idx] = (pid_t)atoi(line);
+        idx++;
     }
 
-    char **strProcs = calloc(PWR_MAX_PROC_NUM, sizeof(char *));
-    if (!strProcs) {
-        free(content);
-        return PWR_ERR_SYS_EXCEPTION;
-    }
-    int num = PWR_MAX_PROC_NUM;
-    char *splitBuff = StrSplit(content, LINE_SEP, strProcs, &num);
-    if (!splitBuff) {
-        free(strProcs);
-        free(content);
-        return PWR_ERR_SYS_EXCEPTION;
-    }
+    *procNum = idx;
 
-    for (int i = 0; i < num; i++) {
-        wattProcs[i] = (pid_t)atoi(strProcs[i]);
-    }
-    *procNum = num;
-    free(splitBuff);
-    free(strProcs);
-    free(content);
     return PWR_SUCCESS;
 }
 
@@ -591,7 +577,7 @@ void ProcGetWattProcs(PwrMsg *req)
     }
     bzero(wattProcs, size);
     int procNum = 0;
-    int rspCode = ReadWattProcs(wattProcs, size, &procNum);
+    int rspCode = ReadWattProcs(wattProcs, PWR_MAX_PROC_NUM, &procNum);
     if (rspCode != PWR_SUCCESS) {
         free(wattProcs);
         SendRspToClient(req, rspCode, NULL, 0);
