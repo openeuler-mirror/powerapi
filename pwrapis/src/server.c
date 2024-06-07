@@ -37,7 +37,7 @@
 #include "pwrerr.h"
 #include "utils.h"
 #include "hbmservice.h"
-#define COUNT_MAX 5
+
 #define THREAD_LOOP_INTERVAL 2000 // us
 
 static int g_listenFd = -1;
@@ -413,10 +413,8 @@ static int DoSendEventToClient(const int dstFd, const uint32_t sysId, char *data
 static void ProcessSendMsgToClient(void)
 {
     // Read msg from buffer and send.
-    int count = 0;
-    while (!IsEmptyBuffer(&g_sendBuff) && count < COUNT_MAX) {
+    while (!IsEmptyBuffer(&g_sendBuff)) {
         PwrMsg *msg = PopFromBufferHead(&g_sendBuff);
-        count++;
         if (!msg) {
             continue;
         }
@@ -446,6 +444,8 @@ static void *RunServerSocketProcess(void *none)
     struct timeval tv;
     InitPwrClient(g_pwrClients);
     while (g_sockProcThread.keepRunning) {
+        ProcessSendMsgToClient();
+
         tv.tv_sec = 0;
         tv.tv_usec = THREAD_LOOP_INTERVAL;
         FD_ZERO(&recvFdSet);
@@ -459,9 +459,6 @@ static void *RunServerSocketProcess(void *none)
             }
         }
 
-        if (!IsEmptyBuffer(&g_sendBuff)) {
-            ProcessSendMsgToClient();
-        }
         int ret = select(maxFd + 1, &recvFdSet, NULL, NULL, &tv);
         if (ret <= 0) {
             continue;
