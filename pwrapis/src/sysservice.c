@@ -61,18 +61,20 @@ static int SysRtPowerRead(PWR_SYS_PowerInfo *rstData)
         "printf \"%d\" 0x$(ipmitool raw 0x30 0x93 0xdb 0x07 0x00 0x11 0x4 | awk \'{print $5$4}\')";
     static const char memPowerInfo[] =
         "printf \"%d\" 0x$(ipmitool raw 0x30 0x93 0xdb 0x07 0x00 0x11 0x5 | awk \'{print $5$4}\')";
-    double sysPower;
-    if (IpmiRead(sysPowerInfo, &sysPower)) {
+    double value = 0;
+    if (IpmiRead(sysPowerInfo, &value)) {
         return PWR_ERR_COMMON;
     }
-    rstData->sysPower = sysPower;
-    if (GetArch() == 1) {
-        double cpuPower, memPower;
-        if (IpmiRead(cpuPowerInfo, &cpuPower) || IpmiRead(memPowerInfo, &memPower)) {
-            return PWR_ERR_COMMON;
-        }
-        rstData->cpuPower = cpuPower;
-        rstData->memPower = memPower;
+    rstData->sysPower = value;
+
+    value = 0;
+    if (IpmiRead(cpuPowerInfo, &value) == PWR_SUCCESS) {
+        rstData->cpuPower = value;
+    }
+
+    value = 0;
+    if (IpmiRead(memPowerInfo, &value) == PWR_SUCCESS) {
+        rstData->memPower = value;
     }
     return PWR_SUCCESS;
 }

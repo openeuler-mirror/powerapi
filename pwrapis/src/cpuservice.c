@@ -13,8 +13,9 @@
  * Description: provide cpu service
  * **************************************************************************** */
 
-#include "fcntl.h"
-#include "string.h"
+#include <fcntl.h>
+#include <string.h>
+#include <sys/utsname.h>
 #include "pwrerr.h"
 #include "server.h"
 #include "log.h"
@@ -22,12 +23,31 @@
 #include "utils.h"
 #include "cpuservice.h"
 
-const char cpuAttributes[PWR_MAX_ARRRIBUTES][PWR_MAX_NAME_LEN] = {
+enum PWR_Arch {
+    PWR_AARCH_64 = 0,
+    PWR_X86_64 = 1,
+};
+
+enum PWR_CpuAttType {
+    PWR_ARCH = 0,
+    PWR_MODEL_NAME,
+    PWR_BYTE_OR,
+    PWR_NUMA_NUMBER,
+    PWR_NUMA_NODE,
+    PWR_CPU_NUMBER,
+    PWR_ONLINE_CPU,
+    PWR_THREADS_PER_CORE,
+    PWR_CORES_PER_SOCKET,
+    PWR_MAX_MHZ,
+    PWR_MIN_MHZ,
+};
+
+static const char cpuAttributes[PWR_MAX_ARRRIBUTES][PWR_MAX_NAME_LEN] = {
     "Architecture", "Model name", "Byte Order", "NUMA node(s)", "NUMA node", "CPU(s)",
     "On-line CPU", "Thread(s) per core", "Core(s) per socket", "max MHz", "min MHz"
 };
 
-int GetCpuArrId(char *att)
+static int GetCpuArrId(const char *att)
 {
     int i;
     for (i = 0; i < PWR_MAX_ARRRIBUTES; i++) {
@@ -40,15 +60,23 @@ int GetCpuArrId(char *att)
 
 static void FreqSortByPolicy(PWR_CPU_CurFreq *rstData, int len)
 {
+    // Bubble Sort
     int i, j;
     PWR_CPU_CurFreq temp;
+    int exchanged = PWR_FALSE;
     for (i = 0; i < len; i++) {
         for (j = 0; j < len - i - 1; j++) {
             if (rstData[j].policyId > rstData[j + 1].policyId) {
                 temp = rstData[j + 1];
                 rstData[j + 1] = rstData[j];
                 rstData[j] = temp;
+                exchanged = PWR_TRUE;
             }
+        }
+        if (exchanged) {
+            exchanged = PWR_FALSE;
+        } else {
+            break;
         }
     }
 }
@@ -131,27 +159,22 @@ int CpuInfoRead(PWR_CPU_Info *rstData)
     return PWR_SUCCESS;
 }
 
-int GetArch(void)
+static int GetArch(void)
 {
-    PWR_CPU_Info *cpuInfo = malloc(sizeof(PWR_CPU_Info));
-    if (cpuInfo == NULL) {
-        Logger(ERROR, MD_NM_SVR_CPU, "Malloc failed.");
+    static int arch = -1;
+    if (arch != -1) {
+        return arch;
+    }
+    struct utsname utsn = {0};
+    if(uname(&utsn) != 0) {
         return -1;
     }
-    bzero(cpuInfo, sizeof(PWR_CPU_Info));
-    int m = CpuInfoRead(cpuInfo);
-    int re = -1;
-    if (m != 0) {
-        free(cpuInfo);
-        return re;
+    if (strstr(utsn.machine, "aarch64") != NULL) {
+        arch = PWR_AARCH_64;
+    } else if (strstr(utsn.machine, "x86_64") != NULL) {
+        arch = PWR_X86_64;
     }
-    if (strstr(cpuInfo->arch, "aarch64") != NULL) {
-        re = 0;
-    } else if (strstr(cpuInfo->arch, "x86_64") != NULL) {
-        re = 1;
-    }
-    free(cpuInfo);
-    return re;
+    return arch;
 }
 
 static int UsageToLong(char *buf, unsigned long paras[], int line)
@@ -353,26 +376,19 @@ static void MergeDuplicatePolicys(PWR_CPU_CurFreq *target, int *len)
 /**
  * CheckPolicys - check if the target policy is valid
 */
-static int CheckPolicys(PWR_CPU_CurFreq *target, int num)
+static int CheckPolicys(const PWR_CPU_CurFreq *target, int num)
 {
-    char policys[PWR_MAX_CPUFREQ_POLICY_NUM][PWR_MAX_ELEMENT_NAME_LEN] = {0};
-    int poNum, i;
-    if (GetPolicys(policys, &poNum) == 0) {
-        int policysId[poNum];
-        // convert policys to int
-        for (i = 0; i < poNum; i++) {
-            DeleteSubstr(policys[i], "policy");
-            policysId[i] = atoi(policys[i]);
+    const char patten[] = "/sys/devices/system/cpu/cpufreq/policy%d";
+    char path[PWR_MAX_STRING_LEN] = {0};
+    for (int i = 0; i < num; i++) {
+        if (sprintf(path, patten, target[i].policyId) < 0) {
+            return PWR_ERR_FILE_SPRINTF_FAILED;
         }
-        // Determine whether the policyId is valid.
-        for (i = 0; i < num; i++) {
-            if (InIntRange(policysId, poNum, target[i].policyId) == 1) {
-                return PWR_ERR_INVALIDE_PARAM;
-            }
+        if (access(path, F_OK) != 0) {
+            return PWR_ERR_INVALIDE_PARAM;
         }
-        return 0;
     }
-    return 1;
+    return PWR_SUCCESS;
 }
 
 static int InputTargetPolicys(PWR_CPU_CurFreq *target, char (*policys)[PWR_MAX_ELEMENT_NAME_LEN], int poNum)
@@ -508,24 +524,24 @@ static int GovernorSet(const char *gov, char (*policys)[PWR_MAX_ELEMENT_NAME_LEN
 static int FreqRead(PWR_CPU_CurFreq *rstData, char (*policys)[PWR_MAX_ELEMENT_NAME_LEN], int *poNum)
 {
     int m = GetArch();
-    char freqInfo[PWR_MAX_NAME_LEN] = {0};
-    char buf[PWR_MAX_STRING_LEN] = {0};
-    const char s1[] = "/sys/devices/system/cpu/cpufreq/";
-    const char s2Arm[] = "/cpuinfo_cur_freq";
-    const char s2X86[] = "/scaling_cur_freq";
-    char s2[PWR_MAX_ELEMENT_NAME_LEN];
-    bzero(s2, sizeof(s2));
+    const char s2Arm[] = "/sys/devices/system/cpu/cpufreq/%s/cpuinfo_cur_freq";
+    const char s2X86[] = "/sys/devices/system/cpu/cpufreq/%s/scaling_cur_freq";
+    const char *patten = NULL;
     if (m == PWR_AARCH_64) {
-        StrCopy(s2, s2Arm, PWR_MAX_ELEMENT_NAME_LEN);
+        patten = s2Arm;
     } else if (m == PWR_X86_64) {
-        StrCopy(s2, s2X86, PWR_MAX_ELEMENT_NAME_LEN);
+        patten = s2X86;
+    } else {
+        return PWR_ERR_SYS_EXCEPTION;
     }
 
+    char path[PWR_MAX_STRING_LEN] = {0};
+    char buf[PWR_MAX_STRING_LEN] = {0};
     for (int i = 0; i < (*poNum); i++) {
-        StrCopy(freqInfo, s1, PWR_MAX_NAME_LEN);
-        strcat(freqInfo, policys[i]);
-        strcat(freqInfo, s2);
-        int ret = ReadFile(freqInfo, buf, PWR_MAX_STRING_LEN);
+        if (sprintf(path, patten, policys[i]) < 0) {
+            return PWR_ERR_FILE_SPRINTF_FAILED;
+        }
+        int ret = ReadFile(path, buf, PWR_MAX_STRING_LEN);
         if (ret != PWR_SUCCESS) {
             return ret;
         }

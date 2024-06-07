@@ -18,7 +18,7 @@
 #include <stdlib.h>
 #include "pwrmsg.h"
 
-#define PWR_BUFFER_SIZE 64
+#define PWR_BUFFER_SIZE 128
 // Ring Queue, FIFO
 typedef struct PwrMsgBuffer {
     int head;

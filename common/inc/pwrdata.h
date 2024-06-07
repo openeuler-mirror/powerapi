@@ -57,29 +57,11 @@
 #define PWR_SERVICE_START 1
 #define PWR_SERVICE_STOP 0
 
-enum PWR_Arch {
-    PWR_AARCH_64 = 0,
-    PWR_X86_64 = 1,
-};
-
 enum PWR_SYS_POWER_STATE {
     PWR_MEM = 1,
     PWR_DISK = 2,
 };
 
-enum PWR_CpuAttType {
-    PWR_ARCH = 0,
-    PWR_MODEL_NAME,
-    PWR_BYTE_OR,
-    PWR_NUMA_NUMBER,
-    PWR_NUMA_NODE,
-    PWR_CPU_NUMBER,
-    PWR_ONLINE_CPU,
-    PWR_THREADS_PER_CORE,
-    PWR_CORES_PER_SOCKET,
-    PWR_MAX_MHZ,
-    PWR_MIN_MHZ,
-};
 typedef enum PWR_PROC_SMART_GRID_LEVEL {
     PWR_PROC_SG_LEVEL_0 = 0,
     PWR_PROC_SG_LEVEL_1 = 1,
