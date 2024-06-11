@@ -28,6 +28,19 @@ static void TEST_PWR_PROC_QueryProcs(void)
     printf("PWR_PROC_QueryProcs. ret: %d num:%d\n", ret, num);
 }
 
+static void TEST_PWR_PROC_QueryProcs_LongKeywords(void)
+{
+    char keywords[PWR_MAX_STRING_LEN] = "/init|";
+    for(int i = 6; i < PWR_MAX_STRING_LEN - 1; ++i)
+    {
+        keywords[i] = 'a';
+    }
+    pid_t procs[TEST_MAX_PROC_NUM] = {0};
+    uint32_t num = TEST_MAX_PROC_NUM;
+    int ret = PWR_PROC_QueryProcs(keywords, procs, &num);
+    printf("PWR_PROC_QueryProcs. ret: %d num:%d\n", ret, num);
+}
+
 static void TEST_PWR_PROC_SetAndGetWattState(void)
 {
     int state = INVALIDE_STATE;
@@ -187,6 +200,7 @@ static void TEST_PWR_PROC_SetServiceState(void)
 void TEST_PROC_AllFunc(void)
 {
     TEST_PWR_PROC_QueryProcs();
+    TEST_PWR_PROC_QueryProcs_LongKeywords();
     TEST_PWR_PROC_SetAndGetWattState();
     TEST_PWR_PROC_SetAndGetWattAttrs();
     TEST_PWR_PROC_AddAndDelWattProcs();

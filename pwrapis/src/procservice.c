@@ -163,12 +163,13 @@ static int ModifyServiceState(const PWR_PROC_ServiceState *sState, const char *s
 
 static int QueryProcs(const char *keyWords, pid_t procs[], int maxNum, int *procNum)
 {
-    char cmd[PWR_MAX_STRING_LEN] = GET_US_PROCS_CMD;
+    char cmd[PWR_MAX_STRING_LEN + sizeof(QUERY_PROCS_CMD)] = GET_US_PROCS_CMD;
     if (keyWords && strlen(keyWords) != 0) {
         if (sprintf(cmd, QUERY_PROCS_CMD, keyWords) < 0) {
             return PWR_ERR_FILE_SPRINTF_FAILED;
         }
     }
+    Logger(DEBUG, MD_NM_SVR_PROC, "QueryProcs: %s", cmd);
     FILE *fp = popen(cmd, "r");
     if (fp == NULL) {
         return PWR_ERR_SYS_EXCEPTION;
