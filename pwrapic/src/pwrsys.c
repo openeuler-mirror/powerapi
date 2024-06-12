@@ -30,7 +30,7 @@ int SetSysPowerState(const int powerState)
     } else if (powerState == PWR_DISK) {
         strncpy(state, "disk", strlen("disk") + 1);
     }
-    size_t dataLen = strlen(state);
+    size_t dataLen = strlen(state) + 1;
     input.dataLen = dataLen;
     input.data = state;
     RspOutputParam output;
