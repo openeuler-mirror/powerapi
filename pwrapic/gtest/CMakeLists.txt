@@ -31,6 +31,7 @@ target_link_libraries(gtest_test PRIVATE
     -lpwrapi
     -lgtest
     -lgtest_main
+    -lpthread
 )
 
 set (CMAKE_EXPORT_COMPILE_COMMANDS ON)

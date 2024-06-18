@@ -313,6 +313,15 @@ static void ProcessRecvMsgFromClient(int clientIdx)
         return;
     }
 
+    if (IsFullBuffer(&g_recvBuff)) {
+      Logger(WARNING, MD_NM_SVR,
+             "Receive buffer is full, opt:%d, sysId:%d, seqId:%d",
+             msg->head.optType, msg->head.sysId, msg->head.seqId);
+      SendRspToClient(msg, PWR_ERR_MSG_BUFFER_FULL, NULL, 0);
+      ReleasePwrMsg(&msg);
+      return;
+    }
+
     if (msg->head.sysId != (uint32_t)g_pwrClients[clientIdx].sysId) {
         ReleasePwrMsg(&msg);
         return;
