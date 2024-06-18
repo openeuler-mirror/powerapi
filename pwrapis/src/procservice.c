@@ -181,6 +181,9 @@ static int QueryProcs(const char *keyWords, pid_t procs[], int maxNum, int *proc
         (*procNum)++;
     }
     pclose(fp);
+    if (*procNum == 0) {
+        return PWR_ERR_NO_PROCS_BY_KEYWORD;
+    }
     return PWR_SUCCESS;
 }
 
