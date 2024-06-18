@@ -23,6 +23,7 @@
 #include "utils.h"
 #include "cpuservice.h"
 
+#define PWR_SLICE_SIZE 40
 enum PWR_Arch {
     PWR_AARCH_64 = 0,
     PWR_X86_64 = 1,
@@ -516,12 +517,86 @@ static int GovernorSet(const char *gov, char (*policys)[PWR_MAX_ELEMENT_NAME_LEN
     return PWR_SUCCESS;
 }
 
+typedef struct FreqReadInfo {
+    int startIdx;
+    int endIdx;
+    const char *patten;
+    char (*policys)[PWR_MAX_ELEMENT_NAME_LEN];
+    PWR_CPU_CurFreq *rstData;   // out
+    int result; // out
+} FreqReadInfo;
+
+static void *RunFreqReadProcess(void *arg)
+{
+    FreqReadInfo *info = (FreqReadInfo*)arg;
+    info->result = PWR_SUCCESS;
+    char path[PWR_MAX_STRING_LEN] = {0};
+    char buf[PWR_MAX_STRING_LEN] = {0};
+    for (int i = info->startIdx; i <= info->endIdx; i++) {
+        if (sprintf(path, info->patten, info->policys[i]) < 0) {
+            info->result = PWR_ERR_FILE_SPRINTF_FAILED;
+            return &(info->result);
+        }
+        info->result = ReadFile(path, buf, PWR_MAX_STRING_LEN);
+        if (info->result != PWR_SUCCESS) {
+            return &(info->result);
+        }
+
+        DeleteChar(buf, ' ');
+        DeleteSubstr(info->policys[i], "policy");
+        info->rstData[i].policyId = atoi(info->policys[i]);
+        info->rstData[i].curFreq = (double)strtoul(buf, NULL, PWR_DECIMAL) / PWR_CONVERSION;
+    }
+    return &(info->result);
+}
+
+static int MutiThreadFreqRead(PWR_CPU_CurFreq *rstData, char (*policys)[PWR_MAX_ELEMENT_NAME_LEN],
+    int poNum, const char *patten)
+{
+    Logger(DEBUG, MD_NM_SVR_CPU, "multi thread for freqread poNum:%d", poNum);
+    int tNum = (poNum % PWR_SLICE_SIZE == 0) ? poNum / PWR_SLICE_SIZE : poNum / PWR_SLICE_SIZE + 1;
+    FreqReadInfo info[tNum];
+    pthread_t tids[tNum];
+    bzero(info, sizeof(FreqReadInfo) * tNum);
+    bzero(tids, sizeof(pthread_t) * tNum);
+    int ret = PWR_SUCCESS;
+    int s;
+    for (s = 0; s < tNum; s++) {
+        info[s].patten = patten;
+        info[s].policys = policys;
+        info[s].rstData = rstData;
+        info[s].startIdx = s * PWR_SLICE_SIZE;
+        int end = info[s].startIdx + PWR_SLICE_SIZE - 1;
+        info[s].endIdx = end < poNum ? end : poNum - 1;
+        if (pthread_create(&tids[s], NULL, RunFreqReadProcess, (void*)&info[s]) != 0) {
+            ret = PWR_ERR_SYS_EXCEPTION;
+            Logger(ERROR, MD_NM_SVR_CPU, "create thread for freqread failed. %d", s);
+            break;
+        }
+    }
+    if (ret != PWR_SUCCESS) {
+        for (int i = 0; i < s; i++) {
+            pthread_join(tids[i], NULL);
+        }
+        return ret;
+    }
+    for (int i = 0; i < tNum; i++) {
+        // waiting for all threads to the end.
+        if(pthread_join(tids[i], NULL) != 0 || info[i].result != PWR_SUCCESS) {
+            Logger(ERROR, MD_NM_SVR_CPU, "Multi thread freqread failed. ti: %d", i);
+            ret = PWR_ERR_SYS_EXCEPTION;
+        }
+    }
+    return ret;
+}
+
+
 /**
  * FreqRead - get target policy freq based on the given policys
  * @policys: target policys
  * @poNum:   valid policys num
 */
-static int FreqRead(PWR_CPU_CurFreq *rstData, char (*policys)[PWR_MAX_ELEMENT_NAME_LEN], int *poNum)
+static int FreqRead(PWR_CPU_CurFreq *rstData, char (*policys)[PWR_MAX_ELEMENT_NAME_LEN], int poNum)
 {
     int m = GetArch();
     const char s2Arm[] = "/sys/devices/system/cpu/cpufreq/%s/cpuinfo_cur_freq";
@@ -534,24 +609,32 @@ static int FreqRead(PWR_CPU_CurFreq *rstData, char (*policys)[PWR_MAX_ELEMENT_NA
     } else {
         return PWR_ERR_SYS_EXCEPTION;
     }
-
-    char path[PWR_MAX_STRING_LEN] = {0};
-    char buf[PWR_MAX_STRING_LEN] = {0};
-    for (int i = 0; i < (*poNum); i++) {
-        if (sprintf(path, patten, policys[i]) < 0) {
-            return PWR_ERR_FILE_SPRINTF_FAILED;
-        }
-        int ret = ReadFile(path, buf, PWR_MAX_STRING_LEN);
+    if (poNum > PWR_SLICE_SIZE) {
+        // use multi thread to accelerate the processing.
+        int ret = MutiThreadFreqRead(rstData, policys, poNum, patten);
         if (ret != PWR_SUCCESS) {
             return ret;
         }
+    } else {
+        char path[PWR_MAX_STRING_LEN] = {0};
+        char buf[PWR_MAX_STRING_LEN] = {0};
+        for (int i = 0; i < poNum; i++) {
+            if (sprintf(path, patten, policys[i]) < 0) {
+                return PWR_ERR_FILE_SPRINTF_FAILED;
+            }
+            int ret = ReadFile(path, buf, PWR_MAX_STRING_LEN);
+            if (ret != PWR_SUCCESS) {
+                return ret;
+            }
 
-        DeleteChar(buf, ' ');
-        DeleteSubstr(policys[i], "policy");
-        rstData[i].policyId = atoi(policys[i]);
-        rstData[i].curFreq = (double)strtoul(buf, NULL, PWR_DECIMAL) / PWR_CONVERSION;
+            DeleteChar(buf, ' ');
+            DeleteSubstr(policys[i], "policy");
+            rstData[i].policyId = atoi(policys[i]);
+            rstData[i].curFreq = (double)strtoul(buf, NULL, PWR_DECIMAL) / PWR_CONVERSION;
+        }
     }
-    FreqSortByPolicy(rstData, (*poNum));
+
+    FreqSortByPolicy(rstData, poNum);
     return PWR_SUCCESS;
 }
 
@@ -1136,7 +1219,7 @@ void GetCpuFreq(PwrMsg *req)
     if (!rstData) {
         return;
     }
-    rspCode = FreqRead(rstData, policys, &poNum);
+    rspCode = FreqRead(rstData, policys, poNum);
     SendRspToClient(req, rspCode, (char *)rstData, sizeof(PWR_CPU_CurFreq) * poNum);
 }
 
