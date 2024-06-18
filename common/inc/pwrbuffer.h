@@ -18,7 +18,7 @@
 #include <stdlib.h>
 #include "pwrmsg.h"
 
-#define PWR_BUFFER_SIZE 128
+#define PWR_BUFFER_SIZE 256
 // Ring Queue, FIFO
 typedef struct PwrMsgBuffer {
     int head;
@@ -60,8 +60,8 @@ static inline int IsFullBuffer(const PwrMsgBuffer *smb)
     if (!smb) {
         return 0;
     }
-    int t = (smb->head + 1) % PWR_BUFFER_SIZE;
-    return t == smb->tail;
+    int t = (smb->tail + 1) % PWR_BUFFER_SIZE;
+    return t == smb->head;
 }
 
 ResultWaitingMsgNode *CreateResultWaitingMsgNode(void);

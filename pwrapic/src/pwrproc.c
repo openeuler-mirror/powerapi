@@ -117,9 +117,9 @@ int GetProcWattAttrs(PWR_PROC_WattAttrs *wattAttrs)
 
     int ret = SendReqAndWaitForRsp(input, output);
     if (ret != PWR_SUCCESS) {
-        PwrLog(ERROR, "GetProcWattState failed. ret:%d", ret);
+        PwrLog(ERROR, "GetProcWattAttrs failed. ret:%d", ret);
     } else {
-        PwrLog(DEBUG, "GetProcWattState succeed.");
+        PwrLog(DEBUG, "GetProcWattAttrs succeed.");
     }
     return ret;
 }
