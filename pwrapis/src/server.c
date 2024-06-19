@@ -550,7 +550,7 @@ static OptToFunct g_optToFunct[] = {
 
 static void ProcessReqMsg(PwrMsg *req)
 {
-    Logger(DEBUG, MD_NM_SVR, "Start processing msg. sysId:%d, optType:%d, seqId:%d",
+    Logger(DEBUG, MD_NM_SVR, "Start processing msg. sysId:%d, opt:%d, seqId:%d",
         req->head.sysId, req->head.optType, req->head.seqId);
     int count = sizeof(g_optToFunct) / sizeof(g_optToFunct[0]);
     for (int i = 0; i < count; i++) {
