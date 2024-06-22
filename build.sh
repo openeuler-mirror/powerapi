@@ -7,6 +7,10 @@ mkdir build
 cd build
 if [[ "$1" == "release" ]];then
     cmake -DRELEASE_MODE="true" ..
+elif [[ "$1" == "export" ]]; then  # export compile database
+    cmake -DCMAKE_EXPORT_COMPILE_COMMANDS=1 ..
+elif [[ "$1" == "asan" ]]; then
+    cmake -DENABLE_ASAN=ON ..
 else
     cmake ..
 fi
