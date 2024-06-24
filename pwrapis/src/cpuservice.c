@@ -14,14 +14,19 @@
  * **************************************************************************** */
 
 #include <fcntl.h>
+#include <stdio.h>
 #include <string.h>
+#include <strings.h>
 #include <sys/utsname.h>
+#include "common.h"
+#include "config.h"
 #include "pwrerr.h"
 #include "server.h"
 #include "log.h"
 #include "unistd.h"
 #include "utils.h"
 #include "cpuservice.h"
+#include "pwrdata.h"
 
 #define PWR_SLICE_SIZE 40
 enum PWR_Arch {
@@ -351,27 +356,25 @@ int GetPolicys(char (*policys)[PWR_MAX_ELEMENT_NAME_LEN], int *poNum)
 
 static void MergeDuplicatePolicys(PWR_CPU_CurFreq *target, int *len)
 {
-    int length = *len;
     int cpuNum = sysconf(_SC_NPROCESSORS_CONF);
-    int *validId = (int *)malloc(cpuNum * sizeof(int));
-    if (validId == NULL) {
+    int *isIdVisited = (int *)malloc(cpuNum * sizeof(int));
+    if (isIdVisited == NULL) {
         return;
     }
-    memset(validId, 0, sizeof(int) * cpuNum);
-    for (int i = 0; i < length; i++) {
-        if (target[i].policyId < cpuNum) {
-            validId[target[i].policyId] = 1;
-        }
-    }
+    memset(isIdVisited, 0, sizeof(int) * cpuNum);
     int count = 0;
-    for (int i = 0; i < cpuNum; i++) {
-        if (validId[i] == 1) {
-            target[count].policyId = i;
+    int policyId = 0;
+    for (int i = 0; i < *len; i++) {
+        policyId = target[i].policyId;
+        if (policyId < cpuNum && isIdVisited[policyId] == 0) {
+            isIdVisited[policyId] = 1;
+            target[count].policyId = policyId;
             count++;
         }
     }
+
     *len = count;
-    free(validId);
+    free(isIdVisited);
 }
 
 /**
@@ -390,6 +393,70 @@ static int CheckPolicys(const PWR_CPU_CurFreq *target, int num)
         }
     }
     return PWR_SUCCESS;
+}
+
+static int IsPolicyAffectedCpuOffline(const int policyId)
+{
+    char affectedCpuPath[PWR_MAX_STRING_LEN] = {0};
+    char fileContent[PWR_MAX_STRING_LEN] = {0};
+    const char *policyPathPattern = "/sys/devices/system/cpu/cpufreq/policy%d/affected_cpus";
+
+    if (snprintf(affectedCpuPath, PWR_MAX_STRING_LEN - 1, policyPathPattern,
+                 policyId) < 0) {
+        Logger(ERROR, MD_NM_SVR_CPU, "Failed to snprintf affectedCpuPath");
+        return PWR_FALSE;
+    }
+
+    int ret = ReadFile(affectedCpuPath, fileContent, PWR_MAX_STRING_LEN);
+
+    return (ret == 1 || strlen(fileContent) == 0);
+}
+
+/*
+ * Read the value of the specified attribute file of the specified policy
+ */
+static int FreqPolicyFileRead(const char *policy, const char* attrFile, char *value, int len)
+{
+    char path[PWR_MAX_NAME_LEN] = {0};
+    const char* pathPattern = "/sys/devices/system/cpu/cpufreq/%s/%s";
+
+    if (snprintf(path, PWR_MAX_NAME_LEN - 1, pathPattern, policy, attrFile) < 0) {
+        return PWR_ERR_FILE_SPRINTF_FAILED;
+    }
+
+    int ret = ReadFile(path, value, len);
+    if (ret != PWR_SUCCESS || strlen(value) == 0) {
+        // check if the afftected cpus of  policy is offline
+        int tmpPolicyId = atoi(policy + strlen("policy"));
+        if (IsPolicyAffectedCpuOffline(tmpPolicyId)) {
+            Logger(
+                WARNING, MD_NM_SVR_CPU, "policy %d related cpu is offline, skip it", tmpPolicyId);
+            ret = PWR_ERR_CPU_OFFLINE;
+        }
+    }
+    return ret;
+}
+
+static int FreqPolicyFileWrite(const char *policy, const char* attrFile, const char *value)
+{
+    char path[PWR_MAX_NAME_LEN] = {0};
+    const char* pathPattern = "/sys/devices/system/cpu/cpufreq/%s/%s";
+
+    if (snprintf(path, PWR_MAX_NAME_LEN - 1, pathPattern, policy, attrFile) < 0) {
+        return PWR_ERR_FILE_SPRINTF_FAILED;
+    }
+
+    int ret = WriteFile(path, value, strlen(value));
+    if (ret != PWR_SUCCESS) {
+        // check if the afftected cpus of policy is offline
+        int tmpPolicyId = atoi(policy + strlen("policy"));
+        if (IsPolicyAffectedCpuOffline(tmpPolicyId)) {
+            Logger(
+                WARNING, MD_NM_SVR_CPU, "policy %d related cpu is offline, skip it", tmpPolicyId);
+            ret = PWR_ERR_CPU_OFFLINE;
+        }
+    }
+    return ret;
 }
 
 static int InputTargetPolicys(PWR_CPU_CurFreq *target, char (*policys)[PWR_MAX_ELEMENT_NAME_LEN], int poNum)
@@ -493,28 +560,21 @@ static int GovernorSet(const char *gov, char (*policys)[PWR_MAX_ELEMENT_NAME_LEN
             return PWR_ERR_GOVERNOR_INVALIDE;
         }
     }
-    int buffLen = PWR_MAX_NAME_LEN + strlen(gov);
-    char *govInfo = malloc(buffLen);
-    if (govInfo == NULL) {
-        Logger(ERROR, MD_NM_SVR_CPU, "Malloc failed.");
-        return 1;
-    }
-    bzero(govInfo, buffLen);
-    static const char s1[] = "/sys/devices/system/cpu/cpufreq/";
-    static const char s2[] = "/scaling_governor";
+
+    int hasSuccess = PWR_FALSE;
+    int ret = PWR_SUCCESS;
     for (i = 0; i < (*poNum); i++) {
-        StrCopy(govInfo, s1, buffLen);
-        strcat(govInfo, policys[i]);
-        strcat(govInfo, s2);
-        int ret = WriteFile(govInfo, gov, strlen(gov));
-        if (ret != 0) {
-            Logger(ERROR, MD_NM_SVR_CPU, "Change gov(%s) failed.", gov);
-            free(govInfo);
-            return ret;
+        ret = FreqPolicyFileWrite(policys[i], "scaling_governor", gov);
+        if (ret == PWR_ERR_CPU_OFFLINE) {
+            continue;
         }
+        if (ret != PWR_SUCCESS) {
+            Logger(ERROR, MD_NM_SVR_CPU, "change %s gov(%s) failed.", policys[i], gov);
+            break;
+        }
+        hasSuccess = PWR_TRUE;
     }
-    free(govInfo);
-    return PWR_SUCCESS;
+    return (hasSuccess == PWR_TRUE) ? PWR_SUCCESS : ret;
 }
 
 typedef struct FreqReadInfo {
@@ -532,14 +592,26 @@ static void *RunFreqReadProcess(void *arg)
     info->result = PWR_SUCCESS;
     char path[PWR_MAX_STRING_LEN] = {0};
     char buf[PWR_MAX_STRING_LEN] = {0};
+    int hasSuccess = PWR_FALSE;
     for (int i = info->startIdx; i <= info->endIdx; i++) {
+        bzero(buf, PWR_MAX_STRING_LEN);
         if (sprintf(path, info->patten, info->policys[i]) < 0) {
             info->result = PWR_ERR_FILE_SPRINTF_FAILED;
             return &(info->result);
         }
         info->result = ReadFile(path, buf, PWR_MAX_STRING_LEN);
-        if (info->result != PWR_SUCCESS) {
+        if (info->result != PWR_SUCCESS || strlen(buf) == 0 || strcmp(buf, "<unknown>") == 0) {
+            int policyId = atoi((char*)(info->policys[i]) + strlen("policy"));
+            if (IsPolicyAffectedCpuOffline(policyId)) {
+                Logger(WARNING, MD_NM_SVR_CPU, "policy %d is offline", policyId);
+                info->rstData[i].policyId = policyId;
+                info->rstData[i].curFreq  = 0;
+                info->result = (hasSuccess == PWR_TRUE) ? PWR_SUCCESS : PWR_ERR_CPU_OFFLINE;
+                continue;
+            }
             return &(info->result);
+        } else {
+            hasSuccess = PWR_TRUE;
         }
 
         DeleteChar(buf, ' ');
@@ -580,16 +652,20 @@ static int MutiThreadFreqRead(PWR_CPU_CurFreq *rstData, char (*policys)[PWR_MAX_
         }
         return ret;
     }
+    int hasSuccess = PWR_FALSE;
     for (int i = 0; i < tNum; i++) {
         // waiting for all threads to the end.
-        if(pthread_join(tids[i], NULL) != 0 || info[i].result != PWR_SUCCESS) {
-            Logger(ERROR, MD_NM_SVR_CPU, "Multi thread freqread failed. ti: %d", i);
-            ret = PWR_ERR_SYS_EXCEPTION;
+        if (pthread_join(tids[i], NULL) == 0 && info[i].result == PWR_SUCCESS) {
+            hasSuccess = PWR_TRUE;
+            continue;
+        } else {
+            ret = info[i].result;
+            continue;
         }
     }
+    ret = ((hasSuccess == PWR_TRUE) ? PWR_SUCCESS : ret);
     return ret;
 }
-
 
 /**
  * FreqRead - get target policy freq based on the given policys
@@ -599,6 +675,8 @@ static int MutiThreadFreqRead(PWR_CPU_CurFreq *rstData, char (*policys)[PWR_MAX_
 static int FreqRead(PWR_CPU_CurFreq *rstData, char (*policys)[PWR_MAX_ELEMENT_NAME_LEN], int poNum)
 {
     int m = GetArch();
+    int ret = -1;
+    int hasSuccess = PWR_FALSE;
     const char s2Arm[] = "/sys/devices/system/cpu/cpufreq/%s/cpuinfo_cur_freq";
     const char s2X86[] = "/sys/devices/system/cpu/cpufreq/%s/scaling_cur_freq";
     const char *patten = NULL;
@@ -611,7 +689,7 @@ static int FreqRead(PWR_CPU_CurFreq *rstData, char (*policys)[PWR_MAX_ELEMENT_NA
     }
     if (poNum > PWR_SLICE_SIZE) {
         // use multi thread to accelerate the processing.
-        int ret = MutiThreadFreqRead(rstData, policys, poNum, patten);
+        ret = MutiThreadFreqRead(rstData, policys, poNum, patten);
         if (ret != PWR_SUCCESS) {
             return ret;
         }
@@ -619,50 +697,72 @@ static int FreqRead(PWR_CPU_CurFreq *rstData, char (*policys)[PWR_MAX_ELEMENT_NA
         char path[PWR_MAX_STRING_LEN] = {0};
         char buf[PWR_MAX_STRING_LEN] = {0};
         for (int i = 0; i < poNum; i++) {
+            bzero(buf, PWR_MAX_STRING_LEN);
             if (sprintf(path, patten, policys[i]) < 0) {
                 return PWR_ERR_FILE_SPRINTF_FAILED;
             }
-            int ret = ReadFile(path, buf, PWR_MAX_STRING_LEN);
-            if (ret != PWR_SUCCESS) {
+            ret = ReadFile(path, buf, PWR_MAX_STRING_LEN);
+            if (ret != PWR_SUCCESS || strlen(buf) == 0 || strcmp(buf, "<unknown>") == 0) {
+                int policyId = atoi(policys[i] + strlen("policy"));
+                if (IsPolicyAffectedCpuOffline(policyId)) {
+                    Logger(WARNING, MD_NM_SVR_CPU, "policy %d is offline", policyId);
+                    rstData[i].policyId = policyId;
+                    rstData[i].curFreq = 0;
+                    // One policy read freq success, return success
+                    ret = (hasSuccess == PWR_TRUE) ? PWR_SUCCESS : PWR_ERR_CPU_OFFLINE;
+                    continue;
+                }
                 return ret;
+            } else {
+                hasSuccess = PWR_TRUE;
             }
 
+            rstData[i].policyId = atoi((char*)(policys[i]) + strlen("policy"));
             DeleteChar(buf, ' ');
-            DeleteSubstr(policys[i], "policy");
-            rstData[i].policyId = atoi(policys[i]);
             rstData[i].curFreq = (double)strtoul(buf, NULL, PWR_DECIMAL) / PWR_CONVERSION;
         }
     }
 
     FreqSortByPolicy(rstData, poNum);
-    return PWR_SUCCESS;
+    return ret;
 }
 
 static int FreqSet(PWR_CPU_CurFreq *target, int num)
 {
-    char setFreqInfo[PWR_MAX_NAME_LEN] = {0};
-    const char s1[] = "/sys/devices/system/cpu/cpufreq/policy";
-    const char s2[] = "/scaling_setspeed";
-    int i, freq, ret;
-    char bufFreq[PWR_MAX_ELEMENT_NAME_LEN] = {0};
-    char bufPolicyId[PWR_MAX_ELEMENT_NAME_LEN] = {0};
+    char setFreqPath[PWR_MAX_NAME_LEN] = {0};
+    const char *setFreqPathPattern = "/sys/devices/system/cpu/cpufreq/policy%d/scaling_setspeed";
+    int i, freq;
+    int ret = -1;
+    int hasSuccess = PWR_FALSE;
+    char freqValStr[PWR_MAX_ELEMENT_NAME_LEN] = {0};
     for (i = 0; i < num; i++) {
-        StrCopy(setFreqInfo, s1, PWR_MAX_NAME_LEN);
+        // Get string of freq value.
         freq = (int)target[i].curFreq * THOUSAND;
-        if (snprintf(bufFreq, PWR_MAX_ELEMENT_NAME_LEN - 1, "%d", freq) < 0) {
+        if (snprintf(freqValStr, PWR_MAX_ELEMENT_NAME_LEN - 1, "%d", freq) < 0) {
             return PWR_ERR_FILE_SPRINTF_FAILED;
         }
-        if (snprintf(bufPolicyId, PWR_MAX_ELEMENT_NAME_LEN - 1, "%d", target[i].policyId) < 0) {
+
+        // Get string of scaling_setspeed path.
+        if (snprintf(setFreqPath, PWR_MAX_NAME_LEN - 1, setFreqPathPattern, target[i].policyId) < 0) {
             return PWR_ERR_FILE_SPRINTF_FAILED;
         }
-        strcat(setFreqInfo, bufPolicyId);
-        strcat(setFreqInfo, s2);
-        ret = WriteFile(setFreqInfo, bufFreq, strlen(bufFreq));
-        if (ret != 0) {
+
+        ret = WriteFile(setFreqPath, freqValStr, strlen(freqValStr));
+        if (ret != PWR_SUCCESS) {
+            if (IsPolicyAffectedCpuOffline(target[i].policyId)) {
+                Logger(WARNING, MD_NM_SVR_CPU,
+                       "policy %d related cpu is offline, skip it",
+                       target[i].policyId);
+                //  One policy is written successfully, return success.
+                ret = (hasSuccess == PWR_TRUE) ? PWR_SUCCESS : PWR_ERR_CPU_OFFLINE;
+                continue;
+            }
             return ret;
+        } else {
+            hasSuccess = PWR_TRUE;
         }
     }
-    return PWR_SUCCESS;
+    return ret;
 }
 
 static int FreqDriverRead(char *buf, int bufLen)
@@ -673,28 +773,19 @@ static int FreqDriverRead(char *buf, int bufLen)
 
 static int FreqDomainRead(char *buf, char (*policys)[PWR_MAX_ELEMENT_NAME_LEN], int domainNum, int step)
 {
-    char domainInfo[PWR_MAX_NAME_LEN] = {0};
     char domainbuf[PWR_MAX_CPU_LIST_LEN] = {0};
-    char temp[PWR_MAX_ELEMENT_NAME_LEN] = {0};
-    const char s1[] = "/sys/devices/system/cpu/cpufreq/";
-    const char s2[] = "/affected_cpus";
     int *pcyId = NULL;
     for (int i = 0; i < domainNum; i++) {
-        StrCopy(domainInfo, s1, PWR_MAX_NAME_LEN);
-        strcat(domainInfo, policys[i]);
-        strcat(domainInfo, s2);
         bzero(domainbuf, PWR_MAX_CPU_LIST_LEN);
-        int ret = ReadFile(domainInfo, domainbuf, PWR_MAX_CPU_LIST_LEN);
-        if (ret != PWR_SUCCESS) {
-            return ret;
-        }
 
-        // convert policys to int
-        StrCopy(temp, policys[i], PWR_MAX_ELEMENT_NAME_LEN);
-        DeleteSubstr(temp, "policy");
-        pcyId = (int*)(buf + i * step);
-        *pcyId = atoi(temp);
-        StrCopy(buf + i * step + sizeof(int), domainbuf, step - sizeof(int));
+        int ret = FreqPolicyFileRead(policys[i], "affected_cpus", domainbuf, PWR_MAX_CPU_LIST_LEN);
+        if (ret == PWR_ERR_CPU_OFFLINE || ret == PWR_SUCCESS) {
+            pcyId = (int*)(buf + i * step);
+            *pcyId = atoi((char*)(policys[i]) + strlen("policy"));
+            StrCopy(buf + i * step + sizeof(int), domainbuf, step - sizeof(int));
+        } else {
+            break;
+        }
     }
     return 0;
 }
@@ -776,11 +867,14 @@ static int FreqRangeSet(PWR_CPU_FreqRange *rstData)
     if (CpuFreqRangeRead(&cpuFreqRange) != PWR_SUCCESS) {
         return PWR_ERR_COMMON;
     }
-    if (rstData->minFreq < cpuFreqRange.minFreq ||
-        rstData->maxFreq > cpuFreqRange.maxFreq) {
-        Logger(ERROR, MD_NM_SVR_CPU, "cpu freq range: [%d, %d]. the input minfreq[%d] "
-            "or maxfreq[%d] is invalide", cpuFreqRange.minFreq, cpuFreqRange.maxFreq,
-            rstData->minFreq, rstData->maxFreq);
+    if (rstData->minFreq < cpuFreqRange.minFreq || rstData->maxFreq > cpuFreqRange.maxFreq) {
+        Logger(ERROR,MD_NM_SVR_CPU,
+               "cpu freq range: [%d, %d]. the input minfreq[%d] "
+               "or maxfreq[%d] is invalide",
+               cpuFreqRange.minFreq,
+               cpuFreqRange.maxFreq,
+               rstData->minFreq,
+               rstData->maxFreq);
         return PWR_ERR_FREQ_NOT_IN_RANGE;
     }
 
@@ -789,35 +883,28 @@ static int FreqRangeSet(PWR_CPU_FreqRange *rstData)
         return PWR_ERR_FILE_SPRINTF_FAILED;
     }
 
-    char minFreqFile[PWR_MAX_NAME_LEN] = {0};
-    const char min1[] = "/sys/devices/system/cpu/cpufreq/";
-    const char min2[] = "/scaling_min_freq";
     for (i = 0; i < poNum; i++) {
-        StrCopy(minFreqFile, min1, PWR_MAX_NAME_LEN);
-        strcat(minFreqFile, policys[i]);
-        strcat(minFreqFile, min2);
-        ret = WriteFile(minFreqFile, buf, strlen(buf));
-        if (ret != 0) {
+        ret = FreqPolicyFileWrite(policys[i], "scaling_min_freq", buf);
+        if (ret != PWR_SUCCESS && ret != PWR_ERR_CPU_OFFLINE) {
+            Logger(ERROR, MD_NM_SVR_CPU, "set policy%d min freq to %d failed", i, rstData->minFreq);
             return ret;
         }
     }
 
     // set max freq
+    bzero(buf, PWR_MAX_ELEMENT_NAME_LEN);
     if (snprintf(buf, PWR_MAX_ELEMENT_NAME_LEN - 1, "%d", rstData->maxFreq * THOUSAND) < 0) {
         return PWR_ERR_FILE_SPRINTF_FAILED;
     }
-    char maxFreqFile[PWR_MAX_NAME_LEN] = {0};
-    const char max1[] = "/sys/devices/system/cpu/cpufreq/";
-    const char max2[] = "/scaling_max_freq";
+
     for (i = 0; i < poNum; i++) {
-        StrCopy(maxFreqFile, max1, PWR_MAX_NAME_LEN);
-        strcat(maxFreqFile, policys[i]);
-        strcat(maxFreqFile, max2);
-        ret = WriteFile(maxFreqFile, buf, strlen(buf));
-        if (ret != 0) {
+        ret = FreqPolicyFileWrite(policys[i], "scaling_max_freq", buf);
+        if (ret != PWR_SUCCESS && ret != PWR_ERR_CPU_OFFLINE) {
+            Logger(ERROR, MD_NM_SVR_CPU, "set policy%d max freq to %d failed", i, rstData->minFreq);
             return ret;
         }
     }
+
     return PWR_SUCCESS;
 }
 
@@ -1192,9 +1279,12 @@ void SetCpuFreqGovAttr(PwrMsg *req)
 
 void GetCpuFreq(PwrMsg *req)
 {
+    // policy strings, like this, {"policy0", "policy1", ...}
     char policys[PWR_MAX_CPUFREQ_POLICY_NUM][PWR_MAX_ELEMENT_NAME_LEN] = {0};
     int poNum;
     int rspCode = 0;
+
+    // spec = 1, get cpu frequency of specific policys
     if (req->head.dataLen > 0 && req->data != NULL) {
         // spec = 1
         PWR_CPU_CurFreq *target = (PWR_CPU_CurFreq *)req->data;
@@ -1208,7 +1298,7 @@ void GetCpuFreq(PwrMsg *req)
     } else if (req->head.dataLen > 0) {
         rspCode = PWR_ERR_INVALIDE_PARAM;
     } else if (GetPolicys(policys, &poNum) != 0) {
-        // spec = 0
+        // spec = 0, get cpu frequency  of all policys
         rspCode = PWR_ERR_COMMON;
     }
     if (rspCode != 0) {
@@ -1271,6 +1361,9 @@ void GetCpuFreqAbility(PwrMsg *req)
         SendRspToClient(req, rspCode, NULL, 0);
         return;
     }
+    // how many bytes taken by each policy's freq domain
+    // freq domain is a char array, has two part "pocliyId {cpu cores} "
+    // e.g "0 0 1 2 3 4 5 6 7 " -> policy0 has 8 cores(0-7)
     int step = (coreNum / poNum) * PWR_MAX_CPU_ID_WIDTH + sizeof(int);
     PWR_CPU_FreqAbility *rstData = malloc(sizeof(PWR_CPU_FreqAbility) + step * poNum);
     if (!rstData) {

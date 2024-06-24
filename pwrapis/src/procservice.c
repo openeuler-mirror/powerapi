@@ -22,6 +22,7 @@
 #include "log.h"
 #include "utils.h"
 #include "cpuservice.h"
+#include "pwrdata.h"
 
 #define GET_US_PROCS_CMD "ps -ef | grep -v '\\[' | awk 'NR > 1 {print $2}'"
 #define QUERY_PROCS_CMD "ps -ef | grep -E '%s' | grep -v grep | awk '{print $2}'"

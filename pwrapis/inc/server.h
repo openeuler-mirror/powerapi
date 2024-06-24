@@ -17,6 +17,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include "pwrmsg.h"
+#include "pwrdata.h"
 
 struct ucred {
     pid_t pid;

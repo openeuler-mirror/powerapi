@@ -15,6 +15,7 @@
 #ifndef PAPIS_PROC_SERVICE_H__
 #define PAPIS_PROC_SERVICE_H__
 #include "pwrmsg.h"
+#include "pwrdata.h"
 #define MAX_SERVICE_LEN 100
 
 typedef struct ServiceToString {
