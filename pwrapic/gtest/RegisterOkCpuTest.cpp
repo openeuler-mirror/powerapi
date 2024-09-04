@@ -497,3 +497,11 @@ TEST_F(RegisterOkCpuTest, PWR_CPU_SetFreq_Test_003)
 {
     EXPECT_NE(PWR_SUCCESS, PWR_CPU_SetFreq(NULL, 0));
 }
+
+/*
+ * if PWR_CPU_FreqGovAttr *govAttr is NULL pointer should return error
+ */
+TEST_F(RegisterOkCpuTest, PWR_CPU_GetFreqGovAttr_001)
+{
+    EXPECT_NE(PWR_SUCCESS, PWR_CPU_GetFreqGovAttr(NULL));
+}
