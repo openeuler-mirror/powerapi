@@ -505,3 +505,273 @@ TEST_F(RegisterOkCpuTest, PWR_CPU_GetFreqGovAttr_001)
 {
     EXPECT_NE(PWR_SUCCESS, PWR_CPU_GetFreqGovAttr(NULL));
 }
+
+/*
+ * set governor as ondemand and attr->key as sampling_rate should return correct
+ */
+TEST_F(RegisterOkCpuTest, PWR_CPU_GetFreqGovAttr_002)
+{
+    // set governor as ondemand
+    char govOndemand[] = "ondemand";
+    EXPECT_EQ(PWR_SUCCESS, PWR_CPU_SetFreqGovernor(govOndemand));
+    char gov[PWR_MAX_ELEMENT_NAME_LEN] = {0};
+    EXPECT_EQ(PWR_SUCCESS, PWR_CPU_GetFreqGovernor(gov, PWR_MAX_ELEMENT_NAME_LEN));
+    EXPECT_STREQ(govOndemand, gov);
+
+    int len = sizeof(PWR_CPU_FreqGovAttr);
+    PWR_CPU_FreqGovAttr *govAttr = (PWR_CPU_FreqGovAttr *)malloc(len);
+    EXPECT_TRUE(govAttr != NULL);
+    memset(govAttr, 0, len);
+    strncpy(govAttr->gov, "ondemand", PWR_MAX_ELEMENT_NAME_LEN);
+    strncpy(govAttr->attr.key, "sampling_rate", PWR_MAX_ELEMENT_NAME_LEN);
+    EXPECT_EQ(PWR_SUCCESS, PWR_CPU_GetFreqGovAttr(govAttr));
+    free(govAttr);
+}
+
+/*
+ * set governor as performance, then get attr of on demand should return error
+ */
+TEST_F(RegisterOkCpuTest, PWR_CPU_GetFreqGovAttr_003)
+{
+    // set governor as performance
+    char govPerformance[] = "performance";
+    EXPECT_EQ(PWR_SUCCESS, PWR_CPU_SetFreqGovernor(govPerformance));
+    char gov[PWR_MAX_ELEMENT_NAME_LEN] = {0};
+    EXPECT_EQ(PWR_SUCCESS, PWR_CPU_GetFreqGovernor(gov, PWR_MAX_ELEMENT_NAME_LEN));
+    EXPECT_STREQ(govPerformance, gov);
+
+    int len = sizeof(PWR_CPU_FreqGovAttr);
+    PWR_CPU_FreqGovAttr *govAttr = (PWR_CPU_FreqGovAttr *)malloc(len);
+    EXPECT_TRUE(govAttr != NULL);
+    memset(govAttr, 0, len);
+    strncpy(govAttr->gov, "ondemand", PWR_MAX_ELEMENT_NAME_LEN);
+    strncpy(govAttr->attr.key, "sampling_rate", PWR_MAX_ELEMENT_NAME_LEN);
+    EXPECT_NE(PWR_SUCCESS, PWR_CPU_GetFreqGovAttr(govAttr));
+    free(govAttr);
+}
+
+/*
+ * if attr->key incorrect then should return error
+ */
+TEST_F(RegisterOkCpuTest, PWR_CPU_GetFreqGovAttr_004)
+{
+    // set governor as ondemand
+    char govOndemand[] = "ondemand";
+    EXPECT_EQ(PWR_SUCCESS, PWR_CPU_SetFreqGovernor(govOndemand));
+    char gov[PWR_MAX_ELEMENT_NAME_LEN] = {0};
+    EXPECT_EQ(PWR_SUCCESS, PWR_CPU_GetFreqGovernor(gov, PWR_MAX_ELEMENT_NAME_LEN));
+    EXPECT_STREQ(govOndemand, gov);
+
+    int len = sizeof(PWR_CPU_FreqGovAttr);
+    PWR_CPU_FreqGovAttr *govAttr = (PWR_CPU_FreqGovAttr *)malloc(len);
+    EXPECT_TRUE(govAttr != NULL);
+    memset(govAttr, 0, len);
+    strncpy(govAttr->gov, "ondemand", PWR_MAX_ELEMENT_NAME_LEN);
+    strncpy(govAttr->attr.key, "fake", PWR_MAX_ELEMENT_NAME_LEN);
+    EXPECT_NE(PWR_SUCCESS, PWR_CPU_GetFreqGovAttr(govAttr));
+    free(govAttr);
+}
+
+/*
+ * if set govAttr->gov incorrect then should return error
+ */
+TEST_F(RegisterOkCpuTest, PWR_CPU_GetFreqGovAttr_005)
+{
+    // set governor as ondemand
+    char govOndemand[] = "ondemand";
+    EXPECT_EQ(PWR_SUCCESS, PWR_CPU_SetFreqGovernor(govOndemand));
+    char gov[PWR_MAX_ELEMENT_NAME_LEN] = {0};
+    EXPECT_EQ(PWR_SUCCESS, PWR_CPU_GetFreqGovernor(gov, PWR_MAX_ELEMENT_NAME_LEN));
+    EXPECT_STREQ(govOndemand, gov);
+
+    int len = sizeof(PWR_CPU_FreqGovAttr);
+    PWR_CPU_FreqGovAttr *govAttr = (PWR_CPU_FreqGovAttr *)malloc(len);
+    EXPECT_TRUE(govAttr != NULL);
+    memset(govAttr, 0, len);
+    strncpy(govAttr->gov, "fake", PWR_MAX_ELEMENT_NAME_LEN);
+    strncpy(govAttr->attr.key, "sampling_rate", PWR_MAX_ELEMENT_NAME_LEN);
+    EXPECT_NE(PWR_SUCCESS, PWR_CPU_GetFreqGovAttr(govAttr));
+    free(govAttr);
+}
+
+TEST_F(RegisterOkCpuTest, PWR_CPU_SetFreqGovAttr_001)
+{
+    EXPECT_NE(PWR_SUCCESS, PWR_CPU_SetFreqGovAttr(NULL));
+}
+
+/*
+ * if set attr->value as 9000, then getgovattr should get attr->value as 9000
+ */
+TEST_F(RegisterOkCpuTest, PWR_CPU_SetFreqGovAttr_002)
+{
+    // set governor as ondemand
+    char govOndemand[] = "ondemand";
+    EXPECT_EQ(PWR_SUCCESS, PWR_CPU_SetFreqGovernor(govOndemand));
+    char gov[PWR_MAX_ELEMENT_NAME_LEN] = {0};
+    EXPECT_EQ(PWR_SUCCESS, PWR_CPU_GetFreqGovernor(gov, PWR_MAX_ELEMENT_NAME_LEN));
+    EXPECT_STREQ(govOndemand, gov);
+
+    int len = sizeof(PWR_CPU_FreqGovAttr);
+    PWR_CPU_FreqGovAttr *govAttr = (PWR_CPU_FreqGovAttr *)malloc(len);
+    EXPECT_TRUE(govAttr != NULL);
+    memset(govAttr, 0, len);
+    strncpy(govAttr->gov, "ondemand", PWR_MAX_ELEMENT_NAME_LEN);
+    strncpy(govAttr->attr.key, "sampling_rate", PWR_MAX_ELEMENT_NAME_LEN);
+    strncpy(govAttr->attr.value, "9000", PWR_MAX_ELEMENT_NAME_LEN);
+    EXPECT_EQ(PWR_SUCCESS, PWR_CPU_SetFreqGovAttr(govAttr));
+
+    PWR_CPU_FreqGovAttr *govAttrGet = (PWR_CPU_FreqGovAttr *)malloc(len);
+    EXPECT_TRUE(govAttrGet != NULL);
+    strncpy(govAttrGet->gov, "ondemand", PWR_MAX_ELEMENT_NAME_LEN);
+    strncpy(govAttrGet->attr.key, "sampling_rate", PWR_MAX_ELEMENT_NAME_LEN);
+    EXPECT_EQ(PWR_SUCCESS, PWR_CPU_GetFreqGovAttr(govAttrGet));
+    EXPECT_STREQ(govAttr->attr.value, govAttrGet->attr.value);
+    free(govAttr);
+    free(govAttrGet);
+}
+
+/*
+ * if gov is not the same as cur gov should return error
+ */
+TEST_F(RegisterOkCpuTest, PWR_CPU_SetFreqGovAttr_003)
+{
+    // set governor as performance
+    char govPerformance[] = "performance";
+    EXPECT_EQ(PWR_SUCCESS, PWR_CPU_SetFreqGovernor(govPerformance));
+    char gov[PWR_MAX_ELEMENT_NAME_LEN] = {0};
+    EXPECT_EQ(PWR_SUCCESS, PWR_CPU_GetFreqGovernor(gov, PWR_MAX_ELEMENT_NAME_LEN));
+    EXPECT_STREQ(govPerformance, gov);
+
+    int len = sizeof(PWR_CPU_FreqGovAttr);
+    PWR_CPU_FreqGovAttr *govAttr = (PWR_CPU_FreqGovAttr *)malloc(len);
+    EXPECT_TRUE(govAttr != NULL);
+    memset(govAttr, 0, len);
+    strncpy(govAttr->gov, "ondemand", PWR_MAX_ELEMENT_NAME_LEN);
+    strncpy(govAttr->attr.key, "sampling_rate", PWR_MAX_ELEMENT_NAME_LEN);
+    strncpy(govAttr->attr.value, "9000", PWR_MAX_ELEMENT_NAME_LEN);
+    EXPECT_NE(PWR_SUCCESS, PWR_CPU_SetFreqGovAttr(govAttr));
+    free(govAttr);
+}
+
+/*
+ * if attr.key incorrect return error
+ */
+TEST_F(RegisterOkCpuTest, PWR_CPU_SetFreqGovAttr_004)
+{
+    // set governor as ondemand
+    char govOndemand[] = "ondemand";
+    EXPECT_EQ(PWR_SUCCESS, PWR_CPU_SetFreqGovernor(govOndemand));
+    char gov[PWR_MAX_ELEMENT_NAME_LEN] = {0};
+    EXPECT_EQ(PWR_SUCCESS, PWR_CPU_GetFreqGovernor(gov, PWR_MAX_ELEMENT_NAME_LEN));
+    EXPECT_STREQ(govOndemand, gov);
+
+    int len = sizeof(PWR_CPU_FreqGovAttr);
+    PWR_CPU_FreqGovAttr *govAttr = (PWR_CPU_FreqGovAttr *)malloc(len);
+    EXPECT_TRUE(govAttr != NULL);
+    memset(govAttr, 0, len);
+    strncpy(govAttr->gov, "ondemand", PWR_MAX_ELEMENT_NAME_LEN);
+    strncpy(govAttr->attr.key, "fake", PWR_MAX_ELEMENT_NAME_LEN);
+    strncpy(govAttr->attr.value, "9000", PWR_MAX_ELEMENT_NAME_LEN);
+    EXPECT_NE(PWR_SUCCESS, PWR_CPU_SetFreqGovAttr(govAttr));
+    free(govAttr);
+}
+
+/*
+ * if gov incorrect should return error
+ */
+TEST_F(RegisterOkCpuTest, PWR_CPU_SetFreqGovAttr_005)
+{
+    // set governor as ondemand
+    char govOndemand[] = "ondemand";
+    EXPECT_EQ(PWR_SUCCESS, PWR_CPU_SetFreqGovernor(govOndemand));
+    char gov[PWR_MAX_ELEMENT_NAME_LEN] = {0};
+    EXPECT_EQ(PWR_SUCCESS, PWR_CPU_GetFreqGovernor(gov, PWR_MAX_ELEMENT_NAME_LEN));
+    EXPECT_STREQ(govOndemand, gov);
+
+    int len = sizeof(PWR_CPU_FreqGovAttr);
+    PWR_CPU_FreqGovAttr *govAttr = (PWR_CPU_FreqGovAttr *)malloc(len);
+    EXPECT_TRUE(govAttr != NULL);
+    memset(govAttr, 0, len);
+    strncpy(govAttr->gov, "fake", PWR_MAX_ELEMENT_NAME_LEN);
+    strncpy(govAttr->attr.key, "sampling_rate", PWR_MAX_ELEMENT_NAME_LEN);
+    strncpy(govAttr->attr.value, "9000", PWR_MAX_ELEMENT_NAME_LEN);
+    EXPECT_NE(PWR_SUCCESS, PWR_CPU_SetFreqGovAttr(govAttr));
+    free(govAttr);
+}
+
+/*
+ * info is null should return error
+ */
+TEST_F(RegisterOkCpuTest, PWR_CPU_GetIdleInfo_001)
+{
+    EXPECT_NE(PWR_SUCCESS, PWR_CPU_GetIdleInfo(NULL));
+}
+
+/*
+ * if idleinfo is not null should return correct
+ */
+TEST_F(RegisterOkCpuTest, PWR_CPU_GetIdleInfo_002)
+{
+    size_t size = sizeof(PWR_CPU_IdleInfo) + PWR_MAX_CPU_CSTATE_NUM * sizeof(PWR_CPU_Cstate);
+    PWR_CPU_IdleInfo *info = (PWR_CPU_IdleInfo *)malloc(size);
+    EXPECT_TRUE(info != NULL);
+    info->cstateNum = PWR_MAX_CPU_CSTATE_NUM;
+    EXPECT_EQ(PWR_SUCCESS, PWR_CPU_GetIdleInfo(NULL));
+    free(info);
+}
+
+/*
+ * if idlegov and size is correct then should return success
+ */
+TEST_F(RegisterOkCpuTest, PWR_CPU_GetIdleGovernor_001)
+{
+    char gov[PWR_MAX_ELEMENT_NAME_LEN] = {0};
+    int size = PWR_MAX_ELEMENT_NAME_LEN;
+    EXPECT_EQ(PWR_SUCCESS, PWR_CPU_GetIdleGovernor(gov, size));
+    printf("\t current idle gov: %s\n", gov);
+}
+
+/*
+ * set idlegovernor should return success
+ */
+TEST_F(RegisterOkCpuTest, PWR_CPU_SetIdleGovernor_001)
+{
+    char gov[PWR_MAX_ELEMENT_NAME_LEN] = {0};
+    int size = PWR_MAX_ELEMENT_NAME_LEN;
+    EXPECT_EQ(PWR_SUCCESS, PWR_CPU_GetIdleGovernor(gov, size));
+    printf("\t current idle gov: %s\n", gov);
+
+    gov[PWR_MAX_ELEMENT_NAME_LEN] = {0};
+    char govGet[PWR_MAX_ELEMENT_NAME_LEN] = {0};
+    strncpy(gov, "teo", PWR_MAX_ELEMENT_NAME_LEN);
+    EXPECT_EQ(PWR_SUCCESS, PWR_CPU_SetIdleGovernor(gov));
+    EXPECT_EQ(PWR_SUCCESS, PWR_CPU_GetIdleGovernor(govGet, size));
+    EXPECT_STREQ(gov, govGet);
+}
+
+#define LATENCY_INIT_NUM (-1)
+/*
+ * check if it can return correctly
+ */
+TEST_F(RegisterOkCpuTest, PWR_CPU_DmaGetLatency_001)
+{
+    int la = LATENCY_INIT_NUM;
+    EXPECT_EQ(PWR_SUCCESS, PWR_CPU_DmaGetLatency(&la));
+    printf("PWR_CPU_DmaGetLatency Latency:%d\n", la);
+}
+
+/*
+ * set la between 0 and PWR_MAX_CPU_DMA_LATENCY should return success
+ */
+TEST_F(RegisterOkCpuTest, PWR_CPU_DmaSetLatency_001)
+{
+    int la = LATENCY_INIT_NUM;
+    EXPECT_EQ(PWR_SUCCESS, PWR_CPU_DmaGetLatency(&la));
+    printf("PWR_CPU_DmaGetLatency Latency:%d\n", la);
+
+    la = PWR_MAX_CPU_DMA_LATENCY;
+    int getLatency = LATENCY_INIT_NUM;
+    EXPECT_EQ(PWR_SUCCESS, PWR_CPU_DmaSetLatency(la));
+    EXPECT_EQ(PWR_SUCCESS, PWR_CPU_DmaGetLatency(&getLatency));
+    EXPECT_EQ(la, getLatency);
+}
