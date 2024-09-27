@@ -31,7 +31,7 @@ int StartService(void)
     std::string pwrapisDir;
     // 10: length for "gtest_test", keep only the path of file
     gtestDir = gtestDir.substr(0, gtestDir.length() - 10);
-    pwrapisDir = gtestDir + "../pwrapis/pwrapis &";
+    pwrapisDir = gtestDir + "../../../release/pwrapis/pwrapis &";
     ret = system(pwrapisDir.c_str());
     if (ret != 0) {
         printf("StartService failed ret:%d\n", ret);
