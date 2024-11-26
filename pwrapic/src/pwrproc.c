@@ -284,9 +284,9 @@ int SetSmartGridLevel(const PWR_PROC_SmartGridProcs *sgProcs)
 
     int ret = SendReqAndWaitForRsp(input, output);
     if (ret != PWR_SUCCESS) {
-        PwrLog(ERROR, "SetSmartGridState failed. ret:%d", ret);
+        PwrLog(ERROR, "SetSmartGridLevel failed. ret:%d", ret);
     } else {
-        PwrLog(DEBUG, "SetSmartGridState succeed.");
+        PwrLog(DEBUG, "SetSmartGridLevel succeed.");
     }
     return ret;
 }
