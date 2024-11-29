@@ -23,6 +23,8 @@
 #include "utils.h"
 #include "cpuservice.h"
 #include "pwrdata.h"
+#include <sys/types.h>
+#include <sys/wait.h>
 
 #define GET_US_PROCS_CMD "ps -ef | grep -v '\\[' | awk 'NR > 1 {print $2}'"
 #define QUERY_PROCS_CMD "ps -ef | grep -E '%s' | grep -v grep | awk '{print $2}'"
@@ -47,6 +49,7 @@
 #define SERVICE_PATH "/usr/lib/systemd/system/%s.service"
 #define QUERY_SERVICE_STATE_CMD "systemctl status %s | grep -o 'Active:.*' | awk '{print $2, $3}'"
 #define MODIFY_SERVICE_STATE_CMD "systemctl %s %s"
+#define MODIFY_SERVICE_STATE "systemctl"
 
 #define CHECK_SUPPORT_WATT_SCHED()                                              \
     {                                                                           \
@@ -140,25 +143,44 @@ static int ReadServiceState(PWR_PROC_ServiceStatus *sStatus, const char *service
     return PWR_SUCCESS;
 }
 
-static int ModifyServiceState(const PWR_PROC_ServiceState *sState, const char *serviceName)
+/*
+ * if ModifyServiceState use sync function like popen to input in shell will stack services 
+ * stop or start, changing popen to execvp let it be async
+ */
+static int ModifyServiceState(const PWR_PROC_ServiceState *sState, char *serviceName)
 {
-    char cmd[PWR_MAX_STRING_LEN] = {0};
     char oper[PWR_MAX_NAME_LEN] = {0};
     if (sState->state == PWR_SERVICE_START){
         StrCopy(oper, "start", PWR_MAX_NAME_LEN);
     } else {
         StrCopy(oper, "stop", PWR_MAX_NAME_LEN);
     }
+    char *args[] = {MODIFY_SERVICE_STATE, oper, serviceName, NULL};
 
-    if (sprintf(cmd, MODIFY_SERVICE_STATE_CMD, oper, serviceName) < 0) {
-        return PWR_ERR_FILE_SPRINTF_FAILED;
-    }
-
-    FILE *fp = popen(cmd, "r");
-    if (fp == NULL) {
+    //use two fork to avoid zombie process, fpid is son process's pid, spid is grandson process's pid
+    //reclaim son process and let grandson process waited by init process
+    pid_t fpid;
+    fpid = vfork();
+    if (fpid < 0) {
         return PWR_ERR_SYS_EXCEPTION;
     }
-    pclose(fp);
+    else if (fpid == 0) {
+	int spid = vfork();
+        if (spid < 0) {
+            Logger(ERROR, MD_NM_SVR_PROC, "Set service state thread start error.");
+            exit(-1);
+	}
+	//execvp run in grandson process
+        else if (spid == 0) {
+            execvp(args[0], args);
+	    exit(0);
+        }
+	exit(0);
+    }
+    //use waitpid to reclaim son process
+    if (waitpid(fpid, NULL, 0) != fpid) {
+        return PWR_ERR_SYS_EXCEPTION;
+    }
     return PWR_SUCCESS;
 }
 
