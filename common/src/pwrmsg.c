@@ -18,6 +18,7 @@
 #include <string.h>
 #include <unistd.h>
 #include "pwrerr.h"
+#include "pwrdata.h"
 
 static pid_t g_pid = 0;
 static pthread_mutex_t g_seqLock;

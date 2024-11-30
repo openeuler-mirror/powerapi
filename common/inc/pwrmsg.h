@@ -20,7 +20,6 @@
 #include <stddef.h>
 #include <stdlib.h>
 #include <pthread.h>
-#include "pwrdata.h"
 
 #define MAJOR_VERSION 1
 #define MINOR_VERSION 0

@@ -15,7 +15,6 @@
 #ifndef POWERAPI_UTILS_H__
 #define POWERAPI_UTILS_H__
 #include <pthread.h>
-#include <stdlib.h>
 #include "pwrmsg.h"
 
 #define PWR_BUFFER_SIZE 256

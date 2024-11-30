@@ -22,6 +22,7 @@
 #include "log.h"
 #include "utils.h"
 #include "cpuservice.h"
+#include "pwrdata.h"
 #include <sys/types.h>
 #include <sys/wait.h>
 

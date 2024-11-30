@@ -872,7 +872,7 @@ void DeleteChar(char str[], char a)
     size_t strLength = strlen(str);
     int point = 0;
     for (size_t i = 0; i < strLength; i++) {
-        if ((str[i] == a)) {
+        if (str[i] == a) {
             continue;
         } else {
             str[point] = str[i];
@@ -955,7 +955,7 @@ int ReadFile(const char *strInfo, char *buf, int bufLen)
     close(fd);
     DeleteChar(buf, '\n');
     buf[strlen(buf)] = '\0';
-    return 0;
+    return PWR_SUCCESS;
 }
 
 int WriteFile(const char *strInfo, const char *buf, int bufLen)
