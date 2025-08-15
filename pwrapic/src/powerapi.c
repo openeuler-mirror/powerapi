@@ -392,6 +392,8 @@ int PWR_HBM_GetSysState(PWR_HBM_SYS_STATE *hbmState)
 {
     CHECK_STATUS(STATUS_REGISTERTED);
 
+    CHECK_NULL_POINTER(hbmState);
+
     return GetHbmSysState(hbmState);
 }
 
