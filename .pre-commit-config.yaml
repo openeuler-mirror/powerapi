@@ -3,7 +3,7 @@ minimum_pre_commit_version: "4.0"
 
 repos:
   # ===== 通用基础 hook（所有语言） =====
-  - repo: https://github.com/pre-commit/pre-commit-hooks
+  - repo: https://gitcode.com/gh_mirrors/pr/pre-commit-hooks
     rev: v6.0.0
     hooks:
       - id: trailing-whitespace          # 修复：移除行尾空白
@@ -18,17 +18,16 @@ repos:
       - id: detect-private-key
 
   # ===== 密钥检测 =====
-  - repo: https://github.com/gitleaks/gitleaks
+  - repo: https://gitcode.com/gh_mirrors/gi/gitleaks
     rev: v8.30.1
     hooks:
       - id: gitleaks
 
   # ===== 拼写检查 =====
-  - repo: https://github.com/codespell-project/codespell
+  - repo: https://gitcode.com/gh_mirrors/co/codespell
     rev: v2.4.3
     hooks:
       - id: codespell
-        args: [--skip=*.lock,node_modules,.next,coverage]
         exclude: ^(vendor/|third_party/|generated/)
 
   # ===== C/C++：clang-format（修复）+ cppcheck（检查） =====
@@ -44,16 +43,22 @@ repos:
       - id: cppcheck
         name: cppcheck
         description: C/C++ 静态缺陷检查（规则先宽松，按存量基线校准；clang-tidy 不启用）
-        entry: 'cppcheck --error-exitcode=1 --enable=warning,performance,portability --suppress=missingIncludeSystem --quiet --template={file}:{line}: {severity}: {message} ({id})'
+        entry: cppcheck
         language: system
         types_or: [c, c++]
+        args:
+          - --error-exitcode=1
+          - --enable=warning,performance,portability
+          - --suppress=missingIncludeSystem
+          - --quiet
+          - '--template={file}:{line}: {severity}: {message} ({id})'
 
   # ===== Shell：shfmt（修复）+ shellcheck（检查） =====
-  - repo: https://github.com/scop/pre-commit-shfmt
+  - repo: https://gh-proxy.com/https://github.com/scop/pre-commit-shfmt
     rev: v3.13.1-1
     hooks:
       - id: shfmt
-  - repo: https://github.com/shellcheck-py/shellcheck-py
+  - repo: https://gh-proxy.com/https://github.com/shellcheck-py/shellcheck-py
     rev: v0.11.0.1
     hooks:
       - id: shellcheck
