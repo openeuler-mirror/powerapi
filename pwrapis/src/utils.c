@@ -966,11 +966,12 @@ int WriteFile(const char *strInfo, const char *buf, int bufLen)
         return ret;
     }
 
-    if (access(realPath, F_OK | R_OK | W_OK) != 0) {
+    if (access(realPath, W_OK) != 0) {
         Logger(ERROR, MD_NM_OTHS, "Access file[%s] failed. errno:%d, %s", strInfo, errno, strerror(errno));
         return PWR_ERR_FILE_ACCESS_FAILED;
     }
-    FILE *fp = fopen(realPath, "w+");
+    /* Sysfs control attributes may support writes only. */
+    FILE *fp = fopen(realPath, "w");
     if (fp == NULL) {
         Logger(ERROR, MD_NM_OTHS, "Open file[%s] failed. errno:%d, %s", strInfo, errno, strerror(errno));
         return PWR_ERR_FILE_OPEN_FAILED;
