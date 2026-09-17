@@ -84,7 +84,11 @@ PWR_API int PWR_PROC_SetServiceState(PWR_PROC_ServiceState *sState);
 
 // HBM
 PWR_API int PWR_HBM_GetSysState(PWR_HBM_SYS_STATE *hbmState);
-PWR_API int PWR_HBM_SetAllPwrState(int state);
+/* flush must be 0 or 1; only flat-mode power-off uses it.
+ * 1 flushes HBM cache before device power-off; 0 skips that step.
+ * Set all HBM power states.
+ */
+PWR_API int PWR_HBM_SetAllPwrState(int state, int flush);
 
 #ifndef RELEASE_MODE
 

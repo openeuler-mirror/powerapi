@@ -19,6 +19,6 @@
 #include "pwrdata.h"
 
 int GetHbmSysState(PWR_HBM_SYS_STATE *hmbState);
-int SetAllHbmPowerState(int state);
+int SetAllHbmPowerState(int state, int flush);
 
 #endif  //!POWERAPI_HBM__H__

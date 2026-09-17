@@ -397,13 +397,13 @@ int PWR_HBM_GetSysState(PWR_HBM_SYS_STATE *hbmState)
     return GetHbmSysState(hbmState);
 }
 
-int PWR_HBM_SetAllPwrState(int state)
+int PWR_HBM_SetAllPwrState(int state, int flush)
 {
     CHECK_STATUS(STATUS_AUTHED);
-    if (state < 0 || state > 1) {
+    if ((state != PWR_DISABLE && state != PWR_ENABLE) || (flush != 0 && flush != 1)) {
         return PWR_ERR_INVALIDE_PARAM;
     }
-    return SetAllHbmPowerState(state);
+    return SetAllHbmPowerState(state, flush);
 }
 
 // PROC

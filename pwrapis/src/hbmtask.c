@@ -69,7 +69,7 @@ int IsHbmTaskTimedOut(HbmTask *task)
 
 HbmTask *CreateHbmTask(const PwrMsg *req)
 {
-    if (!req || !req->data || req->head.dataLen != sizeof(int)) {
+    if (!req || !req->data || req->head.dataLen != sizeof(HbmPowerStateRequest)) {
         return NULL;
     }
     HbmTask *task = calloc(1, sizeof(*task));
@@ -81,7 +81,9 @@ HbmTask *CreateHbmTask(const PwrMsg *req)
         return NULL;
     }
     task->state.request = req->head;
-    task->state.powerState = *(const int *)req->data;
+    HbmPowerStateRequest request = *(const HbmPowerStateRequest *)req->data;
+    task->state.powerState = request.state;
+    task->state.flush = request.flush;
     return task;
 }
 
@@ -128,6 +130,17 @@ int SetHbmTaskPhase(HbmTask *task, const char *phase, const char *node, const ch
     CopyTaskString(task->state.node, sizeof(task->state.node), node);
     CopyTaskString(task->state.block, sizeof(task->state.block), block);
     task->state.phaseStartUs = MonotonicUs();
+    /* SetMemoryState announces rollback before any online read/write can block.
+     * A partial rollback must not leave the node in the wholly-offline list.
+     */
+    if (node && !block && strcmp(phase, "revert_memory") == 0) {
+        for (size_t i = 0; i < task->state.progressCount; i++) {
+            HbmProgress *p = &task->state.progress[i];
+            if (!p->block[0] && strcmp(p->node, node) == 0) {
+                p->rollbackStarted = 1;
+            }
+        }
+    }
     pthread_mutex_unlock(&task->lock);
     return PWR_SUCCESS;
 }

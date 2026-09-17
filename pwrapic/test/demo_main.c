@@ -602,13 +602,13 @@ static void TEST_PWR_HBM_GetSysState(void)
 static void TEST_PWR_HBM_SetAllPwrState(void)
 {
     int ret = -1;
-    ret = PWR_HBM_SetAllPwrState(0);
+    ret = PWR_HBM_SetAllPwrState(0, 1);
     PrintResult("TEST_PWR_HBM_SetAllPwrState", ret);
 
-    ret = PWR_HBM_SetAllPwrState(1);
+    ret = PWR_HBM_SetAllPwrState(1, 1);
     PrintResult("TEST_PWR_HBM_SetAllPwrState", ret);
 
-    ret = PWR_HBM_SetAllPwrState(2);
+    ret = PWR_HBM_SetAllPwrState(2, 1);
     PrintResult("TEST_PWR_HBM_SetAllPwrState", ret);
 }
 

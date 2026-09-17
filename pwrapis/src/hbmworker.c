@@ -123,7 +123,7 @@ static void *RunHbmWorker(void *arg)
         PwrMsg *req = PopHbmRequest();
         HbmTask *task = CreateHbmTask(req);
         if (!task) {
-            int ret = (!req->data || req->head.dataLen != sizeof(int)) ?
+            int ret = (!req->data || req->head.dataLen != sizeof(HbmPowerStateRequest)) ?
                 PWR_ERR_INVALIDE_PARAM : PWR_ERR_COMMON;
             SendRspToClient(req, ret, NULL, 0);
             ReleasePwrMsg(&req);
@@ -142,7 +142,7 @@ static void *RunHbmWorker(void *arg)
                 ReportTimeout();
             } else {
                 g_activeResponded = 1;
-                SendRspToClient(req, ret, NULL, 0);
+                ReplyHbmTask(req, task, ret);
             }
         }
         Logger(DEBUG, MD_NM_SVR_HBM,

@@ -25,11 +25,13 @@ typedef struct {
     int alreadyOffline;
     int completed;
     int restored;
+    int rollbackStarted; /* Node-level record: no longer known to be wholly offline. */
 } HbmProgress;
 
 typedef struct {
     MsgHead request;
     int powerState;
+    int flush;
     int started;
     int finished;
     int timedOut;
