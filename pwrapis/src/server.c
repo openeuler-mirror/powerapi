@@ -37,6 +37,7 @@
 #include "pwrerr.h"
 #include "utils.h"
 #include "hbmservice.h"
+#include "hbmworker.h"
 
 #define THREAD_LOOP_INTERVAL 2000 // us
 
@@ -275,6 +276,26 @@ static int ReadMsg(void *pData, int len, int dstFd, int idx)
     return PWR_SUCCESS;
 }
 
+static int ReadClientMsgData(PwrMsg *msg, int dstFd, int clientIdx)
+{
+    if (msg->head.dataLen == 0) {
+        msg->data = NULL;
+        return PWR_SUCCESS;
+    }
+
+    char *msgContent = malloc(msg->head.dataLen);
+    if (!msgContent) {
+        return PWR_ERR_COMMON;
+    }
+    bzero(msgContent, msg->head.dataLen);
+    if (ReadMsg(msgContent, msg->head.dataLen, dstFd, clientIdx) != PWR_SUCCESS) {
+        free(msgContent);
+        return PWR_ERR_COMMON;
+    }
+    msg->data = msgContent;
+    return PWR_SUCCESS;
+}
+
 static void ProcessRecvMsgFromClient(int clientIdx)
 {
     // Get msg from connFd, send to service queue and waiting for processing
@@ -291,26 +312,31 @@ static void ProcessRecvMsgFromClient(int clientIdx)
     Logger(DEBUG, MD_NM_SVR, "Receive msg. opt:%d,sysId:%d, seqId:%d",
         msg->head.optType, msg->head.sysId, msg->head.seqId);
 
-    if (msg->head.dataLen > 0) {
-        char *msgcontent = malloc(msg->head.dataLen);
-        if (!msgcontent) {
-            free(msg);
-            return;
-        }
-        bzero(msgcontent, msg->head.dataLen);
-        if (ReadMsg(msgcontent, msg->head.dataLen, dstFd, clientIdx) != PWR_SUCCESS) {
-            free(msg);
-            free(msgcontent);
-            return;
-        }
-        msg->data = msgcontent;
-    } else {
-        msg->data = NULL;
+    if (ReadClientMsgData(msg, dstFd, clientIdx) != PWR_SUCCESS) {
+        free(msg);
+        return;
     }
 
     if (msg->head.msgType != MT_REQ) {
         ReleasePwrMsg(&msg); // the server accept request msg only.
         return;
+    }
+
+    if (msg->head.sysId != (uint32_t)g_pwrClients[clientIdx].sysId) {
+        ReleasePwrMsg(&msg);
+        return;
+    }
+
+    // Route before the ordinary queue so a busy ordinary worker cannot delay HBM dispatch.
+    if (msg->head.optType == HBM_SET_ALL_POWER_STATE) {
+        int ret = SubmitHbmRequest(msg);
+        if (ret != PWR_SUCCESS) {
+            Logger(WARNING, MD_NM_SVR_HBM, "HBM enqueue failed. sysId:%u, seqId:%u, ret:%d",
+                msg->head.sysId, msg->head.seqId, ret);
+            SendRspToClient(msg, ret, NULL, 0);
+            ReleasePwrMsg(&msg);
+        }
+        return; // On success only the HBM worker may access or release msg.
     }
 
     if (IsFullBuffer(&g_recvBuff)) {
@@ -320,11 +346,6 @@ static void ProcessRecvMsgFromClient(int clientIdx)
       SendRspToClient(msg, PWR_ERR_MSG_BUFFER_FULL, NULL, 0);
       ReleasePwrMsg(&msg);
       return;
-    }
-
-    if (msg->head.sysId != (uint32_t)g_pwrClients[clientIdx].sysId) {
-        ReleasePwrMsg(&msg);
-        return;
     }
 
     if (AddToBufferTail(&g_recvBuff, msg) != PWR_SUCCESS) {
@@ -589,6 +610,19 @@ static inline int SendMsg(PwrMsg *msg)
 }
 
 // public======================================================================================
+static int CleanupFailedStart(int ret)
+{
+    FiniThreadInfo(&g_serviceThread);
+    StopHbmWorker();
+    StopListen();
+    ResetPwrMsgBuffer(&g_sendBuff);
+    ResetPwrMsgBuffer(&g_recvBuff);
+    DestroyMsgFactory();
+    pthread_cond_destroy(&g_waitMsgCond);
+    pthread_mutex_destroy(&g_waitMsgMutex);
+    return ret;
+}
+
 // Init Socket. Start listening & accepting
 int StartServer(void)
 {
@@ -602,20 +636,24 @@ int StartServer(void)
     int ret;
     ret = StartUnxListen(GetServCfg()->sockFile);
     if (ret != PWR_SUCCESS) {
-        Logger(ERROR, MD_NM_SVR, "%s Listen failed! ret[%d]", GetServCfg(), ret);
-        return PWR_ERR_SYS_EXCEPTION;
+        Logger(ERROR, MD_NM_SVR, "%s Listen failed! ret[%d]", GetServCfg()->sockFile, ret);
+        return CleanupFailedStart(ret);
     }
 
+    ret = StartHbmWorker();
+    if (ret != PWR_SUCCESS) {
+        return CleanupFailedStart(ret);
+    }
     ret = CreateThread(&g_serviceThread, RunServiceProcess, NULL);
     if (ret != PWR_SUCCESS) {
         Logger(ERROR, MD_NM_SVR, "Create service thread failed! ret[%d]", ret);
-        return PWR_ERR_SYS_EXCEPTION;
+        return CleanupFailedStart(ret);
     }
 
     ret = CreateThread(&g_sockProcThread, RunServerSocketProcess, NULL);
     if (ret != PWR_SUCCESS) {
         Logger(ERROR, MD_NM_SVR, "Create ServerSocketProcess thread failed! ret[%d]", ret);
-        return PWR_ERR_SYS_EXCEPTION;
+        return CleanupFailedStart(ret);
     }
     InitTaskService();
     return PWR_SUCCESS;
@@ -625,6 +663,8 @@ void StopServer(void)
 {
     FiniTaskService();
     FiniThreadInfo(&g_sockProcThread);
+    // No producers remain; join HBM before destroying response buffers and message factory.
+    StopHbmWorker();
     FiniThreadInfo(&g_serviceThread);
     StopListen();
     ResetPwrMsgBuffer(&g_sendBuff);
