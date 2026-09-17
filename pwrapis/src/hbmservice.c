@@ -24,6 +24,7 @@
 
 #define MAX_RETRY_COUNT 50
 #define RETRY_INTERVAL_MS 100
+#define MAX_HBM_NODE_COUNT 256
 
 #define EXEC_COMMAND(cmd) \
     do { \
@@ -34,13 +35,39 @@
         pclose(fp); \
     } while (0)
 
+static int BuildPath(char *path, size_t pathSize, const char *directory,
+    const char *entry, const char *file)
+{
+    if (!path || pathSize == 0 || !directory || !entry) {
+        return PWR_ERR_INVALIDE_PARAM;
+    }
+
+    const char *parts[] = {directory, "/", entry, "/", file};
+    size_t partCount = file ? sizeof(parts) / sizeof(parts[0]) : 3;
+    size_t pos = 0;
+    for (size_t i = 0; i < partCount; ++i) {
+        for (size_t j = 0; parts[i][j] != '\0'; ++j) {
+            if (pos + 1 >= pathSize) {
+                path[0] = '\0';
+                return PWR_ERR_COMMON;
+            }
+            path[pos++] = parts[i][j];
+        }
+    }
+    path[pos] = '\0';
+    return PWR_SUCCESS;
+}
+
 static int IsNodeEmptyCpuList(const char *nodePath)
 {
     char cpuListFile[MAX_FULL_NAME];
     FILE *cpuListFp;
     char cpuListBuf[256];
 
-    snprintf(cpuListFile, sizeof(cpuListFile), "%s/cpulist", nodePath);
+    if (BuildPath(cpuListFile, sizeof(cpuListFile), nodePath, "cpulist", NULL) != PWR_SUCCESS) {
+        Logger(ERROR, MD_NM_SVR_HBM, "Failed to build cpulist path for %s", nodePath);
+        return 0;
+    }
     cpuListFp = fopen(cpuListFile, "r");
     if (cpuListFp == NULL) {
         return 0;
@@ -56,32 +83,80 @@ static int IsNodeEmptyCpuList(const char *nodePath)
     return 0;
 }
 
-static int OfflineMemoryState(const char *nodePath)
+static int CheckMemoryRemovable(const char *nodePath, const char *blockName)
 {
-    char memoryDirPath[MAX_FULL_NAME];
+    char removableFile[MAX_FULL_NAME];
+    char removable[PWR_MAX_NAME_LEN] = {0};
+    int ret = BuildPath(removableFile, sizeof(removableFile), nodePath, blockName, "removable");
+    if (ret != PWR_SUCCESS) {
+        Logger(ERROR, MD_NM_SVR_HBM,
+            "Failed to build removable path. node:%s, block:%s", nodePath, blockName);
+        ret = PWR_ERR_COMMON;
+    } else {
+        ret = ReadFile(removableFile, removable, sizeof(removable));
+        if (ret != PWR_SUCCESS) {
+            Logger(ERROR, MD_NM_SVR_HBM,
+                "Failed to read removable. node:%s, block:%s, file:%s, ret:%d",
+                nodePath, blockName, removableFile, ret);
+        } else if (strcmp(removable, "0") == 0) {
+            Logger(ERROR, MD_NM_SVR_HBM,
+                "HBM memory block is not removable. node:%s, block:%s, removable:%s",
+                nodePath, blockName, removable);
+            ret = PWR_ERR_COMMON;
+        } else if (strcmp(removable, "1") != 0) {
+            Logger(ERROR, MD_NM_SVR_HBM,
+                "Invalid removable value. node:%s, block:%s, removable:%s",
+                nodePath, blockName, removable);
+            ret = PWR_ERR_COMMON;
+        }
+    }
+
+    return ret;
+}
+
+static int SetMemoryState(const char *nodePath, const char *state)
+{
     char memoryStateFile[MAX_FULL_NAME];
+    char currentState[PWR_MAX_NAME_LEN] = {0};
     DIR *dir;
     struct dirent *entry;
 
-    snprintf(memoryDirPath, sizeof(memoryDirPath), "%s", nodePath);
-    dir = opendir(memoryDirPath);
+    dir = opendir(nodePath);
     if (dir == NULL) {
         Logger(ERROR, MD_NM_SVR_HBM, "Failed to open memory directory");
         return PWR_ERR_COMMON;
     }
 
     while ((entry = readdir(dir)) != NULL) {
-        if (strncmp(entry->d_name, "memory", 6) != 0) {
+        if (strncmp(entry->d_name, "memory", strlen("memory")) != 0) {
             continue;
         }
 
-        int ret = snprintf(memoryStateFile, sizeof(memoryStateFile), "%s/%s/state", memoryDirPath, entry->d_name);
-        if (ret >= (int)sizeof(memoryStateFile)) {
+        int ret = BuildPath(memoryStateFile, sizeof(memoryStateFile), nodePath, entry->d_name, "state");
+        if (ret != PWR_SUCCESS) {
             Logger(ERROR, MD_NM_SVR_HBM, "Buffer overflow detected in memoryStateFile");
             continue;
         }
-        if (WriteFile(memoryStateFile, "offline", strlen("offline")) != PWR_SUCCESS) {
-            Logger(ERROR, MD_NM_SVR_HBM, "Failed to write to memory state file");
+
+        if (ReadFile(memoryStateFile, currentState, sizeof(currentState)) != PWR_SUCCESS) {
+            Logger(ERROR, MD_NM_SVR_HBM, "Failed to read memory state file %s", memoryStateFile);
+            closedir(dir);
+            return PWR_ERR_COMMON;
+        }
+
+        if (strcmp(currentState, state) == 0) {
+            continue;
+        }
+
+        // Check each block immediately before offlining; online rollback must not be gated by removable.
+        if (strcmp(state, "offline") == 0 && CheckMemoryRemovable(nodePath, entry->d_name) != PWR_SUCCESS) {
+            closedir(dir);
+            return PWR_ERR_COMMON;
+        }
+
+        if (WriteFile(memoryStateFile, state, strlen(state)) != PWR_SUCCESS) {
+            Logger(ERROR, MD_NM_SVR_HBM, "Failed to write %s to memory state file %s", state, memoryStateFile);
+            closedir(dir);
             return PWR_ERR_COMMON;
         }
     }
@@ -90,33 +165,93 @@ static int OfflineMemoryState(const char *nodePath)
     return PWR_SUCCESS;
 }
 
-static int OfflineAllHBMNode()
+static int OfflineMemoryState(const char *nodePath)
 {
-    DIR *dirPtr;
-    struct dirent *dirEntry;
-    char nodePath[MAX_FULL_NAME];
+    return SetMemoryState(nodePath, "offline");
+}
 
-    dirPtr = opendir("/sys/devices/system/node");
+static int OnlineMemoryState(const char *nodePath)
+{
+    return SetMemoryState(nodePath, "online");
+}
+
+// Try to bring back every previously-offlined node. Keep going even if one fails
+// so we minimize the damage, but report the overall result to the caller so a
+// partial/inconsistent state is never hidden.
+static int RevertOfflinedNodes(char offlinedNodes[][MAX_FULL_NAME], int count)
+{
+    int revertErr = PWR_SUCCESS;
+    for (int i = count - 1; i >= 0; --i) {
+        if (OnlineMemoryState(offlinedNodes[i]) != PWR_SUCCESS) {
+            Logger(ERROR, MD_NM_SVR_HBM, "Failed to revert memory state of node %s", offlinedNodes[i]);
+            revertErr = PWR_ERR_HBM_REVERT_MEMORY_FAILED;
+        }
+    }
+    return revertErr;
+}
+
+static int OfflineAllHBMNode(void)
+{
+    DIR *dirPtr = opendir("/sys/devices/system/node");
     if (dirPtr == NULL) {
         Logger(ERROR, MD_NM_SVR_HBM, "Failed to open /sys/devices/system/node dir");
         return PWR_ERR_FILE_OPEN_FAILED;
     }
 
-    while ((dirEntry = readdir(dirPtr)) != NULL) {
-        if (strncmp(dirEntry->d_name, "node", 4) == 0) {
-            snprintf(nodePath, sizeof(nodePath), "/sys/devices/system/node/%s", dirEntry->d_name);
+    char offlinedNodes[MAX_HBM_NODE_COUNT][MAX_FULL_NAME];
+    int offlinedCnt = 0;
+    int errCode = PWR_SUCCESS;
+    struct dirent *dirEntry;
 
-            // if cpulist is empty, offline the node
-            if (IsNodeEmptyCpuList(nodePath)) {
-                if (OfflineMemoryState(nodePath) != PWR_SUCCESS) {
-                    continue;
-                }
-            }
+    while ((dirEntry = readdir(dirPtr)) != NULL) {
+        if (strncmp(dirEntry->d_name, "node", strlen("node")) != 0) {
+            continue;
+        }
+
+        char nodePath[MAX_FULL_NAME];
+        int ret = BuildPath(nodePath, sizeof(nodePath), "/sys/devices/system", "node", dirEntry->d_name);
+        if (ret != PWR_SUCCESS) {
+            Logger(ERROR, MD_NM_SVR_HBM, "Failed to build node path for %s", dirEntry->d_name);
+            continue;
+        }
+
+        if (!IsNodeEmptyCpuList(nodePath)) {
+            continue;
+        }
+
+        if (offlinedCnt >= MAX_HBM_NODE_COUNT) {
+            Logger(ERROR, MD_NM_SVR_HBM, "HBM node count exceeds max revert capacity %d", MAX_HBM_NODE_COUNT);
+            errCode = PWR_ERR_COMMON;
+            break;
+        }
+
+        // Record the node path before offlining so a partial failure inside the
+        // node is also covered by the revert loop (OnlineMemoryState is idempotent).
+        (void)snprintf(offlinedNodes[offlinedCnt], MAX_FULL_NAME, "%s", nodePath);
+        offlinedCnt++;
+
+        if (OfflineMemoryState(nodePath) != PWR_SUCCESS) {
+            Logger(ERROR, MD_NM_SVR_HBM, "Failed to offline memory of node %s", nodePath);
+            errCode = PWR_ERR_HBM_OFFLINE_MEMORY_FAILED;
+            break;
         }
     }
 
     closedir(dirPtr);
-    return PWR_SUCCESS;
+
+    if (errCode != PWR_SUCCESS) {
+        // If revert itself fails, the system is left in a half-offlined state;
+        // surface the stronger error so callers don't treat it as a clean failure.
+        int revertErr = RevertOfflinedNodes(offlinedNodes, offlinedCnt);
+        if (revertErr != PWR_SUCCESS) {
+            Logger(ERROR, MD_NM_SVR_HBM,
+                   "HBM offline revert failed, system left in inconsistent state (offlined=%d)",
+                   offlinedCnt);
+            errCode = revertErr;
+        }
+    }
+
+    return errCode;
 }
 
 static int GetHbmMode(PWR_HBM_SYS_STATE *state)
@@ -257,8 +392,9 @@ static int HandleFlatMode(const int powerState)
 
     // offline all memory
     if (powerState == 0) {
-        if (OfflineAllHBMNode() != PWR_SUCCESS) {
-            return PWR_ERR_COMMON;
+        int offlineRet = OfflineAllHBMNode();
+        if (offlineRet != PWR_SUCCESS) {
+            return offlineRet;
         }
     }
 
