@@ -23,7 +23,10 @@ int StartHbmWorker(void);
  * Start/stop must be serialized by the server lifecycle owner.
  */
 void StopHbmWorker(void);
-/* Success transfers ownership of req and req->data. Failure leaves both with caller. */
+/* Success transfers ownership of req and req->data. Failure leaves both with caller.
+ * After an execution timeout, queued and future requests fail with STATE_UNKNOWN.
+ * Late completion does not re-enable HBM. No in-process recovery API is provided.
+ */
 int SubmitHbmRequest(PwrMsg *req);
 
 #endif

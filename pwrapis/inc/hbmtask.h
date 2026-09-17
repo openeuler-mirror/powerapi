@@ -32,6 +32,7 @@ typedef struct {
     int powerState;
     int started;
     int finished;
+    int timedOut;
     int result;
     long long startUs; /* CLOCK_MONOTONIC, not wall time. */
     long long phaseStartUs;
@@ -44,13 +45,16 @@ typedef struct {
 
 typedef struct HbmTask HbmTask;
 
+#define HBM_TASK_TIMEOUT_US (120LL * 1000000)
+int IsHbmTaskTimedOut(HbmTask *task);
+
 /* Copies request metadata and state; never retains or owns the caller's PwrMsg. */
 HbmTask *CreateHbmTask(const PwrMsg *req);
 /* Caller must ensure execution and all snapshot readers have stopped before destroying. */
 void DestroyHbmTask(HbmTask *task);
 int StartHbmTask(HbmTask *task);
 void FinishHbmTask(HbmTask *task, int result);
-void SetHbmTaskPhase(HbmTask *task, const char *phase, const char *node, const char *block);
+int SetHbmTaskPhase(HbmTask *task, const char *phase, const char *node, const char *block);
 int PrepareHbmProgress(HbmTask *task, const char *node, const char *block, size_t *index);
 void CompleteHbmProgress(HbmTask *task, size_t index, int alreadyOffline);
 void RestoreHbmProgress(HbmTask *task, const char *node, const char *block);

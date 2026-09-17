@@ -34,7 +34,6 @@
 #define MAX_RETRY_COUNT 50
 #define RETRY_INTERVAL_MS 100
 #define MAX_HBM_NODE_COUNT 256
-#define MICROSECONDS_PER_MILLISECOND 1000
 #define HBM_EXEC_FAILURE_EXIT_STATUS 127
 #define HBM_FLUSH_MODULE_NAME "hbm_flush"
 #define HBM_FLUSH_PROC_PATH "/proc/hbm_flush"
@@ -50,7 +49,7 @@ static long long GetTimeUs(void)
     return now.tv_sec * 1000000LL + now.tv_usec;
 }
 
-static int SetStateFiles(const char *pattern, const char *state, const char *errMsg)
+static int SetStateFiles(HbmTask *task, const char *pattern, const char *state, const char *errMsg)
 {
     glob_t paths = {0};
     int globRet = glob(pattern, GLOB_NOSORT, NULL, &paths);
@@ -62,7 +61,16 @@ static int SetStateFiles(const char *pattern, const char *state, const char *err
 
     int ret = PWR_SUCCESS;
     for (size_t i = 0; i < paths.gl_pathc; ++i) {
-        if (WriteFile(paths.gl_pathv[i], state, strlen(state)) != PWR_SUCCESS) {
+        if (IsHbmTaskTimedOut(task)) {
+            ret = PWR_ERR_HBM_OPERATION_TIMEOUT;
+            break;
+        }
+        int writeRet = WriteFile(paths.gl_pathv[i], state, strlen(state));
+        if (IsHbmTaskTimedOut(task)) {
+            ret = PWR_ERR_HBM_OPERATION_TIMEOUT;
+            break;
+        }
+        if (writeRet != PWR_SUCCESS) {
             Logger(ERROR, MD_NM_SVR_HBM, "%s, path:%s", errMsg, paths.gl_pathv[i]);
             ret = PWR_ERR_COMMON;
             break;
@@ -216,7 +224,10 @@ typedef struct {
 static int WriteMemoryBlockState(HbmTask *task, const MemoryBlockOperation *op)
 {
     // Check each block immediately before offlining; online rollback must not be gated by removable.
-    SetHbmTaskPhase(task, op->offlining ? "check_removable" : "revert_memory", op->nodePath, op->blockName);
+    if (SetHbmTaskPhase(task, op->offlining ? "check_removable" : "revert_memory",
+        op->nodePath, op->blockName) != PWR_SUCCESS) {
+        return PWR_ERR_HBM_OPERATION_TIMEOUT;
+    }
     if (op->offlining && CheckMemoryRemovable(op->nodePath, op->blockName) != PWR_SUCCESS) {
         Logger(DEBUG, MD_NM_SVR_HBM,
             "HBM memory block finish. node:%s, block:%s, beforeState:%s, target:%s, "
@@ -228,8 +239,15 @@ static int WriteMemoryBlockState(HbmTask *task, const MemoryBlockOperation *op)
     Logger(DEBUG, MD_NM_SVR_HBM,
         "HBM memory block write start. node:%s, block:%s, beforeState:%s, target:%s",
         op->nodePath, op->blockName, op->currentState, op->state);
-    SetHbmTaskPhase(task, op->offlining ? "write_memory_offline" : "write_memory_online", op->nodePath, op->blockName);
-    if (WriteFile(op->stateFile, op->state, strlen(op->state)) != PWR_SUCCESS) {
+    if (SetHbmTaskPhase(task, op->offlining ? "write_memory_offline" : "write_memory_online",
+        op->nodePath, op->blockName) != PWR_SUCCESS) {
+        return PWR_ERR_HBM_OPERATION_TIMEOUT;
+    }
+    int writeRet = WriteFile(op->stateFile, op->state, strlen(op->state));
+    if (IsHbmTaskTimedOut(task)) {
+        return PWR_ERR_HBM_OPERATION_TIMEOUT;
+    }
+    if (writeRet != PWR_SUCCESS) {
         Logger(ERROR, MD_NM_SVR_HBM, "Failed to write %s to memory state file %s", op->state, op->stateFile);
         Logger(DEBUG, MD_NM_SVR_HBM,
             "HBM memory block finish. node:%s, block:%s, beforeState:%s, target:%s, "
@@ -264,7 +282,10 @@ static int ProcessMemoryBlock(HbmTask *task, const char *nodePath, const char *b
         Logger(ERROR, MD_NM_SVR_HBM, "Failed to record HBM progress. node:%s, block:%s", nodePath, blockName);
         return PWR_ERR_COMMON;
     }
-    SetHbmTaskPhase(task, offlining ? "read_memory_state" : "revert_read_state", nodePath, blockName);
+    if (SetHbmTaskPhase(task, offlining ? "read_memory_state" : "revert_read_state",
+        nodePath, blockName) != PWR_SUCCESS) {
+        return PWR_ERR_HBM_OPERATION_TIMEOUT;
+    }
     Logger(DEBUG, MD_NM_SVR_HBM,
         "HBM memory block start. node:%s, block:%s, target:%s", nodePath, blockName, state);
     /* State read before the operation; not a post-write readback. */
@@ -295,7 +316,9 @@ static int ProcessMemoryBlock(HbmTask *task, const char *nodePath, const char *b
 static int SetMemoryState(HbmTask *task, const char *nodePath, const char *state)
 {
     int offlining = strcmp(state, "offline") == 0;
-    SetHbmTaskPhase(task, offlining ? "scan_memory" : "revert_memory", nodePath, NULL);
+    if (SetHbmTaskPhase(task, offlining ? "scan_memory" : "revert_memory", nodePath, NULL) != PWR_SUCCESS) {
+        return PWR_ERR_HBM_OPERATION_TIMEOUT;
+    }
     long long nodeStartUs = GetTimeUs();
     DIR *dir;
     struct dirent *dirEntry;
@@ -347,9 +370,16 @@ static int RevertOfflinedNodes(HbmTask *task, char offlinedNodes[][MAX_FULL_NAME
 {
     long long startUs = GetTimeUs();
     Logger(DEBUG, MD_NM_SVR_HBM, "HBM phase start. phase:revert_memory, nodeCount:%d", count);
+    if (IsHbmTaskTimedOut(task)) {
+        return PWR_ERR_HBM_OPERATION_TIMEOUT;
+    }
     int revertErr = PWR_SUCCESS;
     for (int i = count - 1; i >= 0; --i) {
-        if (OnlineMemoryState(task, offlinedNodes[i]) != PWR_SUCCESS) {
+        int ret = OnlineMemoryState(task, offlinedNodes[i]);
+        if (IsHbmTaskTimedOut(task)) {
+            return PWR_ERR_HBM_OPERATION_TIMEOUT;
+        }
+        if (ret != PWR_SUCCESS) {
             Logger(ERROR, MD_NM_SVR_HBM, "Failed to revert memory state of node %s", offlinedNodes[i]);
             revertErr = PWR_ERR_HBM_REVERT_MEMORY_FAILED;
         } else {
@@ -365,7 +395,9 @@ static int RevertOfflinedNodes(HbmTask *task, char offlinedNodes[][MAX_FULL_NAME
 static int OfflineHbmNode(HbmTask *task, const char *nodePath,
     char offlinedNodes[][MAX_FULL_NAME], int *offlinedCnt)
 {
-    SetHbmTaskPhase(task, "check_node_cpus", nodePath, NULL);
+    if (SetHbmTaskPhase(task, "check_node_cpus", nodePath, NULL) != PWR_SUCCESS) {
+        return PWR_ERR_HBM_OPERATION_TIMEOUT;
+    }
     if (!IsNodeEmptyCpuList(nodePath)) {
         return PWR_SUCCESS;
     }
@@ -389,6 +421,9 @@ static int OfflineHbmNode(HbmTask *task, const char *nodePath,
     (*offlinedCnt)++;
 
     if (OfflineMemoryState(task, nodePath) != PWR_SUCCESS) {
+        if (IsHbmTaskTimedOut(task)) {
+            return PWR_ERR_HBM_OPERATION_TIMEOUT;
+        }
         Logger(ERROR, MD_NM_SVR_HBM, "Failed to offline memory of node %s", nodePath);
         return PWR_ERR_HBM_OFFLINE_MEMORY_FAILED;
     }
@@ -398,7 +433,9 @@ static int OfflineHbmNode(HbmTask *task, const char *nodePath,
 
 static int OfflineAllHBMNode(HbmTask *task, char offlinedNodes[][MAX_FULL_NAME], int *offlinedCnt)
 {
-    SetHbmTaskPhase(task, "scan_nodes", NULL, NULL);
+    if (SetHbmTaskPhase(task, "scan_nodes", NULL, NULL) != PWR_SUCCESS) {
+        return PWR_ERR_HBM_OPERATION_TIMEOUT;
+    }
     long long startUs = GetTimeUs();
     Logger(DEBUG, MD_NM_SVR_HBM, "HBM phase start. phase:offline_memory");
     DIR *dirPtr = opendir("/sys/devices/system/node");
@@ -433,6 +470,9 @@ static int OfflineAllHBMNode(HbmTask *task, char offlinedNodes[][MAX_FULL_NAME],
     }
 
     closedir(dirPtr);
+    if (IsHbmTaskTimedOut(task)) {
+        return PWR_ERR_HBM_OPERATION_TIMEOUT;
+    }
 
     if (errCode != PWR_SUCCESS) {
         // If revert itself fails, the system is left in a half-offlined state;
@@ -465,7 +505,7 @@ static int RevertOfflinedNodesOnError(HbmTask *task, char offlinedNodes[][MAX_FU
     return errCode;
 }
 
-static int LoadHbmFlushModule(int *needUnload)
+static int LoadHbmFlushModule(HbmTask *task, int *needUnload)
 {
     *needUnload = 0;
 
@@ -502,11 +542,17 @@ static int LoadHbmFlushModule(int *needUnload)
     }
 
     *needUnload = 1;
+    if (IsHbmTaskTimedOut(task)) {
+        return PWR_ERR_HBM_OPERATION_TIMEOUT;
+    }
     if (RunInsmod(modulePath) != PWR_SUCCESS) {
         Logger(ERROR, MD_NM_SVR_HBM, "Failed to insmod %s", modulePath);
         return PWR_ERR_HBM_FLUSH_CACHE_FAILED;
     }
 
+    if (IsHbmTaskTimedOut(task)) {
+        return PWR_ERR_HBM_OPERATION_TIMEOUT;
+    }
     if (access(HBM_FLUSH_PROC_PATH, W_OK) != 0) {
         Logger(ERROR, MD_NM_SVR_HBM, "Failed to access %s after insmod %s.ko. errno:%d, %s",
                HBM_FLUSH_PROC_PATH, HBM_FLUSH_MODULE_NAME, errno, strerror(errno));
@@ -526,7 +572,7 @@ static int UnloadHbmFlushModule(void)
     return PWR_SUCCESS;
 }
 
-static int TriggerHbmCacheFlush(void)
+static int TriggerHbmCacheFlush(HbmTask *task)
 {
     int fd = open(HBM_FLUSH_PROC_PATH, O_WRONLY);
     if (fd < 0) {
@@ -535,6 +581,10 @@ static int TriggerHbmCacheFlush(void)
         return PWR_ERR_HBM_FLUSH_CACHE_FAILED;
     }
 
+    if (IsHbmTaskTimedOut(task)) {
+        close(fd);
+        return PWR_ERR_HBM_OPERATION_TIMEOUT;
+    }
     size_t triggerLen = strlen(HBM_FLUSH_TRIGGER);
     ssize_t writeLen = write(fd, HBM_FLUSH_TRIGGER, triggerLen);
     if (writeLen != (ssize_t)triggerLen) {
@@ -560,16 +610,20 @@ static int FlushHbmCacheBeforePowerOff(HbmTask *task)
     Logger(DEBUG, MD_NM_SVR_HBM, "HBM phase start. phase:flush_cache");
     Logger(DEBUG, MD_NM_SVR_HBM, "HBM flush step start. step:load_module");
     int needUnload = 0;
-    SetHbmTaskPhase(task, "flush_load_module", NULL, NULL);
-    int ret = LoadHbmFlushModule(&needUnload);
+    if (SetHbmTaskPhase(task, "flush_load_module", NULL, NULL) != PWR_SUCCESS) {
+        return PWR_ERR_HBM_OPERATION_TIMEOUT;
+    }
+    int ret = LoadHbmFlushModule(task, &needUnload);
     Logger(DEBUG, MD_NM_SVR_HBM,
         "HBM flush step finish. step:load_module, ret:%d, needUnload:%d, durationUs:%lld",
         ret, needUnload, GetTimeUs() - stepStartUs);
     if (ret == PWR_SUCCESS) {
         stepStartUs = GetTimeUs();
         Logger(DEBUG, MD_NM_SVR_HBM, "HBM flush step start. step:trigger_flush");
-        SetHbmTaskPhase(task, "flush_trigger", NULL, NULL);
-        ret = TriggerHbmCacheFlush();
+        if (SetHbmTaskPhase(task, "flush_trigger", NULL, NULL) != PWR_SUCCESS) {
+            return PWR_ERR_HBM_OPERATION_TIMEOUT;
+        }
+        ret = TriggerHbmCacheFlush(task);
         Logger(DEBUG, MD_NM_SVR_HBM,
             "HBM flush step finish. step:trigger_flush, ret:%d, durationUs:%lld",
             ret, GetTimeUs() - stepStartUs);
@@ -578,7 +632,9 @@ static int FlushHbmCacheBeforePowerOff(HbmTask *task)
     stepStartUs = GetTimeUs();
     Logger(DEBUG, MD_NM_SVR_HBM,
         "HBM flush step start. step:unload_module, required:%d", needUnload);
-    SetHbmTaskPhase(task, "flush_unload_module", NULL, NULL);
+    if (SetHbmTaskPhase(task, "flush_unload_module", NULL, NULL) != PWR_SUCCESS) {
+        return PWR_ERR_HBM_OPERATION_TIMEOUT;
+    }
     int unloadRet = needUnload ? UnloadHbmFlushModule() : PWR_SUCCESS;
     Logger(DEBUG, MD_NM_SVR_HBM,
         "HBM flush step finish. step:unload_module, ret:%d, durationUs:%lld",
@@ -650,7 +706,9 @@ void GetHbmSysState(PwrMsg *req)
 
 static int EnsureCacheDriver(HbmTask *task)
 {
-    SetHbmTaskPhase(task, "check_cache_nodes", NULL, NULL);
+    if (SetHbmTaskPhase(task, "check_cache_nodes", NULL, NULL) != PWR_SUCCESS) {
+        return PWR_ERR_HBM_OPERATION_TIMEOUT;
+    }
     // Check if kernel module exist
     FILE *checkFile = popen("find /sys/kernel/hbm_cache/*/state -type f", "r");
     if (checkFile == NULL) {
@@ -660,7 +718,10 @@ static int EnsureCacheDriver(HbmTask *task)
 
     if (fgetc(checkFile) == EOF) {
         Logger(INFO, MD_NM_SVR_HBM, "No hbm_cache state files found, loading kernel moudle");
-        SetHbmTaskPhase(task, "load_cache_driver", NULL, NULL);
+        if (SetHbmTaskPhase(task, "load_cache_driver", NULL, NULL) != PWR_SUCCESS) {
+            pclose(checkFile);
+            return PWR_ERR_HBM_OPERATION_TIMEOUT;
+        }
         if (system("modprobe hisi_hbmcache") != 0) {
             Logger(ERROR, MD_NM_SVR_HBM, "Failed to load hbm.ko module");
             pclose(checkFile);
@@ -671,16 +732,20 @@ static int EnsureCacheDriver(HbmTask *task)
     return PWR_SUCCESS;
 }
 
-static void SetCacheDeviceState(HbmTask *task, const char *stateStr)
+static int SetCacheDeviceState(HbmTask *task, const char *stateStr)
 {
     long long stepStartUs = GetTimeUs();
     Logger(DEBUG, MD_NM_SVR_HBM,
         "HBM phase start. phase:set_cache_state, state:%s", stateStr);
-    SetHbmTaskPhase(task, "set_cache_state", NULL, NULL);
-    int commandRet = SetStateFiles(HBM_CACHE_STATE_PATTERN, stateStr, "Failed to set hbm cache state");
+    if (SetHbmTaskPhase(task, "set_cache_state", NULL, NULL) != PWR_SUCCESS) {
+        return PWR_ERR_HBM_OPERATION_TIMEOUT;
+    }
+    int commandRet = SetStateFiles(task, HBM_CACHE_STATE_PATTERN, stateStr, "Failed to set hbm cache state");
     Logger(DEBUG, MD_NM_SVR_HBM,
         "HBM phase finish. phase:set_cache_state, state:%s, ret:%d, durationUs:%lld",
         stateStr, commandRet, GetTimeUs() - stepStartUs);
+    // Preserve status polling after ordinary write failures; stop immediately on timeout.
+    return IsHbmTaskTimedOut(task) ? PWR_ERR_HBM_OPERATION_TIMEOUT : PWR_SUCCESS;
 }
 
 static int WaitCacheDeviceState(HbmTask *task, int powerState)
@@ -699,9 +764,14 @@ static int WaitCacheDeviceState(HbmTask *task, int powerState)
             "'15' && echo \"Failure\" || echo \"Success\"";
     }
 
-    SetHbmTaskPhase(task, "wait_cache_state", NULL, NULL);
+    if (SetHbmTaskPhase(task, "wait_cache_state", NULL, NULL) != PWR_SUCCESS) {
+        return PWR_ERR_HBM_OPERATION_TIMEOUT;
+    }
     int retryCount = 0;
     while (retryCount < MAX_RETRY_COUNT) {
+        if (IsHbmTaskTimedOut(task)) {
+            return PWR_ERR_HBM_OPERATION_TIMEOUT;
+        }
         FILE *fp = popen(checkCmd, "r");
         if (fp == NULL) {
             Logger(ERROR, MD_NM_SVR_HBM, "Failed to run command");
@@ -727,11 +797,15 @@ static int WaitCacheDeviceState(HbmTask *task, int powerState)
 
 static int HandleCacheMode(HbmTask *task, const int powerState)
 {
-    if (EnsureCacheDriver(task) != PWR_SUCCESS) {
-        return PWR_ERR_COMMON;
+    int ret = EnsureCacheDriver(task);
+    if (ret != PWR_SUCCESS) {
+        return ret;
     }
     const char *stateStr = (powerState == 0) ? "offline" : "online";
-    SetCacheDeviceState(task, stateStr);
+    ret = SetCacheDeviceState(task, stateStr);
+    if (ret != PWR_SUCCESS) {
+        return ret;
+    }
     return WaitCacheDeviceState(task, powerState);
 }
 
@@ -753,7 +827,10 @@ static int EnsureFlatDriver(HbmTask *task, const char *stateStr)
         Logger(INFO, MD_NM_SVR_HBM, "No hbm_cache state files found, loading kernel moudle");
         Logger(DEBUG, MD_NM_SVR_HBM, "HBM driver load start. module:hisi_hbmdev");
         long long loadStartUs = GetTimeUs();
-        SetHbmTaskPhase(task, "load_device_driver", NULL, NULL);
+        if (SetHbmTaskPhase(task, "load_device_driver", NULL, NULL) != PWR_SUCCESS) {
+            pclose(checkFile);
+            return PWR_ERR_HBM_OPERATION_TIMEOUT;
+        }
         if (system("modprobe hisi_hbmdev") != 0) {
             Logger(ERROR, MD_NM_SVR_HBM, "Failed to load hbm.ko module");
             Logger(DEBUG, MD_NM_SVR_HBM,
@@ -789,17 +866,21 @@ static int PrepareFlatPowerOff(HbmTask *task, char offlinedNodes[][MAX_FULL_NAME
         RevertOfflinedNodesOnError(task, offlinedNodes, offlinedCnt, flushRet);
 }
 
-static void SetFlatDeviceState(HbmTask *task, const char *stateStr)
+static int SetFlatDeviceState(HbmTask *task, const char *stateStr)
 {
     // online/offline hbm node
     long long stepStartUs = GetTimeUs();
     Logger(DEBUG, MD_NM_SVR_HBM,
         "HBM phase start. phase:set_device_state, state:%s", stateStr);
-    SetHbmTaskPhase(task, "set_device_state", NULL, NULL);
-    int commandRet = SetStateFiles(HBM_DEVICE_STATE_PATTERN, stateStr, "Failed to set hbm device state");
+    if (SetHbmTaskPhase(task, "set_device_state", NULL, NULL) != PWR_SUCCESS) {
+        return PWR_ERR_HBM_OPERATION_TIMEOUT;
+    }
+    int commandRet = SetStateFiles(task, HBM_DEVICE_STATE_PATTERN, stateStr, "Failed to set hbm device state");
     Logger(DEBUG, MD_NM_SVR_HBM,
         "HBM phase finish. phase:set_device_state, state:%s, ret:%d, durationUs:%lld",
         stateStr, commandRet, GetTimeUs() - stepStartUs);
+    // Preserve status polling after ordinary write failures; stop immediately on timeout.
+    return IsHbmTaskTimedOut(task) ? PWR_ERR_HBM_OPERATION_TIMEOUT : PWR_SUCCESS;
 }
 
 static int WaitFlatDeviceState(HbmTask *task, int powerState, const char *stateStr)
@@ -816,12 +897,17 @@ static int WaitFlatDeviceState(HbmTask *task, int powerState, const char *stateS
             "2>/dev/null | grep -q -x -v '15' && echo \"Failure\" || echo \"Success\"";
     }
 
-    SetHbmTaskPhase(task, "wait_device_state", NULL, NULL);
+    if (SetHbmTaskPhase(task, "wait_device_state", NULL, NULL) != PWR_SUCCESS) {
+        return PWR_ERR_HBM_OPERATION_TIMEOUT;
+    }
     int retryCount = 0;
     long long stepStartUs = GetTimeUs();
     Logger(DEBUG, MD_NM_SVR_HBM,
         "HBM phase start. phase:wait_device_state, state:%s", stateStr);
     while (retryCount < MAX_RETRY_COUNT) {
+        if (IsHbmTaskTimedOut(task)) {
+            return PWR_ERR_HBM_OPERATION_TIMEOUT;
+        }
         FILE *fp = popen(checkCmd, "r");
         if (fp == NULL) {
             Logger(ERROR, MD_NM_SVR_HBM, "Failed to check hbm power state");
@@ -856,21 +942,25 @@ static int WaitFlatDeviceState(HbmTask *task, int powerState, const char *stateS
 
 static int HandleFlatMode(HbmTask *task, const int powerState)
 {
-    SetHbmTaskPhase(task, "check_device_nodes", NULL, NULL);
+    if (SetHbmTaskPhase(task, "check_device_nodes", NULL, NULL) != PWR_SUCCESS) {
+        return PWR_ERR_HBM_OPERATION_TIMEOUT;
+    }
     long long phaseStartUs = GetTimeUs();
     const char *stateStr = (powerState == 0) ? "offline" : "online";
     Logger(DEBUG, MD_NM_SVR_HBM, "HBM flat operation start. state:%s", stateStr);
 
-    if (EnsureFlatDriver(task, stateStr) != PWR_SUCCESS) {
-        return PWR_ERR_COMMON;
+    int ret = EnsureFlatDriver(task, stateStr);
+    if (ret != PWR_SUCCESS) {
+        return ret;
     }
     char offlinedNodes[MAX_HBM_NODE_COUNT][MAX_FULL_NAME] = {0};
-    int ret = PWR_SUCCESS;
     if (powerState == 0) {
         ret = PrepareFlatPowerOff(task, offlinedNodes);
     }
     if (ret == PWR_SUCCESS) {
-        SetFlatDeviceState(task, stateStr);
+        ret = SetFlatDeviceState(task, stateStr);
+    }
+    if (ret == PWR_SUCCESS) {
         ret = WaitFlatDeviceState(task, powerState, stateStr);
     }
     Logger(DEBUG, MD_NM_SVR_HBM,
@@ -881,7 +971,9 @@ static int HandleFlatMode(HbmTask *task, const int powerState)
 
 static int SetPowerState(HbmTask *task, int powerState)
 {
-    SetHbmTaskPhase(task, "detect_mode", NULL, NULL);
+    if (SetHbmTaskPhase(task, "detect_mode", NULL, NULL) != PWR_SUCCESS) {
+        return PWR_ERR_HBM_OPERATION_TIMEOUT;
+    }
     long long startUs = GetTimeUs();
     PWR_HBM_SYS_STATE hbmState = PWR_HBM_NOT_SUPPORT;
     int ret = PWR_ERR_HBM_SET_POWER_STATE_FAILED;
@@ -913,7 +1005,9 @@ int ExecuteHbmPowerTask(HbmTask *task)
     if (ret != PWR_SUCCESS) {
         return ret;
     }
-    SetHbmTaskPhase(task, "validate_request", NULL, NULL);
+    if (SetHbmTaskPhase(task, "validate_request", NULL, NULL) != PWR_SUCCESS) {
+        return PWR_ERR_HBM_OPERATION_TIMEOUT;
+    }
     HbmTaskSnapshot snapshot;
     ret = SnapshotHbmTask(task, &snapshot);
     if (ret == PWR_SUCCESS) {
@@ -926,7 +1020,7 @@ int ExecuteHbmPowerTask(HbmTask *task)
             SetPowerState(task, state) : PWR_ERR_INVALIDE_PARAM;
     }
     FinishHbmTask(task, ret);
-    return ret;
+    return IsHbmTaskTimedOut(task) ? PWR_ERR_HBM_OPERATION_TIMEOUT : ret;
 }
 
 void SetHbmAllPowerState(PwrMsg *req)

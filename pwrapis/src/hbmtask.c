@@ -49,6 +49,24 @@ static void CopyTaskString(char *dest, size_t destSize, const char *src)
     dest[i] = '\0';
 }
 
+/* Caller holds task->lock. Keep timeout and normal completion mutually exclusive. */
+static int CheckDeadline(HbmTask *task)
+{
+    if (task->state.started && !task->state.finished &&
+        MonotonicUs() - task->state.startUs >= HBM_TASK_TIMEOUT_US) {
+        task->state.timedOut = 1;
+    }
+    return task->state.timedOut;
+}
+
+int IsHbmTaskTimedOut(HbmTask *task)
+{
+    pthread_mutex_lock(&task->lock);
+    int expired = CheckDeadline(task);
+    pthread_mutex_unlock(&task->lock);
+    return expired;
+}
+
 HbmTask *CreateHbmTask(const PwrMsg *req)
 {
     if (!req || !req->data || req->head.dataLen != sizeof(int)) {
@@ -85,6 +103,7 @@ int StartHbmTask(HbmTask *task)
     }
     task->state.started = 1;
     task->state.startUs = MonotonicUs();
+    task->state.phaseStartUs = task->state.startUs;
     pthread_mutex_unlock(&task->lock);
     return PWR_SUCCESS;
 }
@@ -92,19 +111,25 @@ int StartHbmTask(HbmTask *task)
 void FinishHbmTask(HbmTask *task, int result)
 {
     pthread_mutex_lock(&task->lock);
+    result = CheckDeadline(task) ? PWR_ERR_HBM_OPERATION_TIMEOUT : result;
     task->state.finished = 1;
     task->state.result = result;
     pthread_mutex_unlock(&task->lock);
 }
 
-void SetHbmTaskPhase(HbmTask *task, const char *phase, const char *node, const char *block)
+int SetHbmTaskPhase(HbmTask *task, const char *phase, const char *node, const char *block)
 {
     pthread_mutex_lock(&task->lock);
+    if (CheckDeadline(task)) {
+        pthread_mutex_unlock(&task->lock);
+        return PWR_ERR_HBM_OPERATION_TIMEOUT;
+    }
     CopyTaskString(task->state.phase, sizeof(task->state.phase), phase);
     CopyTaskString(task->state.node, sizeof(task->state.node), node);
     CopyTaskString(task->state.block, sizeof(task->state.block), block);
     task->state.phaseStartUs = MonotonicUs();
     pthread_mutex_unlock(&task->lock);
+    return PWR_SUCCESS;
 }
 
 int PrepareHbmProgress(HbmTask *task, const char *node, const char *block, size_t *index)
@@ -117,6 +142,10 @@ int PrepareHbmProgress(HbmTask *task, const char *node, const char *block, size_
     }
     pthread_mutex_lock(&task->lock);
     size_t count = task->state.progressCount;
+    if (CheckDeadline(task)) {
+        pthread_mutex_unlock(&task->lock);
+        return PWR_ERR_HBM_OPERATION_TIMEOUT;
+    }
     if (count >= SIZE_MAX / sizeof(HbmProgress)) {
         pthread_mutex_unlock(&task->lock);
         return PWR_ERR_COMMON;
@@ -143,6 +172,10 @@ int PrepareHbmProgress(HbmTask *task, const char *node, const char *block, size_
 void CompleteHbmProgress(HbmTask *task, size_t index, int alreadyOffline)
 {
     pthread_mutex_lock(&task->lock);
+    if (CheckDeadline(task)) {
+        pthread_mutex_unlock(&task->lock);
+        return;
+    }
     task->state.progress[index].completed = 1;
     task->state.progress[index].alreadyOffline = alreadyOffline;
     pthread_mutex_unlock(&task->lock);
@@ -151,6 +184,10 @@ void CompleteHbmProgress(HbmTask *task, size_t index, int alreadyOffline)
 void RestoreHbmProgress(HbmTask *task, const char *node, const char *block)
 {
     pthread_mutex_lock(&task->lock);
+    if (CheckDeadline(task)) {
+        pthread_mutex_unlock(&task->lock);
+        return;
+    }
     for (size_t i = 0; i < task->state.progressCount; i++) {
         HbmProgress *p = &task->state.progress[i];
         if (strcmp(p->node, node) == 0 && strcmp(p->block, block ? block : "") == 0) {
