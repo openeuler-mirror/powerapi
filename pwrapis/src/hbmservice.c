@@ -13,8 +13,13 @@
  * Description: provide hbm service
  * **************************************************************************** */
 
+#include <errno.h>
+#include <fcntl.h>
+#include <stdio.h>
+#include <string.h>
+#include <sys/utsname.h>
+#include <sys/wait.h>
 #include "config.h"
-#include "string.h"
 #include "pwrerr.h"
 #include "server.h"
 #include "log.h"
@@ -25,6 +30,10 @@
 #define MAX_RETRY_COUNT 50
 #define RETRY_INTERVAL_MS 100
 #define MAX_HBM_NODE_COUNT 256
+#define HBM_FLUSH_MODULE_NAME "hbm_flush"
+#define HBM_FLUSH_PROC_PATH "/proc/hbm_flush"
+#define HBM_FLUSH_TRIGGER "1\n"
+#define HBM_INSMOD_PATH "/sbin/insmod"
 
 #define EXEC_COMMAND(cmd) \
     do { \
@@ -55,6 +64,50 @@ static int BuildPath(char *path, size_t pathSize, const char *directory,
         }
     }
     path[pos] = '\0';
+    return PWR_SUCCESS;
+}
+
+static int CopyString(char *dest, size_t destSize, const char *src)
+{
+    if (!dest || destSize == 0 || !src) {
+        return PWR_ERR_INVALIDE_PARAM;
+    }
+
+    size_t i = 0;
+    while (src[i] != '\0') {
+        if (i + 1 >= destSize) {
+            dest[0] = '\0';
+            return PWR_ERR_COMMON;
+        }
+        dest[i] = src[i];
+        ++i;
+    }
+    dest[i] = '\0';
+    return PWR_SUCCESS;
+}
+
+static int RunInsmod(const char *modulePath)
+{
+    pid_t pid = fork();
+    if (pid < 0) {
+        return PWR_ERR_COMMON;
+    }
+    if (pid == 0) {
+        char programName[] = "insmod";
+        char *const argv[] = {programName, (char *)modulePath, NULL};
+        char *const envp[] = {NULL};
+        execve(HBM_INSMOD_PATH, argv, envp);
+        _exit(127);
+    }
+
+    int status;
+    pid_t waitRet;
+    do {
+        waitRet = waitpid(pid, &status, 0);
+    } while (waitRet < 0 && errno == EINTR);
+    if (waitRet < 0 || !WIFEXITED(status) || WEXITSTATUS(status) != 0) {
+        return PWR_ERR_COMMON;
+    }
     return PWR_SUCCESS;
 }
 
@@ -190,7 +243,7 @@ static int RevertOfflinedNodes(char offlinedNodes[][MAX_FULL_NAME], int count)
     return revertErr;
 }
 
-static int OfflineAllHBMNode(void)
+static int OfflineAllHBMNode(char offlinedNodes[][MAX_FULL_NAME], int *offlinedCnt)
 {
     DIR *dirPtr = opendir("/sys/devices/system/node");
     if (dirPtr == NULL) {
@@ -198,8 +251,7 @@ static int OfflineAllHBMNode(void)
         return PWR_ERR_FILE_OPEN_FAILED;
     }
 
-    char offlinedNodes[MAX_HBM_NODE_COUNT][MAX_FULL_NAME];
-    int offlinedCnt = 0;
+    *offlinedCnt = 0;
     int errCode = PWR_SUCCESS;
     struct dirent *dirEntry;
 
@@ -219,7 +271,7 @@ static int OfflineAllHBMNode(void)
             continue;
         }
 
-        if (offlinedCnt >= MAX_HBM_NODE_COUNT) {
+        if (*offlinedCnt >= MAX_HBM_NODE_COUNT) {
             Logger(ERROR, MD_NM_SVR_HBM, "HBM node count exceeds max revert capacity %d", MAX_HBM_NODE_COUNT);
             errCode = PWR_ERR_COMMON;
             break;
@@ -227,8 +279,12 @@ static int OfflineAllHBMNode(void)
 
         // Record the node path before offlining so a partial failure inside the
         // node is also covered by the revert loop (OnlineMemoryState is idempotent).
-        (void)snprintf(offlinedNodes[offlinedCnt], MAX_FULL_NAME, "%s", nodePath);
-        offlinedCnt++;
+        if (CopyString(offlinedNodes[*offlinedCnt], MAX_FULL_NAME, nodePath) != PWR_SUCCESS) {
+            Logger(ERROR, MD_NM_SVR_HBM, "Failed to save offlined node path %s", nodePath);
+            errCode = PWR_ERR_COMMON;
+            break;
+        }
+        (*offlinedCnt)++;
 
         if (OfflineMemoryState(nodePath) != PWR_SUCCESS) {
             Logger(ERROR, MD_NM_SVR_HBM, "Failed to offline memory of node %s", nodePath);
@@ -242,16 +298,132 @@ static int OfflineAllHBMNode(void)
     if (errCode != PWR_SUCCESS) {
         // If revert itself fails, the system is left in a half-offlined state;
         // surface the stronger error so callers don't treat it as a clean failure.
-        int revertErr = RevertOfflinedNodes(offlinedNodes, offlinedCnt);
+        int revertErr = RevertOfflinedNodes(offlinedNodes, *offlinedCnt);
         if (revertErr != PWR_SUCCESS) {
             Logger(ERROR, MD_NM_SVR_HBM,
                    "HBM offline revert failed, system left in inconsistent state (offlined=%d)",
-                   offlinedCnt);
+                   *offlinedCnt);
             errCode = revertErr;
         }
     }
 
     return errCode;
+}
+
+static int RevertOfflinedNodesOnError(char offlinedNodes[][MAX_FULL_NAME], int offlinedCnt, int errCode)
+{
+    int revertErr = RevertOfflinedNodes(offlinedNodes, offlinedCnt);
+    if (revertErr != PWR_SUCCESS) {
+        Logger(ERROR, MD_NM_SVR_HBM,
+               "Failed to revert HBM memory nodes after error:%d, offlined:%d",
+               errCode, offlinedCnt);
+        return revertErr;
+    }
+    return errCode;
+}
+
+static int LoadHbmFlushModule(int *needUnload)
+{
+    *needUnload = 0;
+
+    if (access(HBM_FLUSH_PROC_PATH, W_OK) == 0) {
+        *needUnload = 1;
+        return PWR_SUCCESS;
+    }
+
+    if (errno != ENOENT) {
+        *needUnload = 1;
+        Logger(ERROR, MD_NM_SVR_HBM, "Failed to access %s. errno:%d, %s",
+               HBM_FLUSH_PROC_PATH, errno, strerror(errno));
+        return PWR_ERR_HBM_FLUSH_CACHE_FAILED;
+    }
+
+    struct utsname uts;
+    if (uname(&uts) != 0) {
+        Logger(ERROR, MD_NM_SVR_HBM, "Failed to get kernel release. errno:%d, %s", errno, strerror(errno));
+        return PWR_ERR_HBM_FLUSH_CACHE_FAILED;
+    }
+
+    char modulePath[MAX_FULL_NAME] = {0};
+    int ret = BuildPath(modulePath, sizeof(modulePath), "/lib/modules", uts.release,
+        HBM_FLUSH_MODULE_NAME ".ko");
+    if (ret != PWR_SUCCESS) {
+        Logger(ERROR, MD_NM_SVR_HBM, "Failed to build %s.ko path", HBM_FLUSH_MODULE_NAME);
+        return PWR_ERR_HBM_FLUSH_CACHE_FAILED;
+    }
+
+    if (access(modulePath, R_OK) != 0) {
+        Logger(ERROR, MD_NM_SVR_HBM, "Failed to access %s. errno:%d, %s",
+               modulePath, errno, strerror(errno));
+        return PWR_ERR_HBM_FLUSH_CACHE_FAILED;
+    }
+
+    *needUnload = 1;
+    if (RunInsmod(modulePath) != PWR_SUCCESS) {
+        Logger(ERROR, MD_NM_SVR_HBM, "Failed to insmod %s", modulePath);
+        return PWR_ERR_HBM_FLUSH_CACHE_FAILED;
+    }
+
+    if (access(HBM_FLUSH_PROC_PATH, W_OK) != 0) {
+        Logger(ERROR, MD_NM_SVR_HBM, "Failed to access %s after insmod %s.ko. errno:%d, %s",
+               HBM_FLUSH_PROC_PATH, HBM_FLUSH_MODULE_NAME, errno, strerror(errno));
+        return PWR_ERR_HBM_FLUSH_CACHE_FAILED;
+    }
+
+    return PWR_SUCCESS;
+}
+
+static int UnloadHbmFlushModule(void)
+{
+    if (system("rmmod " HBM_FLUSH_MODULE_NAME) != 0) {
+        Logger(ERROR, MD_NM_SVR_HBM, "Failed to rmmod %s.ko module", HBM_FLUSH_MODULE_NAME);
+        return PWR_ERR_HBM_FLUSH_CACHE_FAILED;
+    }
+
+    return PWR_SUCCESS;
+}
+
+static int TriggerHbmCacheFlush(void)
+{
+    int fd = open(HBM_FLUSH_PROC_PATH, O_WRONLY);
+    if (fd < 0) {
+        Logger(ERROR, MD_NM_SVR_HBM, "Failed to open %s. errno:%d, %s",
+               HBM_FLUSH_PROC_PATH, errno, strerror(errno));
+        return PWR_ERR_HBM_FLUSH_CACHE_FAILED;
+    }
+
+    size_t triggerLen = strlen(HBM_FLUSH_TRIGGER);
+    ssize_t writeLen = write(fd, HBM_FLUSH_TRIGGER, triggerLen);
+    if (writeLen != (ssize_t)triggerLen) {
+        Logger(ERROR, MD_NM_SVR_HBM, "Failed to trigger HBM cache flush. errno:%d, %s",
+               errno, strerror(errno));
+        (void)close(fd);
+        return PWR_ERR_HBM_FLUSH_CACHE_FAILED;
+    }
+
+    if (close(fd) != 0) {
+        Logger(ERROR, MD_NM_SVR_HBM, "Failed to close %s after cache flush. errno:%d, %s",
+               HBM_FLUSH_PROC_PATH, errno, strerror(errno));
+        return PWR_ERR_HBM_FLUSH_CACHE_FAILED;
+    }
+
+    return PWR_SUCCESS;
+}
+
+static int FlushHbmCacheBeforePowerOff(void)
+{
+    int needUnload = 0;
+    int ret = LoadHbmFlushModule(&needUnload);
+    if (ret == PWR_SUCCESS) {
+        ret = TriggerHbmCacheFlush();
+    }
+
+    int unloadRet = needUnload ? UnloadHbmFlushModule() : PWR_SUCCESS;
+    if (ret != PWR_SUCCESS) {
+        return ret;
+    }
+
+    return unloadRet;
 }
 
 static int GetHbmMode(PWR_HBM_SYS_STATE *state)
@@ -390,11 +562,19 @@ static int HandleFlatMode(const int powerState)
     }
     pclose(checkFile);
 
-    // offline all memory
+    char offlinedNodes[MAX_HBM_NODE_COUNT][MAX_FULL_NAME] = {0};
+    int offlinedCnt = 0;
+
+    // Flush cache after HBM memory is offlined and before the device is powered off.
     if (powerState == 0) {
-        int offlineRet = OfflineAllHBMNode();
+        int offlineRet = OfflineAllHBMNode(offlinedNodes, &offlinedCnt);
         if (offlineRet != PWR_SUCCESS) {
             return offlineRet;
+        }
+
+        int flushRet = FlushHbmCacheBeforePowerOff();
+        if (flushRet != PWR_SUCCESS) {
+            return RevertOfflinedNodesOnError(offlinedNodes, offlinedCnt, flushRet);
         }
     }
 
