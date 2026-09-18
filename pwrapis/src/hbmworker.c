@@ -46,6 +46,17 @@ static PwrMsg *PopHbmRequest(void)
     return req;
 }
 
+/* Caller holds g_hbmLock. Reject pending work before another task can start. */
+static void RejectPendingHbmRequests(void)
+{
+    g_hbmUnavailable = 1;
+    while (g_hbmCount) {
+        PwrMsg *req = PopHbmRequest();
+        SendRspToClient(req, PWR_ERR_HBM_STATE_UNKNOWN, NULL, 0);
+        ReleasePwrMsg(&req);
+    }
+}
+
 /* g_hbmLock protects the active task lifetime and the single response decision. */
 static void ReportTimeout(void)
 {
@@ -53,11 +64,7 @@ static void ReportTimeout(void)
     g_activeResponded = 1;
     SendRspToClient(g_activeRequest, PWR_ERR_HBM_OPERATION_TIMEOUT, NULL, 0);
     MsgHead request = g_activeRequest->head;
-    while (g_hbmCount) {
-        PwrMsg *req = PopHbmRequest();
-        SendRspToClient(req, PWR_ERR_HBM_STATE_UNKNOWN, NULL, 0);
-        ReleasePwrMsg(&req);
-    }
+    RejectPendingHbmRequests();
     HbmTaskSnapshot snapshot;
     int snapshotRet = SnapshotHbmTask(g_activeTask, &snapshot);
     // The deep copy outlives the task. Do not block queue rejection on progress logging.
@@ -109,6 +116,30 @@ static void *RunHbmWatchdog(void *arg)
     }
 }
 
+/* Caller holds g_hbmLock; ReportTimeout temporarily releases and reacquires it. */
+static void ReplyCompletedHbmTask(PwrMsg *req, HbmTask *task, int ret)
+{
+    if (g_activeResponded) {
+        return;
+    }
+    if (IsHbmTaskTimedOut(task)) {
+        ReportTimeout();
+        return;
+    }
+
+    g_activeResponded = 1;
+    if (ret == PWR_ERR_HBM_REVERT_MEMORY_FAILED) {
+        g_hbmUnavailable = 1;
+    }
+    SendRspToClient(req, ret, NULL, 0);
+    if (ret == PWR_ERR_HBM_REVERT_MEMORY_FAILED) {
+        RejectPendingHbmRequests();
+        Logger(ERROR, MD_NM_SVR_HBM,
+            "HBM rollback failed. sysId:%u, seqId:%u, hbmState:unknown, furtherPowerRequests:rejected",
+            req->head.sysId, req->head.seqId);
+    }
+}
+
 static void *RunHbmWorker(void *arg)
 {
     (void)arg;
@@ -137,14 +168,7 @@ static void *RunHbmWorker(void *arg)
             req->head.optType, req->head.sysId, req->head.seqId);
         int ret = ExecuteHbmPowerTask(task);
         pthread_mutex_lock(&g_hbmLock);
-        if (!g_activeResponded) {
-            if (IsHbmTaskTimedOut(task)) {
-                ReportTimeout();
-            } else {
-                g_activeResponded = 1;
-                ReplyHbmTask(req, task, ret);
-            }
-        }
+        ReplyCompletedHbmTask(req, task, ret);
         Logger(DEBUG, MD_NM_SVR_HBM,
             "HBM worker request finish. sysId:%u, seqId:%u, ret:%d, hbmUnavailable:%d",
             req->head.sysId, req->head.seqId, ret, g_hbmUnavailable);
