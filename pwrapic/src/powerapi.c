@@ -29,6 +29,8 @@
 #include "pwrproc.h"
 #include "pwrhbm.h"
 
+#undef PWR_HBM_SetAllPwrState
+
 #define CHECK_STATUS(s)                           \
     {                                             \
         if ((s) > GetPwrApiStatus()) {                     \
