@@ -41,6 +41,7 @@
 #define HBM_INSMOD_PATH "/sbin/insmod"
 #define HBM_CACHE_STATE_PATTERN "/sys/kernel/hbm_cache/*/state"
 #define HBM_DEVICE_STATE_PATTERN "/sys/devices/system/container/PNP0A06*/state"
+#define HBM_DEVICE_STATUS_PATTERN "/sys/devices/system/container/PNP0A06*/firmware_node/PNP0C80*/status"
 
 static long long GetTimeUs(void)
 {
@@ -853,13 +854,65 @@ static int EnsureFlatDriver(HbmTask *task, const char *stateStr)
     return PWR_SUCCESS;
 }
 
-static int PrepareFlatPowerOff(HbmTask *task, char offlinedNodes[][MAX_FULL_NAME], int flush)
+static int CheckFlatDevicesOffline(HbmTask *task, int *allOffline)
+{
+    glob_t paths = {0};
+    *allOffline = 0;
+    if (glob(HBM_DEVICE_STATUS_PATTERN, GLOB_NOSORT, NULL, &paths) != 0 || paths.gl_pathc == 0) {
+        Logger(ERROR, MD_NM_SVR_HBM, "Cannot verify HBM device state when no memory nodes were offlined");
+        globfree(&paths);
+        return PWR_ERR_HBM_SET_POWER_STATE_FAILED;
+    }
+
+    int ret = PWR_SUCCESS;
+    int offlineCount = 0;
+    for (size_t i = 0; i < paths.gl_pathc; i++) {
+        if (IsHbmTaskTimedOut(task)) {
+            ret = PWR_ERR_HBM_OPERATION_TIMEOUT;
+            break;
+        }
+        char status[PWR_MAX_NAME_LEN] = {0};
+        if (ReadFile(paths.gl_pathv[i], status, sizeof(status)) != PWR_SUCCESS) {
+            ret = PWR_ERR_HBM_SET_POWER_STATE_FAILED;
+            break;
+        }
+        if (strcmp(status, "13") == 0) {
+            offlineCount++;
+        } else if (strcmp(status, "15") != 0) {
+            Logger(ERROR, MD_NM_SVR_HBM, "Unexpected HBM device status %s at %s", status, paths.gl_pathv[i]);
+            ret = PWR_ERR_HBM_SET_POWER_STATE_FAILED;
+            break;
+        }
+    }
+    if (ret == PWR_SUCCESS) {
+        if (offlineCount == (int)paths.gl_pathc) {
+            *allOffline = 1;
+        } else {
+            Logger(ERROR, MD_NM_SVR_HBM,
+                "No HBM memory nodes were offlined, but %zu of %zu devices remain online",
+                paths.gl_pathc - offlineCount, paths.gl_pathc);
+            ret = PWR_ERR_HBM_OFFLINE_MEMORY_FAILED;
+        }
+    }
+    globfree(&paths);
+    return ret;
+}
+
+static int PrepareFlatPowerOff(HbmTask *task, char offlinedNodes[][MAX_FULL_NAME], int flush,
+    int *alreadyOffline)
 {
     int offlinedCnt = 0;
     // Flush cache after HBM memory is offlined and before the device is powered off.
     int offlineRet = OfflineAllHBMNode(task, offlinedNodes, &offlinedCnt);
     if (offlineRet != PWR_SUCCESS) {
         return offlineRet;
+    }
+    if (offlinedCnt == 0) {
+        int ret = CheckFlatDevicesOffline(task, alreadyOffline);
+        if (ret == PWR_SUCCESS) {
+            Logger(INFO, MD_NM_SVR_HBM, "HBM devices already offline; skipping repeated power-off and flush");
+        }
+        return ret;
     }
     if (!flush) {
         return PWR_SUCCESS;
@@ -957,13 +1010,14 @@ static int HandleFlatMode(HbmTask *task, const int powerState, int flush)
         return ret;
     }
     char offlinedNodes[MAX_HBM_NODE_COUNT][MAX_FULL_NAME] = {0};
+    int alreadyOffline = 0;
     if (powerState == 0) {
-        ret = PrepareFlatPowerOff(task, offlinedNodes, flush);
+        ret = PrepareFlatPowerOff(task, offlinedNodes, flush, &alreadyOffline);
     }
-    if (ret == PWR_SUCCESS) {
+    if (ret == PWR_SUCCESS && !alreadyOffline) {
         ret = SetFlatDeviceState(task, stateStr);
     }
-    if (ret == PWR_SUCCESS) {
+    if (ret == PWR_SUCCESS && !alreadyOffline) {
         ret = WaitFlatDeviceState(task, powerState, stateStr);
     }
     Logger(DEBUG, MD_NM_SVR_HBM,
