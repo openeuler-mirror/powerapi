@@ -69,7 +69,7 @@ int IsHbmTaskTimedOut(HbmTask *task)
 
 HbmTask *CreateHbmTask(const PwrMsg *req)
 {
-    if (!req || !req->data || req->head.dataLen != sizeof(HbmPowerStateRequest)) {
+    if (!req || !req->data || req->head.dataLen != sizeof(int)) {
         return NULL;
     }
     HbmTask *task = calloc(1, sizeof(*task));
@@ -81,9 +81,7 @@ HbmTask *CreateHbmTask(const PwrMsg *req)
         return NULL;
     }
     task->state.request = req->head;
-    HbmPowerStateRequest request = *(const HbmPowerStateRequest *)req->data;
-    task->state.powerState = request.state;
-    task->state.flush = request.flush;
+    task->state.powerState = *(const int *)req->data;
     return task;
 }
 

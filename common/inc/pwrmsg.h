@@ -108,11 +108,6 @@ enum OperationType {
     HBM_GET_SYS_STATE = 700,
     HBM_SET_ALL_POWER_STATE,
 };
-/* Payload for HBM_SET_ALL_POWER_STATE. */
-typedef struct {
-    int state;
-    int flush;
-} HbmPowerStateRequest;
 
 enum DataFormat {
     FMT_BIN = 0,

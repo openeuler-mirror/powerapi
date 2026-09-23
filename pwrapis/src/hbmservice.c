@@ -798,7 +798,7 @@ static int CheckFlatDevicesOffline(HbmTask *task, int *allOffline)
     return ret;
 }
 
-static int PrepareFlatPowerOff(HbmTask *task, int flush, int *alreadyOffline)
+static int PrepareFlatPowerOff(HbmTask *task, int *alreadyOffline)
 {
     int offlinedCnt = 0;
     // Flush cache after HBM memory is offlined and before the device is powered off.
@@ -812,9 +812,6 @@ static int PrepareFlatPowerOff(HbmTask *task, int flush, int *alreadyOffline)
             Logger(INFO, MD_NM_SVR_HBM, "HBM devices already offline; skipping repeated power-off and flush");
         }
         return ret;
-    }
-    if (!flush) {
-        return PWR_SUCCESS;
     }
     return FlushHbmCacheBeforePowerOff(task);
 }
@@ -893,7 +890,7 @@ static int WaitFlatDeviceState(HbmTask *task, int powerState, const char *stateS
     return PWR_ERR_HBM_POWER_STATE_NOT_REACHED;
 }
 
-static int HandleFlatMode(HbmTask *task, const int powerState, int flush)
+static int HandleFlatMode(HbmTask *task, const int powerState)
 {
     if (SetHbmTaskPhase(task, "check_device_nodes", NULL, NULL) != PWR_SUCCESS) {
         return PWR_ERR_HBM_OPERATION_TIMEOUT;
@@ -908,7 +905,7 @@ static int HandleFlatMode(HbmTask *task, const int powerState, int flush)
     }
     int alreadyOffline = 0;
     if (powerState == 0) {
-        ret = PrepareFlatPowerOff(task, flush, &alreadyOffline);
+        ret = PrepareFlatPowerOff(task, &alreadyOffline);
     }
     if (ret == PWR_SUCCESS && !alreadyOffline) {
         ret = SetFlatDeviceState(task, stateStr);
@@ -922,7 +919,7 @@ static int HandleFlatMode(HbmTask *task, const int powerState, int flush)
     return ret;
 }
 
-static int SetPowerState(HbmTask *task, int powerState, int flush)
+static int SetPowerState(HbmTask *task, int powerState)
 {
     if (SetHbmTaskPhase(task, "detect_mode", NULL, NULL) != PWR_SUCCESS) {
         return PWR_ERR_HBM_OPERATION_TIMEOUT;
@@ -943,7 +940,7 @@ static int SetPowerState(HbmTask *task, int powerState, int flush)
     if (hbmState == PWR_HBM_CACHE_MOD) {
         ret = HandleCacheMode(task, powerState);
     } else if (hbmState == PWR_HBM_FLAT_MOD) {
-        ret = HandleFlatMode(task, powerState, flush);
+        ret = HandleFlatMode(task, powerState);
     }
 
     return ret;
@@ -965,13 +962,12 @@ int ExecuteHbmPowerTask(HbmTask *task)
     ret = SnapshotHbmTask(task, &snapshot);
     if (ret == PWR_SUCCESS) {
         int state = snapshot.powerState;
-        int flush = snapshot.flush;
         Logger(DEBUG, MD_NM_SVR_HBM,
             "HBM task execute. opt:%u, sysId:%u, seqId:%u, state:%d",
             snapshot.request.optType, snapshot.request.sysId, snapshot.request.seqId, state);
         FreeHbmTaskSnapshot(&snapshot);
-        ret = ((state == PWR_ENABLE || state == PWR_DISABLE) && (flush == 0 || flush == 1)) ?
-            SetPowerState(task, state, flush) : PWR_ERR_INVALIDE_PARAM;
+        ret = (state == PWR_ENABLE || state == PWR_DISABLE) ?
+            SetPowerState(task, state) : PWR_ERR_INVALIDE_PARAM;
     }
     FinishHbmTask(task, ret);
     return IsHbmTaskTimedOut(task) ? PWR_ERR_HBM_OPERATION_TIMEOUT : ret;
@@ -985,17 +981,15 @@ void SetHbmAllPowerState(PwrMsg *req)
         "HBM request start. sysId:%d, seqId:%d, dataLen:%d",
         req ? req->head.sysId : 0, req ? req->head.seqId : 0, req ? req->head.dataLen : 0);
     do {
-        if (!req || !req->data || req->head.dataLen != sizeof(HbmPowerStateRequest)) {
+        if (!req || !req->data || req->head.dataLen != sizeof(int)) {
             Logger(ERROR, MD_NM_SVR_HBM, "SetHbmAllPowerState: wrong req msg.dataLen:%d",
                    req ? req->head.dataLen : 0);
             rspCode = PWR_ERR_INVALIDE_PARAM;
             break;
         }
 
-        HbmPowerStateRequest request = *(const HbmPowerStateRequest *)req->data;
-        int state = request.state;
-        if ((state != PWR_ENABLE && state != PWR_DISABLE) ||
-            (request.flush != 0 && request.flush != 1)) {
+        int state = *(const int *)req->data;
+        if (state != PWR_ENABLE && state != PWR_DISABLE) {
             Logger(ERROR, MD_NM_SVR_HBM, "SetHbmAllPowerState: wrong state:%d", state);
             rspCode = PWR_ERR_INVALIDE_PARAM;
             break;

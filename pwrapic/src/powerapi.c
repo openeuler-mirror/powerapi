@@ -29,8 +29,6 @@
 #include "pwrproc.h"
 #include "pwrhbm.h"
 
-#undef PWR_HBM_SetAllPwrState
-
 #define CHECK_STATUS(s)                           \
     {                                             \
         if ((s) > GetPwrApiStatus()) {                     \
@@ -399,13 +397,13 @@ int PWR_HBM_GetSysState(PWR_HBM_SYS_STATE *hbmState)
     return GetHbmSysState(hbmState);
 }
 
-int PWR_HBM_SetAllPwrState(int state, int flush)
+int PWR_HBM_SetAllPwrState(int state)
 {
     CHECK_STATUS(STATUS_AUTHED);
-    if ((state != PWR_DISABLE && state != PWR_ENABLE) || (flush != 0 && flush != 1)) {
+    if (state != PWR_DISABLE && state != PWR_ENABLE) {
         return PWR_ERR_INVALIDE_PARAM;
     }
-    return SetAllHbmPowerState(state, flush);
+    return SetAllHbmPowerState(state);
 }
 
 // PROC

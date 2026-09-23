@@ -606,10 +606,10 @@ static void TEST_PWR_HBM_SetAllPwrState(void)
     ret = PWR_HBM_SetAllPwrState(PWR_DISABLE);
     PrintResult("TEST_PWR_HBM_SetAllPwrState", ret);
 
-    ret = PWR_HBM_SetAllPwrState(PWR_ENABLE, 1);
+    ret = PWR_HBM_SetAllPwrState(PWR_ENABLE);
     PrintResult("TEST_PWR_HBM_SetAllPwrState", ret);
 
-    ret = PWR_HBM_SetAllPwrState(TEST_HBM_INVALID_POWER_STATE, 1);
+    ret = PWR_HBM_SetAllPwrState(TEST_HBM_INVALID_POWER_STATE);
     PrintResult("TEST_PWR_HBM_SetAllPwrState", ret);
 }
 

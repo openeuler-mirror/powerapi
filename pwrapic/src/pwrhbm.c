@@ -39,11 +39,10 @@ int GetHbmSysState(PWR_HBM_SYS_STATE *hmbState)
     return ret;
 }
 
-int SetAllHbmPowerState(int state, int flush)
+int SetAllHbmPowerState(int state)
 {
-    HbmPowerStateRequest request = {.state = state, .flush = flush};
     ReqInputParam input = {.optType = HBM_SET_ALL_POWER_STATE,
-        .dataLen = sizeof(request), .data = (char *)&request};
+        .dataLen = sizeof(state), .data = (char *)&state};
     RspOutputParam output = {.rspBuffSize = NULL, .rspData = NULL};
     int ret = SendReqAndWaitForRsp(input, output);
     if (ret != PWR_SUCCESS) {

@@ -29,7 +29,6 @@ typedef struct {
 typedef struct {
     MsgHead request;
     int powerState;
-    int flush;
     int started;
     int finished;
     int timedOut;
