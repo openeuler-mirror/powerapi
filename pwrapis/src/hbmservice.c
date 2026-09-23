@@ -103,25 +103,6 @@ static int BuildPath(char *path, size_t pathSize, const char *directory,
     return PWR_SUCCESS;
 }
 
-static int CopyString(char *dest, size_t destSize, const char *src)
-{
-    if (!dest || destSize == 0 || !src) {
-        return PWR_ERR_INVALIDE_PARAM;
-    }
-
-    size_t i = 0;
-    while (src[i] != '\0') {
-        if (i + 1 >= destSize) {
-            dest[0] = '\0';
-            return PWR_ERR_COMMON;
-        }
-        dest[i] = src[i];
-        ++i;
-    }
-    dest[i] = '\0';
-    return PWR_SUCCESS;
-}
-
 static int RunInsmod(const char *modulePath)
 {
     pid_t pid = fork();
