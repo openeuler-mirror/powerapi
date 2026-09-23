@@ -24,8 +24,6 @@ typedef struct {
     char block[PWR_MAX_NAME_LEN]; /* Empty for a completed node. */
     int alreadyOffline;
     int completed;
-    int restored;
-    int rollbackStarted; /* Node-level record: no longer known to be wholly offline. */
 } HbmProgress;
 
 typedef struct {
@@ -59,7 +57,6 @@ void FinishHbmTask(HbmTask *task, int result);
 int SetHbmTaskPhase(HbmTask *task, const char *phase, const char *node, const char *block);
 int PrepareHbmProgress(HbmTask *task, const char *node, const char *block, size_t *index);
 void CompleteHbmProgress(HbmTask *task, size_t index, int alreadyOffline);
-void RestoreHbmProgress(HbmTask *task, const char *node, const char *block);
 /* Snapshot owns a deep copy of progress; release it with FreeHbmTaskSnapshot. */
 int SnapshotHbmTask(HbmTask *task, HbmTaskSnapshot *snapshot);
 void FreeHbmTaskSnapshot(HbmTaskSnapshot *snapshot);

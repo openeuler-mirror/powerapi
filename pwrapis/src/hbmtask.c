@@ -130,17 +130,6 @@ int SetHbmTaskPhase(HbmTask *task, const char *phase, const char *node, const ch
     CopyTaskString(task->state.node, sizeof(task->state.node), node);
     CopyTaskString(task->state.block, sizeof(task->state.block), block);
     task->state.phaseStartUs = MonotonicUs();
-    /* SetMemoryState announces rollback before any online read/write can block.
-     * A partial rollback must not leave the node in the wholly-offline list.
-     */
-    if (node && !block && strcmp(phase, "revert_memory") == 0) {
-        for (size_t i = 0; i < task->state.progressCount; i++) {
-            HbmProgress *p = &task->state.progress[i];
-            if (!p->block[0] && strcmp(p->node, node) == 0) {
-                p->rollbackStarted = 1;
-            }
-        }
-    }
     pthread_mutex_unlock(&task->lock);
     return PWR_SUCCESS;
 }
@@ -191,22 +180,6 @@ void CompleteHbmProgress(HbmTask *task, size_t index, int alreadyOffline)
     }
     task->state.progress[index].completed = 1;
     task->state.progress[index].alreadyOffline = alreadyOffline;
-    pthread_mutex_unlock(&task->lock);
-}
-
-void RestoreHbmProgress(HbmTask *task, const char *node, const char *block)
-{
-    pthread_mutex_lock(&task->lock);
-    if (CheckDeadline(task)) {
-        pthread_mutex_unlock(&task->lock);
-        return;
-    }
-    for (size_t i = 0; i < task->state.progressCount; i++) {
-        HbmProgress *p = &task->state.progress[i];
-        if (strcmp(p->node, node) == 0 && strcmp(p->block, block ? block : "") == 0) {
-            p->restored = 1;
-        }
-    }
     pthread_mutex_unlock(&task->lock);
 }
 

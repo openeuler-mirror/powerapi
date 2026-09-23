@@ -33,7 +33,6 @@
 
 #define MAX_RETRY_COUNT 50
 #define RETRY_INTERVAL_MS 100
-#define MAX_HBM_NODE_COUNT 256
 #define HBM_EXEC_FAILURE_EXIT_STATUS 127
 #define HBM_FLUSH_MODULE_NAME "hbm_flush"
 #define HBM_FLUSH_PROC_PATH "/proc/hbm_flush"
@@ -217,19 +216,18 @@ typedef struct {
     const char *state;
     const char *stateFile;
     const char *currentState;
-    int offlining;
     size_t progressIndex;
     long long startUs;
 } MemoryBlockOperation;
 
 static int WriteMemoryBlockState(HbmTask *task, const MemoryBlockOperation *op)
 {
-    // Check each block immediately before offlining; online rollback must not be gated by removable.
-    if (SetHbmTaskPhase(task, op->offlining ? "check_removable" : "revert_memory",
+    // Check each block immediately before offlining.
+    if (SetHbmTaskPhase(task, "check_removable",
         op->nodePath, op->blockName) != PWR_SUCCESS) {
         return PWR_ERR_HBM_OPERATION_TIMEOUT;
     }
-    if (op->offlining && CheckMemoryRemovable(op->nodePath, op->blockName) != PWR_SUCCESS) {
+    if (CheckMemoryRemovable(op->nodePath, op->blockName) != PWR_SUCCESS) {
         Logger(DEBUG, MD_NM_SVR_HBM,
             "HBM memory block finish. node:%s, block:%s, beforeState:%s, target:%s, "
             "action:check_removable, ret:%d, durationUs:%lld",
@@ -240,7 +238,7 @@ static int WriteMemoryBlockState(HbmTask *task, const MemoryBlockOperation *op)
     Logger(DEBUG, MD_NM_SVR_HBM,
         "HBM memory block write start. node:%s, block:%s, beforeState:%s, target:%s",
         op->nodePath, op->blockName, op->currentState, op->state);
-    if (SetHbmTaskPhase(task, op->offlining ? "write_memory_offline" : "write_memory_online",
+    if (SetHbmTaskPhase(task, "write_memory_offline",
         op->nodePath, op->blockName) != PWR_SUCCESS) {
         return PWR_ERR_HBM_OPERATION_TIMEOUT;
     }
@@ -256,11 +254,7 @@ static int WriteMemoryBlockState(HbmTask *task, const MemoryBlockOperation *op)
             op->nodePath, op->blockName, op->currentState, op->state, PWR_ERR_COMMON, GetTimeUs() - op->startUs);
         return PWR_ERR_COMMON;
     }
-    if (op->offlining) {
-        CompleteHbmProgress(task, op->progressIndex, 0);
-    } else {
-        RestoreHbmProgress(task, op->nodePath, op->blockName);
-    }
+    CompleteHbmProgress(task, op->progressIndex, 0);
     Logger(DEBUG, MD_NM_SVR_HBM,
         "HBM memory block finish. node:%s, block:%s, beforeState:%s, target:%s, "
         "action:write, writeResult:success, ret:%d, durationUs:%lld",
@@ -269,7 +263,7 @@ static int WriteMemoryBlockState(HbmTask *task, const MemoryBlockOperation *op)
 }
 
 static int ProcessMemoryBlock(HbmTask *task, const char *nodePath, const char *blockName,
-    const char *state, int offlining)
+    const char *state)
 {
     char stateFile[MAX_FULL_NAME];
     if (BuildPath(stateFile, sizeof(stateFile), nodePath, blockName, "state") != PWR_SUCCESS) {
@@ -279,11 +273,11 @@ static int ProcessMemoryBlock(HbmTask *task, const char *nodePath, const char *b
 
     long long startUs = GetTimeUs();
     size_t progressIndex = 0;
-    if (offlining && PrepareHbmProgress(task, nodePath, blockName, &progressIndex) != PWR_SUCCESS) {
+    if (PrepareHbmProgress(task, nodePath, blockName, &progressIndex) != PWR_SUCCESS) {
         Logger(ERROR, MD_NM_SVR_HBM, "Failed to record HBM progress. node:%s, block:%s", nodePath, blockName);
         return PWR_ERR_COMMON;
     }
-    if (SetHbmTaskPhase(task, offlining ? "read_memory_state" : "revert_read_state",
+    if (SetHbmTaskPhase(task, "read_memory_state",
         nodePath, blockName) != PWR_SUCCESS) {
         return PWR_ERR_HBM_OPERATION_TIMEOUT;
     }
@@ -299,25 +293,20 @@ static int ProcessMemoryBlock(HbmTask *task, const char *nodePath, const char *b
         return PWR_ERR_COMMON;
     }
     if (strcmp(currentState, state) == 0) {
-        if (offlining) {
-            CompleteHbmProgress(task, progressIndex, 1);
-        } else {
-            RestoreHbmProgress(task, nodePath, blockName);
-        }
+        CompleteHbmProgress(task, progressIndex, 1);
         Logger(DEBUG, MD_NM_SVR_HBM,
             "HBM memory block finish. node:%s, block:%s, beforeState:%s, target:%s, action:skip, ret:%d, "
             "durationUs:%lld",
             nodePath, blockName, currentState, state, PWR_SUCCESS, GetTimeUs() - startUs);
         return PWR_SUCCESS;
     }
-    MemoryBlockOperation op = {nodePath, blockName, state, stateFile, currentState, offlining, progressIndex, startUs};
+    MemoryBlockOperation op = {nodePath, blockName, state, stateFile, currentState, progressIndex, startUs};
     return WriteMemoryBlockState(task, &op);
 }
 
 static int SetMemoryState(HbmTask *task, const char *nodePath, const char *state)
 {
-    int offlining = strcmp(state, "offline") == 0;
-    if (SetHbmTaskPhase(task, offlining ? "scan_memory" : "revert_memory", nodePath, NULL) != PWR_SUCCESS) {
+    if (SetHbmTaskPhase(task, "scan_memory", nodePath, NULL) != PWR_SUCCESS) {
         return PWR_ERR_HBM_OPERATION_TIMEOUT;
     }
     long long nodeStartUs = GetTimeUs();
@@ -340,7 +329,7 @@ static int SetMemoryState(HbmTask *task, const char *nodePath, const char *state
             continue;
         }
 
-        int ret = ProcessMemoryBlock(task, nodePath, dirEntry->d_name, state, offlining);
+        int ret = ProcessMemoryBlock(task, nodePath, dirEntry->d_name, state);
         if (ret != PWR_SUCCESS) {
             closedir(dir);
             return ret;
@@ -359,42 +348,7 @@ static int OfflineMemoryState(HbmTask *task, const char *nodePath)
     return SetMemoryState(task, nodePath, "offline");
 }
 
-static int OnlineMemoryState(HbmTask *task, const char *nodePath)
-{
-    return SetMemoryState(task, nodePath, "online");
-}
-
-// Try to bring back every previously-offlined node. Keep going even if one fails
-// so we minimize the damage, but report the overall result to the caller so a
-// partial/inconsistent state is never hidden.
-static int RevertOfflinedNodes(HbmTask *task, char offlinedNodes[][MAX_FULL_NAME], int count)
-{
-    long long startUs = GetTimeUs();
-    Logger(DEBUG, MD_NM_SVR_HBM, "HBM phase start. phase:revert_memory, nodeCount:%d", count);
-    if (IsHbmTaskTimedOut(task)) {
-        return PWR_ERR_HBM_OPERATION_TIMEOUT;
-    }
-    int revertErr = PWR_SUCCESS;
-    for (int i = count - 1; i >= 0; --i) {
-        int ret = OnlineMemoryState(task, offlinedNodes[i]);
-        if (IsHbmTaskTimedOut(task)) {
-            return PWR_ERR_HBM_OPERATION_TIMEOUT;
-        }
-        if (ret != PWR_SUCCESS) {
-            Logger(ERROR, MD_NM_SVR_HBM, "Failed to revert memory state of node %s", offlinedNodes[i]);
-            revertErr = PWR_ERR_HBM_REVERT_MEMORY_FAILED;
-        } else {
-            RestoreHbmProgress(task, offlinedNodes[i], NULL);
-        }
-    }
-    Logger(DEBUG, MD_NM_SVR_HBM,
-        "HBM phase finish. phase:revert_memory, nodeCount:%d, ret:%d, durationUs:%lld",
-        count, revertErr, GetTimeUs() - startUs);
-    return revertErr;
-}
-
-static int OfflineHbmNode(HbmTask *task, const char *nodePath,
-    char offlinedNodes[][MAX_FULL_NAME], int *offlinedCnt)
+static int OfflineHbmNode(HbmTask *task, const char *nodePath, int *offlinedCnt)
 {
     if (SetHbmTaskPhase(task, "check_node_cpus", nodePath, NULL) != PWR_SUCCESS) {
         return PWR_ERR_HBM_OPERATION_TIMEOUT;
@@ -403,20 +357,9 @@ static int OfflineHbmNode(HbmTask *task, const char *nodePath,
         return PWR_SUCCESS;
     }
 
-    if (*offlinedCnt >= MAX_HBM_NODE_COUNT) {
-        Logger(ERROR, MD_NM_SVR_HBM, "HBM node count exceeds max revert capacity %d", MAX_HBM_NODE_COUNT);
-        return PWR_ERR_COMMON;
-    }
-
     size_t nodeIndex;
     if (PrepareHbmProgress(task, nodePath, NULL, &nodeIndex) != PWR_SUCCESS) {
         Logger(ERROR, MD_NM_SVR_HBM, "Failed to record HBM node progress. node:%s", nodePath);
-        return PWR_ERR_COMMON;
-    }
-    // Record the node path before offlining so a partial failure inside the
-    // node is also covered by the revert loop (OnlineMemoryState is idempotent).
-    if (CopyString(offlinedNodes[*offlinedCnt], MAX_FULL_NAME, nodePath) != PWR_SUCCESS) {
-        Logger(ERROR, MD_NM_SVR_HBM, "Failed to save offlined node path %s", nodePath);
         return PWR_ERR_COMMON;
     }
     (*offlinedCnt)++;
@@ -432,7 +375,7 @@ static int OfflineHbmNode(HbmTask *task, const char *nodePath,
     return PWR_SUCCESS;
 }
 
-static int OfflineAllHBMNode(HbmTask *task, char offlinedNodes[][MAX_FULL_NAME], int *offlinedCnt)
+static int OfflineAllHBMNode(HbmTask *task, int *offlinedCnt)
 {
     if (SetHbmTaskPhase(task, "scan_nodes", NULL, NULL) != PWR_SUCCESS) {
         return PWR_ERR_HBM_OPERATION_TIMEOUT;
@@ -464,7 +407,7 @@ static int OfflineAllHBMNode(HbmTask *task, char offlinedNodes[][MAX_FULL_NAME],
             continue;
         }
 
-        errCode = OfflineHbmNode(task, nodePath, offlinedNodes, offlinedCnt);
+        errCode = OfflineHbmNode(task, nodePath, offlinedCnt);
         if (errCode != PWR_SUCCESS) {
             break;
         }
@@ -475,34 +418,10 @@ static int OfflineAllHBMNode(HbmTask *task, char offlinedNodes[][MAX_FULL_NAME],
         return PWR_ERR_HBM_OPERATION_TIMEOUT;
     }
 
-    if (errCode != PWR_SUCCESS) {
-        // If revert itself fails, the system is left in a half-offlined state;
-        // surface the stronger error so callers don't treat it as a clean failure.
-        int revertErr = RevertOfflinedNodes(task, offlinedNodes, *offlinedCnt);
-        if (revertErr != PWR_SUCCESS) {
-            Logger(ERROR, MD_NM_SVR_HBM,
-                   "HBM offline revert failed, system left in inconsistent state (offlined=%d)",
-                   *offlinedCnt);
-            errCode = revertErr;
-        }
-    }
-
     Logger(DEBUG, MD_NM_SVR_HBM,
         "HBM phase finish. phase:offline_memory, nodeCount:%d, ret:%d, durationUs:%lld",
         *offlinedCnt, errCode, GetTimeUs() - startUs);
 
-    return errCode;
-}
-
-static int RevertOfflinedNodesOnError(HbmTask *task, char offlinedNodes[][MAX_FULL_NAME], int offlinedCnt, int errCode)
-{
-    int revertErr = RevertOfflinedNodes(task, offlinedNodes, offlinedCnt);
-    if (revertErr != PWR_SUCCESS) {
-        Logger(ERROR, MD_NM_SVR_HBM,
-               "Failed to revert HBM memory nodes after error:%d, offlined:%d",
-               errCode, offlinedCnt);
-        return revertErr;
-    }
     return errCode;
 }
 
@@ -898,12 +817,11 @@ static int CheckFlatDevicesOffline(HbmTask *task, int *allOffline)
     return ret;
 }
 
-static int PrepareFlatPowerOff(HbmTask *task, char offlinedNodes[][MAX_FULL_NAME], int flush,
-    int *alreadyOffline)
+static int PrepareFlatPowerOff(HbmTask *task, int flush, int *alreadyOffline)
 {
     int offlinedCnt = 0;
     // Flush cache after HBM memory is offlined and before the device is powered off.
-    int offlineRet = OfflineAllHBMNode(task, offlinedNodes, &offlinedCnt);
+    int offlineRet = OfflineAllHBMNode(task, &offlinedCnt);
     if (offlineRet != PWR_SUCCESS) {
         return offlineRet;
     }
@@ -917,9 +835,7 @@ static int PrepareFlatPowerOff(HbmTask *task, char offlinedNodes[][MAX_FULL_NAME
     if (!flush) {
         return PWR_SUCCESS;
     }
-    int flushRet = FlushHbmCacheBeforePowerOff(task);
-    return flushRet == PWR_SUCCESS ? PWR_SUCCESS :
-        RevertOfflinedNodesOnError(task, offlinedNodes, offlinedCnt, flushRet);
+    return FlushHbmCacheBeforePowerOff(task);
 }
 
 static int SetFlatDeviceState(HbmTask *task, const char *stateStr)
@@ -1009,10 +925,9 @@ static int HandleFlatMode(HbmTask *task, const int powerState, int flush)
     if (ret != PWR_SUCCESS) {
         return ret;
     }
-    char offlinedNodes[MAX_HBM_NODE_COUNT][MAX_FULL_NAME] = {0};
     int alreadyOffline = 0;
     if (powerState == 0) {
-        ret = PrepareFlatPowerOff(task, offlinedNodes, flush, &alreadyOffline);
+        ret = PrepareFlatPowerOff(task, flush, &alreadyOffline);
     }
     if (ret == PWR_SUCCESS && !alreadyOffline) {
         ret = SetFlatDeviceState(task, stateStr);

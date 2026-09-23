@@ -75,7 +75,7 @@ static void ReportTimeout(void)
         long long nowUs = now.tv_sec * 1000000LL + now.tv_nsec / 1000;
         Logger(ERROR, MD_NM_SVR_HBM,
             "HBM task timeout. opt:%u, sysId:%u, seqId:%u, state:%d, phase:%s, node:%s, block:%s, "
-            "elapsedMs:%lld, phaseElapsedMs:%lld, timeoutMs:%lld, rollback:not_attempted, "
+            "elapsedMs:%lld, phaseElapsedMs:%lld, timeoutMs:%lld, "
             "hbmState:unknown, kernelOperation:may_still_be_running",
             snapshot.request.optType, snapshot.request.sysId, snapshot.request.seqId, snapshot.powerState,
             snapshot.phase, snapshot.node, snapshot.block,
@@ -86,9 +86,9 @@ static void ReportTimeout(void)
             HbmProgress *p = &snapshot.progress[i];
             Logger(ERROR, MD_NM_SVR_HBM,
                 "HBM timeout progress. sysId:%u, seqId:%u, node:%s, block:%s, completed:%d, "
-                "alreadyOffline:%d, restored:%d",
+                "alreadyOffline:%d",
                 snapshot.request.sysId, snapshot.request.seqId, p->node, p->block,
-                p->completed, p->alreadyOffline, p->restored);
+                p->completed, p->alreadyOffline);
         }
         FreeHbmTaskSnapshot(&snapshot);
     } else {
@@ -128,16 +128,7 @@ static void ReplyCompletedHbmTask(PwrMsg *req, HbmTask *task, int ret)
     }
 
     g_activeResponded = 1;
-    if (ret == PWR_ERR_HBM_REVERT_MEMORY_FAILED) {
-        g_hbmUnavailable = 1;
-    }
     SendRspToClient(req, ret, NULL, 0);
-    if (ret == PWR_ERR_HBM_REVERT_MEMORY_FAILED) {
-        RejectPendingHbmRequests();
-        Logger(ERROR, MD_NM_SVR_HBM,
-            "HBM rollback failed. sysId:%u, seqId:%u, hbmState:unknown, furtherPowerRequests:rejected",
-            req->head.sysId, req->head.seqId);
-    }
 }
 
 static void *RunHbmWorker(void *arg)
