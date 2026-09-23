@@ -69,6 +69,7 @@ enum PWR_RtnCode {
     PWR_ERR_HBM_REVERT_MEMORY_FAILED,
     PWR_ERR_HBM_FLUSH_CACHE_FAILED,
     PWR_ERR_HBM_OPERATION_TIMEOUT = 605, /* Execution timed out; hardware state is unknown. */
-    PWR_ERR_HBM_STATE_UNKNOWN = 606, /* Power operations disabled after timeout. */
+    PWR_ERR_HBM_STATE_UNKNOWN = 606, /* Power operations disabled after timeout or unconfirmed target state. */
+    PWR_ERR_HBM_POWER_STATE_NOT_REACHED = 607, /* Status polling exhausted; target power state unconfirmed. */
 };
 #endif

@@ -31,7 +31,7 @@
 #include "utils.h"
 #include "hbmtask.h"
 
-#define MAX_RETRY_COUNT 50
+#define MAX_RETRY_COUNT 100
 #define RETRY_INTERVAL_MS 100
 #define HBM_EXEC_FAILURE_EXIT_STATUS 127
 #define HBM_FLUSH_MODULE_NAME "hbm_flush"
@@ -711,8 +711,8 @@ static int WaitCacheDeviceState(HbmTask *task, int powerState)
         retryCount++;
     }
 
-    Logger(ERROR, MD_NM_SVR_HBM, "Failed to set hbm power state after retries");
-    return PWR_ERR_HBM_SET_POWER_STATE_FAILED;
+    Logger(ERROR, MD_NM_SVR_HBM, "HBM target power state not confirmed after %d checks", retryCount);
+    return PWR_ERR_HBM_POWER_STATE_NOT_REACHED;
 }
 
 static int HandleCacheMode(HbmTask *task, const int powerState)
@@ -905,11 +905,11 @@ static int WaitFlatDeviceState(HbmTask *task, int powerState, const char *stateS
         retryCount++;
     }
 
-    Logger(ERROR, MD_NM_SVR_HBM, "Failed to set hbm power state after retries");
+    Logger(ERROR, MD_NM_SVR_HBM, "HBM target power state not confirmed after %d checks", retryCount);
     Logger(DEBUG, MD_NM_SVR_HBM,
         "HBM phase finish. phase:wait_device_state, state:%s, ret:%d, retryCount:%d, durationUs:%lld",
-        stateStr, PWR_ERR_HBM_SET_POWER_STATE_FAILED, retryCount, GetTimeUs() - stepStartUs);
-    return PWR_ERR_HBM_SET_POWER_STATE_FAILED;
+        stateStr, PWR_ERR_HBM_POWER_STATE_NOT_REACHED, retryCount, GetTimeUs() - stepStartUs);
+    return PWR_ERR_HBM_POWER_STATE_NOT_REACHED;
 }
 
 static int HandleFlatMode(HbmTask *task, const int powerState, int flush)

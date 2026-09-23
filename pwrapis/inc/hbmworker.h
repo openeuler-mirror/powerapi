@@ -24,7 +24,7 @@ int StartHbmWorker(void);
  */
 void StopHbmWorker(void);
 /* Success transfers ownership of req and req->data. Failure leaves both with caller.
- * After a timeout, queued and future requests fail with STATE_UNKNOWN.
+ * After a timeout or exhausted power-state polling, queued and future requests fail with STATE_UNKNOWN.
  * Late completion does not re-enable HBM. No in-process recovery API is provided.
  */
 int SubmitHbmRequest(PwrMsg *req);
