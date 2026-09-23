@@ -128,10 +128,12 @@ static void ReplyCompletedHbmTask(PwrMsg *req, HbmTask *task, int ret)
     }
 
     g_activeResponded = 1;
-    if (ret == PWR_ERR_HBM_POWER_STATE_NOT_REACHED) {
+    if (ret == PWR_ERR_HBM_OFFLINE_MEMORY_FAILED ||
+        ret == PWR_ERR_HBM_FLUSH_CACHE_FAILED ||
+        ret == PWR_ERR_HBM_POWER_STATE_NOT_REACHED) {
         RejectPendingHbmRequests();
         Logger(ERROR, MD_NM_SVR_HBM,
-            "HBM target power state unconfirmed. sysId:%u, seqId:%u, ret:%d, "
+            "HBM operation left state requiring recovery. sysId:%u, seqId:%u, ret:%d, "
             "hbmState:unknown, subsequent power requests disabled",
             req->head.sysId, req->head.seqId, ret);
     }
