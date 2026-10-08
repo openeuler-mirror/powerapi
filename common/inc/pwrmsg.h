@@ -108,6 +108,7 @@ enum OperationType {
     HBM_GET_SYS_STATE = 700,
     HBM_SET_ALL_POWER_STATE,
 };
+
 enum DataFormat {
     FMT_BIN = 0,
 };

@@ -29,6 +29,7 @@
 #define TASK_RUN_TIME 10
 #define TEST_FREQ_RANGE_MIN 500
 #define TEST_FREQ_RANGE_MAX 2500
+#define TEST_HBM_INVALID_POWER_STATE 2
 
 static int g_run = 1;
 
@@ -602,13 +603,13 @@ static void TEST_PWR_HBM_GetSysState(void)
 static void TEST_PWR_HBM_SetAllPwrState(void)
 {
     int ret = -1;
-    ret = PWR_HBM_SetAllPwrState(0);
+    ret = PWR_HBM_SetAllPwrState(PWR_DISABLE);
     PrintResult("TEST_PWR_HBM_SetAllPwrState", ret);
 
-    ret = PWR_HBM_SetAllPwrState(1);
+    ret = PWR_HBM_SetAllPwrState(PWR_ENABLE);
     PrintResult("TEST_PWR_HBM_SetAllPwrState", ret);
 
-    ret = PWR_HBM_SetAllPwrState(2);
+    ret = PWR_HBM_SetAllPwrState(TEST_HBM_INVALID_POWER_STATE);
     PrintResult("TEST_PWR_HBM_SetAllPwrState", ret);
 }
 
