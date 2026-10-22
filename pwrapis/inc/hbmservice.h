@@ -20,6 +20,7 @@
 #include "pwrdata.h"
 
 void GetHbmSysState(PwrMsg *req);
+void GetHbmNodeState(PwrMsg *req);
 void SetHbmAllPowerState(PwrMsg *req);
 
 #endif  //!PAPIS_HBM_SERVICE_H__

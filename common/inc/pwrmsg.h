@@ -107,6 +107,7 @@ enum OperationType {
     PROC_SET_WATT_FIRST_DOMAIN,
     HBM_GET_SYS_STATE = 700,
     HBM_SET_ALL_POWER_STATE,
+    HBM_GET_NODE_STATE,
 };
 
 enum DataFormat {

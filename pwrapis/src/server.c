@@ -566,6 +566,7 @@ static OptToFunct g_optToFunct[] = {
     {PROC_GET_SERVICE_STATE, ProcGetServiceState},
     {PROC_SET_SERVICE_STATE, ProcSetServiceState},
     {HBM_GET_SYS_STATE, GetHbmSysState},
+    {HBM_GET_NODE_STATE, GetHbmNodeState},
     {HBM_SET_ALL_POWER_STATE, SetHbmAllPowerState},
 };
 
@@ -692,7 +693,19 @@ void SendRspToClient(const PwrMsg *req, int rspCode, char *data, uint32_t len)
         return;
     }
     bzero(rsp, sizeof(PwrMsg));
-    GenerateRspMsg(req, rsp, rspCode, data, len);
+    // Copy data: the caller may free/release it before the send thread drains the queue.
+    char *dataCopy = NULL;
+    if (data && len > 0) {
+        dataCopy = (char *)malloc(len);
+        if (!dataCopy) {
+            Logger(ERROR, MD_NM_SVR, "Malloc data copy failed.");
+            free(rsp);
+            free(data);
+            return;
+        }
+        memcpy(dataCopy, data, len);
+    }
+    GenerateRspMsg(req, rsp, rspCode, dataCopy, len);
     if (SendRspMsg(rsp) != PWR_SUCCESS) {
         ReleasePwrMsg(&rsp);
     }

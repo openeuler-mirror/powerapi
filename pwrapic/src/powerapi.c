@@ -397,6 +397,15 @@ int PWR_HBM_GetSysState(PWR_HBM_SYS_STATE *hbmState)
     return GetHbmSysState(hbmState);
 }
 
+int PWR_HBM_GetNodeState(PWR_HBM_NODE_PWR_STATE *state)
+{
+    CHECK_STATUS(STATUS_REGISTERTED);
+
+    CHECK_NULL_POINTER(state);
+
+    return GetHbmNodeState(state);
+}
+
 int PWR_HBM_SetAllPwrState(int state)
 {
     CHECK_STATUS(STATUS_AUTHED);

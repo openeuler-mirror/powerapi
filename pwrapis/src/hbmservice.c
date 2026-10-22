@@ -39,8 +39,12 @@
 #define HBM_FLUSH_TRIGGER "1\n"
 #define HBM_INSMOD_PATH "/sbin/insmod"
 #define HBM_CACHE_STATE_PATTERN "/sys/kernel/hbm_cache/*/state"
+#define HBM_CACHE_STATUS_PATTERN "/sys/kernel/hbm_cache/*/firmware_node/status"
 #define HBM_DEVICE_STATE_PATTERN "/sys/devices/system/container/PNP0A06*/state"
 #define HBM_DEVICE_STATUS_PATTERN "/sys/devices/system/container/PNP0A06*/firmware_node/PNP0C80*/status"
+#define HBM_FIRMWARE_STATUS_ON "15"
+#define HBM_DEVICE_FIRMWARE_STATUS_OFF "13"
+#define HBM_CACHE_FIRMWARE_STATUS_OFF "0"
 
 static long long GetTimeUs(void)
 {
@@ -603,6 +607,177 @@ void GetHbmSysState(PwrMsg *req)
     } else {
         SendRspToClient(req, rspCode, (char *)state, sizeof(PWR_HBM_SYS_STATE));
     }
+}
+
+/* Map a firmware _STA value to a node power state. */
+static PWR_HBM_NODE_PWR_STATE ParseFirmwareStatus(const char *status, const char *onValue,
+    const char *offValue)
+{
+    if (strcmp(status, onValue) == 0) {
+        return PWR_HBM_NODE_ON;
+    }
+    if (strcmp(status, offValue) == 0) {
+        return PWR_HBM_NODE_OFF;
+    }
+    return PWR_HBM_NODE_UNKNOWN;
+}
+
+/* Best-effort driver loading so that queries work right after boot, same as the set path. */
+static void EnsureHbmDriverForQuery(const char *checkPattern, const char *moduleName)
+{
+    glob_t paths = {0};
+    int globRet = glob(checkPattern, GLOB_NOSORT, NULL, &paths);
+    if (globRet == 0 && paths.gl_pathc > 0) {
+        globfree(&paths);
+        return;
+    }
+    globfree(&paths);
+
+    char cmd[PWR_MAX_NAME_LEN] = {0};
+    int ret = snprintf(cmd, sizeof(cmd), "modprobe %s", moduleName);
+    if (ret <= 0 || ret >= (int)sizeof(cmd)) {
+        Logger(ERROR, MD_NM_SVR_HBM, "Failed to build modprobe command for %s", moduleName);
+        return;
+    }
+    if (system(cmd) != 0) {
+        Logger(WARNING, MD_NM_SVR_HBM, "Failed to load %s for HBM state query", moduleName);
+    }
+}
+
+/* Aggregate node states: any unrecognized status wins, then mixed on/off, else unanimous. */
+static PWR_HBM_NODE_PWR_STATE AggregateNodeState(int onCnt, int offCnt, int unknownCnt)
+{
+    if (unknownCnt > 0) {
+        return PWR_HBM_NODE_UNKNOWN;
+    }
+    if (onCnt > 0 && offCnt > 0) {
+        return PWR_HBM_NODE_MIXED;
+    }
+    if (onCnt > 0) {
+        return PWR_HBM_NODE_ON;
+    }
+    return PWR_HBM_NODE_OFF;
+}
+
+/*
+ * Flat mode: each PNP0A06 container's PNP0C80 memory devices report the power state in
+ * firmware_node status (15 on, 13 off). The statuses exist regardless of hisi_hbmdev.
+ */
+static int CollectFlatNodeState(PWR_HBM_NODE_PWR_STATE *state)
+{
+    glob_t statusPaths = {0};
+    int globRet = glob(HBM_DEVICE_STATUS_PATTERN, GLOB_NOSORT, NULL, &statusPaths);
+    if (globRet != 0 || statusPaths.gl_pathc == 0) {
+        Logger(ERROR, MD_NM_SVR_HBM, "No HBM device status found in flat mode");
+        globfree(&statusPaths);
+        return PWR_ERR_HBM_NOT_SUPPORTED;
+    }
+
+    int onCnt = 0;
+    int offCnt = 0;
+    int unknownCnt = 0;
+    for (size_t i = 0; i < statusPaths.gl_pathc; ++i) {
+        char status[PWR_MAX_NAME_LEN] = {0};
+        if (ReadFile(statusPaths.gl_pathv[i], status, sizeof(status)) != PWR_SUCCESS) {
+            Logger(ERROR, MD_NM_SVR_HBM, "Failed to read HBM device status %s",
+                statusPaths.gl_pathv[i]);
+            ++unknownCnt;
+            continue;
+        }
+        PWR_HBM_NODE_PWR_STATE cur =
+            ParseFirmwareStatus(status, HBM_FIRMWARE_STATUS_ON, HBM_DEVICE_FIRMWARE_STATUS_OFF);
+        if (cur == PWR_HBM_NODE_ON) {
+            ++onCnt;
+        } else if (cur == PWR_HBM_NODE_OFF) {
+            ++offCnt;
+        } else {
+            ++unknownCnt;
+        }
+    }
+    globfree(&statusPaths);
+
+    Logger(DEBUG, MD_NM_SVR_HBM, "HBM flat node states. on:%d, off:%d, unknown:%d",
+        onCnt, offCnt, unknownCnt);
+    *state = AggregateNodeState(onCnt, offCnt, unknownCnt);
+    return PWR_SUCCESS;
+}
+
+/*
+ * Cache mode: each hbm_cache device reports the power state in firmware_node status
+ * (15 on, 0 off).
+ */
+static int CollectCacheNodeState(PWR_HBM_NODE_PWR_STATE *state)
+{
+    EnsureHbmDriverForQuery(HBM_CACHE_STATE_PATTERN, "hisi_hbmcache");
+
+    glob_t statusPaths = {0};
+    int globRet = glob(HBM_CACHE_STATUS_PATTERN, GLOB_NOSORT, NULL, &statusPaths);
+    if (globRet != 0 || statusPaths.gl_pathc == 0) {
+        Logger(ERROR, MD_NM_SVR_HBM, "No HBM cache devices found in cache mode");
+        globfree(&statusPaths);
+        return PWR_ERR_HBM_NOT_SUPPORTED;
+    }
+
+    int onCnt = 0;
+    int offCnt = 0;
+    int unknownCnt = 0;
+    for (size_t i = 0; i < statusPaths.gl_pathc; ++i) {
+        char status[PWR_MAX_NAME_LEN] = {0};
+        if (ReadFile(statusPaths.gl_pathv[i], status, sizeof(status)) != PWR_SUCCESS) {
+            Logger(ERROR, MD_NM_SVR_HBM, "Failed to read HBM cache status %s",
+                statusPaths.gl_pathv[i]);
+            ++unknownCnt;
+            continue;
+        }
+        PWR_HBM_NODE_PWR_STATE cur =
+            ParseFirmwareStatus(status, HBM_FIRMWARE_STATUS_ON, HBM_CACHE_FIRMWARE_STATUS_OFF);
+        if (cur == PWR_HBM_NODE_ON) {
+            ++onCnt;
+        } else if (cur == PWR_HBM_NODE_OFF) {
+            ++offCnt;
+        } else {
+            ++unknownCnt;
+        }
+    }
+    globfree(&statusPaths);
+
+    Logger(DEBUG, MD_NM_SVR_HBM, "HBM cache node states. on:%d, off:%d, unknown:%d",
+        onCnt, offCnt, unknownCnt);
+    *state = AggregateNodeState(onCnt, offCnt, unknownCnt);
+    return PWR_SUCCESS;
+}
+
+void GetHbmNodeState(PwrMsg *req)
+{
+    PWR_HBM_NODE_PWR_STATE *state =
+        (PWR_HBM_NODE_PWR_STATE *)malloc(sizeof(PWR_HBM_NODE_PWR_STATE));
+    if (!state) {
+        SendRspToClient(req, PWR_ERR_SYS_EXCEPTION, NULL, 0);
+        return;
+    }
+    *state = PWR_HBM_NODE_UNKNOWN;
+
+    PWR_HBM_SYS_STATE mode = PWR_HBM_NOT_SUPPORT;
+    int rspCode = GetHbmMode(&mode);
+    if (rspCode != PWR_SUCCESS) {
+        Logger(ERROR, MD_NM_SVR_HBM, "GetHbmNodeState: failed to detect hbm mode. ret:%d", rspCode);
+    } else if (mode == PWR_HBM_FLAT_MOD) {
+        rspCode = CollectFlatNodeState(state);
+    } else if (mode == PWR_HBM_CACHE_MOD) {
+        rspCode = CollectCacheNodeState(state);
+    } else {
+        Logger(ERROR, MD_NM_SVR_HBM, "GetHbmNodeState: unsupported hbm mode:%d", mode);
+        rspCode = PWR_ERR_HBM_NOT_SUPPORTED;
+    }
+
+    if (rspCode != PWR_SUCCESS) {
+        free(state);
+        SendRspToClient(req, rspCode, NULL, 0);
+        return;
+    }
+    Logger(DEBUG, MD_NM_SVR_HBM, "GetHbmNodeState. mode:%d, state:%d", mode, (int)(*state));
+    SendRspToClient(req, rspCode, (char *)state, sizeof(PWR_HBM_NODE_PWR_STATE));
+    free(state);
 }
 
 static int EnsureCacheDriver(HbmTask *task)

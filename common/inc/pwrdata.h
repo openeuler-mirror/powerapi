@@ -316,4 +316,12 @@ typedef enum PWR_HBM_SYS_STATE {
     PWR_HBM_HYBRID_MOD,
 } PWR_HBM_SYS_STATE;
 
+/* Aggregated node-level HBM power state. Values 0/1 align with PWR_DISABLE/PWR_ENABLE. */
+typedef enum PWR_HBM_NODE_PWR_STATE {
+    PWR_HBM_NODE_OFF = 0,     /* all nodes powered off */
+    PWR_HBM_NODE_ON = 1,      /* all nodes powered on */
+    PWR_HBM_NODE_MIXED = 2,   /* node power states differ */
+    PWR_HBM_NODE_UNKNOWN = 3, /* unrecognized firmware status */
+} PWR_HBM_NODE_PWR_STATE;
+
 #endif

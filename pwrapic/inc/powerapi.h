@@ -84,6 +84,10 @@ PWR_API int PWR_PROC_SetServiceState(PWR_PROC_ServiceState *sState);
 
 // HBM
 PWR_API int PWR_HBM_GetSysState(PWR_HBM_SYS_STATE *hbmState);
+/* Query the aggregated node-level HBM power state: PWR_HBM_NODE_ON when all
+ * nodes are powered on, PWR_HBM_NODE_OFF when all are powered off, and
+ * PWR_HBM_NODE_MIXED when the node states differ. */
+PWR_API int PWR_HBM_GetNodeState(PWR_HBM_NODE_PWR_STATE *state);
 /* Set all HBM power states. Flat-mode power-off flushes HBM cache before device power-off. */
 PWR_API int PWR_HBM_SetAllPwrState(int state);
 
