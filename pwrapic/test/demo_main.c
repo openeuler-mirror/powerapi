@@ -622,6 +622,15 @@ static void TEST_PWR_HBM_GetNodeState(void)
     printf("hbm node state is %d (0=off 1=on 2=mixed 3=unknown).\n", (int)state);
 }
 
+static void TEST_PWR_HBM_IsNodeResetSupported(void)
+{
+    int ret = -1;
+    int supported = PWR_DISABLE;
+    ret = PWR_HBM_IsNodeResetSupported(&supported);
+    PrintResult("TEST_PWR_HBM_IsNodeResetSupported", ret);
+    printf("hbm node reset supported is %d (0=no 1=yes).\n", supported);
+}
+
 
 /*************************** HBM END ************************/
 
@@ -668,6 +677,7 @@ int main(int argc, const char *args[])
     /************ HBM ***********/
     TEST_PWR_HBM_GetSysState();
     TEST_PWR_HBM_GetNodeState();
+    TEST_PWR_HBM_IsNodeResetSupported();
     TEST_PWR_HBM_SetAllPwrState();
 
     // todo: 其他接口测试

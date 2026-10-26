@@ -16,6 +16,7 @@
 #include "hbmservice.h"
 
 #include <errno.h>
+#include <ctype.h>
 #include <fcntl.h>
 #include <glob.h>
 #include <stdio.h>
@@ -778,6 +779,191 @@ void GetHbmNodeState(PwrMsg *req)
     Logger(DEBUG, MD_NM_SVR_HBM, "GetHbmNodeState. mode:%d, state:%d", mode, (int)(*state));
     SendRspToClient(req, rspCode, (char *)state, sizeof(PWR_HBM_NODE_PWR_STATE));
     free(state);
+}
+
+/* ==================== Node-level HBM reset capability ====================
+ * The capability is derived from the CpuBoard CPLD versions reported by BMC:
+ *   ipmitool fru                                        -> enumerate CpuBoard FRU ids
+ *   ipmitool raw 0x30 0x90 0x08 <fruId> 0x02 0x00 0xff  -> CPLD versions
+ * The raw response is a hex byte stream, e.g. "80 28 55 35 39 29 34 2e 30 38 ..."
+ * which decodes to "<rc>(U59)4.08;(U130)4.08". Node-level reset is supported
+ * only when every CPLD version found is 3.11 or higher.
+ */
+#define HBM_CPLD_MIN_VER_MAJOR 3
+#define HBM_CPLD_MIN_VER_MINOR 11
+#define HBM_CPLD_MAX_BOARDS 8
+#define HBM_CPLD_TEXT_BUF_LEN 512
+
+/* Parse "CpuBoard1 (ID 16)" style lines from `ipmitool fru` output. */
+static int GetCpuBoardFruIds(int fruIds[], uint32_t maxNum, uint32_t *num)
+{
+    FILE *fp = popen("ipmitool fru", "r");
+    if (fp == NULL) {
+        Logger(ERROR, MD_NM_SVR_HBM, "popen ipmitool fru failed.");
+        return PWR_ERR_COMMON;
+    }
+    char line[PWR_MAX_STRING_LEN] = {0};
+    uint32_t cnt = 0;
+    while (cnt < maxNum && fgets(line, sizeof(line), fp) != NULL) {
+        char *board = strstr(line, "CpuBoard");
+        if (board == NULL) {
+            continue;
+        }
+        char *idTag = strstr(board, "(ID ");
+        if (idTag == NULL) {
+            continue;
+        }
+        int fruId = -1;
+        if (sscanf(idTag, "(ID %i)", &fruId) != 1 || fruId < 0) {
+            continue;
+        }
+        Logger(DEBUG, MD_NM_SVR_HBM, "CpuBoard found. fruId:0x%02x", (unsigned)fruId);
+        fruIds[cnt++] = fruId;
+    }
+    pclose(fp);
+    if (cnt == 0) {
+        Logger(ERROR, MD_NM_SVR_HBM, "no CpuBoard FRU found from ipmitool fru");
+        return PWR_ERR_HBM_NOT_SUPPORTED;
+    }
+    *num = cnt;
+    return PWR_SUCCESS;
+}
+
+/* Query the CPLD versions of one board and decode the hex byte stream into
+ * printable ASCII text, e.g. "(U59)4.08;(U130)4.08". */
+static int ReadCpldVersionText(int fruId, char *text, size_t textSize)
+{
+    char cmd[PWR_MAX_STRING_LEN] = {0};
+    int ret = snprintf(cmd, sizeof(cmd),
+        "ipmitool raw 0x30 0x90 0x08 0x%02x 0x02 0x00 0xff", (unsigned)fruId);
+    if (ret <= 0 || ret >= (int)sizeof(cmd)) {
+        return PWR_ERR_COMMON;
+    }
+
+    FILE *fp = popen(cmd, "r");
+    if (fp == NULL) {
+        Logger(ERROR, MD_NM_SVR_HBM, "popen [%s] failed.", cmd);
+        return PWR_ERR_COMMON;
+    }
+    char buf[PWR_MAX_STRING_LEN] = {0};
+    if (fgets(buf, sizeof(buf) - 1, fp) == NULL) {
+        pclose(fp);
+        Logger(ERROR, MD_NM_SVR_HBM, "read cpld version of fru 0x%02x failed.", (unsigned)fruId);
+        return PWR_ERR_COMMON;
+    }
+    pclose(fp);
+
+    /* The first byte is the return code; the remaining bytes are ASCII text. */
+    size_t pos = 0;
+    const char *token = strtok(buf, " \t\r\n");
+    int first = 1;
+    while (token != NULL && pos + 1 < textSize) {
+        if (!first) {
+            unsigned int byte = 0;
+            if (sscanf(token, "%x", &byte) == 1 && byte >= 0x20 && byte <= 0x7e) {
+                text[pos++] = (char)byte;
+            }
+        }
+        first = 0;
+        token = strtok(NULL, " \t\r\n");
+    }
+    text[pos] = '\0';
+    if (pos == 0) {
+        Logger(ERROR, MD_NM_SVR_HBM, "cpld version response of fru 0x%02x is empty.", (unsigned)fruId);
+        return PWR_ERR_COMMON;
+    }
+    Logger(DEBUG, MD_NM_SVR_HBM, "cpld version text of fru 0x%02x: %s", (unsigned)fruId, text);
+    return PWR_SUCCESS;
+}
+
+static int CpldVersionAtLeast(int major, int minor)
+{
+    if (major > HBM_CPLD_MIN_VER_MAJOR) {
+        return 1;
+    }
+    return (major == HBM_CPLD_MIN_VER_MAJOR) && (minor >= HBM_CPLD_MIN_VER_MINOR);
+}
+
+/* Scan the text for every "major.minor" version string. All versions found
+ * must satisfy the minimum requirement, otherwise the capability is disabled. */
+static int CheckCpldVersions(const char *text, int *supported)
+{
+    *supported = PWR_ENABLE;
+    int verCnt = 0;
+    const char *p = text;
+    while (*p != '\0') {
+        if (isdigit((unsigned char)*p)) {
+            int major = 0;
+            int minor = 0;
+            int consumed = 0;
+            if (sscanf(p, "%d.%d%n", &major, &minor, &consumed) == 2 &&
+                consumed > 0 && memchr(p, '.', (size_t)consumed) != NULL) {
+                verCnt++;
+                Logger(DEBUG, MD_NM_SVR_HBM, "CPLD version found: %d.%d", major, minor);
+                if (!CpldVersionAtLeast(major, minor)) {
+                    *supported = PWR_DISABLE;
+                }
+                p += consumed;
+                continue;
+            }
+        }
+        p++;
+    }
+    if (verCnt == 0) {
+        Logger(ERROR, MD_NM_SVR_HBM, "no CPLD version found in response [%s]", text);
+        return PWR_ERR_COMMON;
+    }
+    return PWR_SUCCESS;
+}
+
+/* Supported only when every CPLD on every CpuBoard is >= 3.11. */
+static int CheckNodeResetCapByCpld(int *supported)
+{
+    int fruIds[HBM_CPLD_MAX_BOARDS];
+    uint32_t boardNum = 0;
+    int ret = GetCpuBoardFruIds(fruIds, HBM_CPLD_MAX_BOARDS, &boardNum);
+    if (ret != PWR_SUCCESS) {
+        return ret;
+    }
+
+    *supported = PWR_ENABLE;
+    for (uint32_t i = 0; i < boardNum; ++i) {
+        char text[HBM_CPLD_TEXT_BUF_LEN] = {0};
+        ret = ReadCpldVersionText(fruIds[i], text, sizeof(text));
+        if (ret != PWR_SUCCESS) {
+            return ret;
+        }
+        int boardSupported = PWR_DISABLE;
+        ret = CheckCpldVersions(text, &boardSupported);
+        if (ret != PWR_SUCCESS) {
+            return ret;
+        }
+        Logger(DEBUG, MD_NM_SVR_HBM, "CpuBoard fru 0x%02x node reset cap: %d",
+            (unsigned)fruIds[i], boardSupported);
+        if (boardSupported == PWR_DISABLE) {
+            *supported = PWR_DISABLE;
+        }
+    }
+    return PWR_SUCCESS;
+}
+
+void GetHbmNodeResetCap(PwrMsg *req)
+{
+    int *supported = (int *)malloc(sizeof(int));
+    if (!supported) {
+        SendRspToClient(req, PWR_ERR_SYS_EXCEPTION, NULL, 0);
+        return;
+    }
+    *supported = PWR_DISABLE;
+    int rspCode = CheckNodeResetCapByCpld(supported);
+    if (rspCode != PWR_SUCCESS) {
+        free(supported);
+        SendRspToClient(req, rspCode, NULL, 0);
+        return;
+    }
+    Logger(DEBUG, MD_NM_SVR_HBM, "GetHbmNodeResetCap succeed. supported:%d", *supported);
+    SendRspToClient(req, rspCode, (char *)supported, sizeof(int));
+    free(supported);
 }
 
 static int EnsureCacheDriver(HbmTask *task)

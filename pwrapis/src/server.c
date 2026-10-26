@@ -567,6 +567,7 @@ static OptToFunct g_optToFunct[] = {
     {PROC_SET_SERVICE_STATE, ProcSetServiceState},
     {HBM_GET_SYS_STATE, GetHbmSysState},
     {HBM_GET_NODE_STATE, GetHbmNodeState},
+    {HBM_GET_NODE_RESET_CAP, GetHbmNodeResetCap},
     {HBM_SET_ALL_POWER_STATE, SetHbmAllPowerState},
 };
 

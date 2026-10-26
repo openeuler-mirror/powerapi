@@ -108,6 +108,7 @@ enum OperationType {
     HBM_GET_SYS_STATE = 700,
     HBM_SET_ALL_POWER_STATE,
     HBM_GET_NODE_STATE,
+    HBM_GET_NODE_RESET_CAP,
 };
 
 enum DataFormat {

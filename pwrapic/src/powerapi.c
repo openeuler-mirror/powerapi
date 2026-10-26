@@ -406,6 +406,15 @@ int PWR_HBM_GetNodeState(PWR_HBM_NODE_PWR_STATE *state)
     return GetHbmNodeState(state);
 }
 
+int PWR_HBM_IsNodeResetSupported(int *supported)
+{
+    CHECK_STATUS(STATUS_REGISTERTED);
+
+    CHECK_NULL_POINTER(supported);
+
+    return GetHbmNodeResetCap(supported);
+}
+
 int PWR_HBM_SetAllPwrState(int state)
 {
     CHECK_STATUS(STATUS_AUTHED);
