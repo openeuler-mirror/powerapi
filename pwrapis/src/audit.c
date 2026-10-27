@@ -1,0 +1,753 @@
+/* *****************************************************************************
+ * Copyright (c) Huawei Technologies Co., Ltd. 2026-2026. All rights reserved.
+ * PowerAPI licensed under the Mulan PSL v2.
+ * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * You may obtain a copy of Mulan PSL v2 at:
+ * http://license.coscl.org.cn/MulanPSL2
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR
+ * PURPOSE.
+ * See the Mulan PSL v2 for more details.
+ * Description: provide audit log service. Every audited setting request is
+ *              recorded twice: an REQ line (who/when/what/params) when the
+ *              request is accepted by the server, and an RSP line (result)
+ *              when the response is sent. The two lines are correlated by
+ *              seqId. Records go to <log_path>/audit.log, rotated by size,
+ *              independent of log level.
+ * **************************************************************************** */
+#include "audit.h"
+
+#include <dirent.h>
+#include <pthread.h>
+#include <stdarg.h>
+#include <stdio.h>
+#include <string.h>
+#include <sys/stat.h>
+#include <sys/syscall.h>
+#include <sys/time.h>
+#include <sys/types.h>
+#include <unistd.h>
+#include "common.h"
+#include "config.h"
+#include "log.h"
+#include "pwrdata.h"
+#include "pwrerr.h"
+#include "utils.h"
+
+#define AUDIT_FILE_NAME "audit.log"
+#define AUDIT_BKP_PFX "audit.log-"
+#define AUDIT_MAX_FILE_SIZE (10ULL * 1024 * 1024) // bytes
+#define AUDIT_MAX_BKP_CNT 5
+#define AUDIT_MAX_LINE_LEN 1024
+#define AUDIT_MAX_PARAM_LEN 512
+#define AUDIT_MAX_ITEMS_IN_PARAM 8
+#define AUDIT_DIR_MODE 0700
+
+static FILE *g_auditFile = NULL;
+static uint64_t g_auditSize = 0;
+static pthread_mutex_t g_auditLock = PTHREAD_MUTEX_INITIALIZER;
+
+/* ---- in-flight call registry ------------------------------------------- */
+/* AuditSettingReq registers a call, AuditCallBegin binds it to the executing
+ * thread, AuditSettingRsp removes it. WRITER events from the service itself
+ * resolve their (opt, seq, user) context through this table: first by the
+ * captured thread id (exact), otherwise the most recent in-flight call
+ * (approximate, tagged ctx=approx in the audit line). */
+#define AUDIT_MAX_INFLIGHT 32
+struct InflightCall {
+    int used;
+    int hasTid;          /* AuditCallBegin seen for this call */
+    pid_t tid;
+    uint32_t seq;
+    uint16_t optType;
+    uid_t uid;
+    char user[MAX_NAME];
+    long long startMs;
+};
+static struct InflightCall g_calls[AUDIT_MAX_INFLIGHT];
+static pthread_mutex_t g_callLock = PTHREAD_MUTEX_INITIALIZER;
+
+static long long NowMs(void)
+{
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    return (long long)tv.tv_sec * 1000LL + tv.tv_usec / 1000LL;
+}
+
+/* Find a free slot, or steal the oldest entry when the table is full
+ * (dropped correlation is preferred over a blocked audit path). */
+static struct InflightCall *AcquireCallSlot(void)
+{
+    struct InflightCall *oldest = &g_calls[0];
+    for (int i = 0; i < AUDIT_MAX_INFLIGHT; i++) {
+        if (!g_calls[i].used) {
+            return &g_calls[i];
+        }
+        if (g_calls[i].startMs < oldest->startMs) {
+            oldest = &g_calls[i];
+        }
+    }
+    return oldest;
+}
+
+static struct InflightCall *FindCall(uint32_t seq, uint16_t optType)
+{
+    for (int i = 0; i < AUDIT_MAX_INFLIGHT; i++) {
+        if (g_calls[i].used && g_calls[i].seq == seq && g_calls[i].optType == optType) {
+            return &g_calls[i];
+        }
+    }
+    return NULL;
+}
+
+typedef struct AuditOptName {
+    uint16_t optType;
+    const char *apiName;
+} AuditOptName;
+
+/* Setting interfaces (and control-auth requests) that are audited. */
+static const AuditOptName g_auditOptNames[] = {
+    {COM_REQUEST_CONTROL_AUTH, "PWR_RequestControlAuth"},
+    {COM_RELEASE_CONTROL_AUTH, "PWR_ReleaseControlAuth"},
+    {SYS_SET_POWER_STATE, "PWR_SYS_SetPowerState"},
+    {CPU_SET_FREQ_RANGE, "PWR_CPU_SetFreqRange"},
+    {CPU_SET_FREQ_GOVERNOR, "PWR_CPU_SetFreqGovernor"},
+    {CPU_SET_FREQ_GOV_ATTR, "PWR_CPU_SetFreqGovAttr"},
+    {CPU_SET_CUR_FREQ, "PWR_CPU_SetFreq"},
+    {CPU_SET_IDLE_GOV, "PWR_CPU_SetIdleGovernor"},
+    {CPU_SET_DMA_LATENCY, "PWR_CPU_DmaSetLatency"},
+    {PROC_SET_WATT_STATE, "PWR_PROC_SetWattState"},
+    {PROC_SET_WATT_FIRST_DOMAIN, "PWR_PROC_SetWattFirstDomain"},
+    {PROC_SET_WATT_ARRTS, "PWR_PROC_SetWattAttrs"},
+    {PROC_ADD_WATT_PROCS, "PWR_PROC_AddWattProcs"},
+    {PROC_DEL_WATT_PROCS, "PWR_PROC_DelWattProcs"},
+    {PROC_SET_SMART_GRID_STATE, "PWR_PROC_SetSmartGridState"},
+    {PROC_SET_SMART_GRID_PROCS_LEVEL, "PWR_PROC_SetSmartGridLevel"},
+    {PROC_SET_SMART_GRID_GOV, "PWR_PROC_SetSmartGridGov"},
+    {PROC_SET_SERVICE_STATE, "PWR_PROC_SetServiceState"},
+    {HBM_SET_ALL_POWER_STATE, "PWR_HBM_SetAllPwrState"},
+};
+
+static const char *GetAuditOptName(uint16_t optType)
+{
+    for (size_t i = 0; i < sizeof(g_auditOptNames) / sizeof(g_auditOptNames[0]); i++) {
+        if (g_auditOptNames[i].optType == optType) {
+            return g_auditOptNames[i].apiName;
+        }
+    }
+    return "UNKNOWN";
+}
+
+int IsAuditOpt(uint16_t optType)
+{
+    for (size_t i = 0; i < sizeof(g_auditOptNames) / sizeof(g_auditOptNames[0]); i++) {
+        if (g_auditOptNames[i].optType == optType) {
+            return PWR_TRUE;
+        }
+    }
+    return PWR_FALSE;
+}
+
+/* Escape non-printable bytes so audit lines stay single-line while control
+ * characters remain recognisable: \n, \t and \r get letter forms, every
+ * other byte outside 0x20..0x7e becomes \xNN. Returns the number of escape
+ * sequences written (0 = plain printable text). */
+static size_t EscapeStr(char *dst, size_t dstSize, const char *src, size_t srcLen)
+{
+    static const char hex[] = "0123456789abcdef";
+    size_t out = 0;
+    size_t escapes = 0;
+    if (dstSize == 0) {
+        return 0;
+    }
+    for (size_t i = 0; i < srcLen; i++) {
+        unsigned char c = (unsigned char)src[i];
+        char tmp[4];
+        size_t n;
+        if (c == '\n') {
+            tmp[0] = '\\';
+            tmp[1] = 'n';
+            n = 2;
+        } else if (c == '\t') {
+            tmp[0] = '\\';
+            tmp[1] = 't';
+            n = 2;
+        } else if (c == '\r') {
+            tmp[0] = '\\';
+            tmp[1] = 'r';
+            n = 2;
+        } else if (c >= 0x20 && c <= 0x7e) {
+            tmp[0] = (char)c;
+            n = 1;
+        } else {
+            tmp[0] = '\\';
+            tmp[1] = 'x';
+            tmp[2] = hex[c >> 4];
+            tmp[3] = hex[c & 0x0f];
+            n = 4;
+        }
+        if (out + n >= dstSize) {
+            break; /* truncated; keep room for the NUL */
+        }
+        if (n > 1) {
+            escapes++;
+        }
+        memcpy(&dst[out], tmp, n);
+        out += n;
+    }
+    dst[out] = '\0';
+    return escapes;
+}
+
+/* Copy at most dataLen bytes into dst, always NUL-terminated with
+ * non-printable bytes escaped. The payload of string parameters usually
+ * carries a trailing NUL, which must not be escaped into a visible form. */
+static void CopyDataStr(char *dst, size_t dstSize, const char *data, uint32_t dataLen)
+{
+    if (dst == NULL || dstSize == 0) {
+        return;
+    }
+    dst[0] = '\0';
+    if (data == NULL || dataLen == 0) {
+        return;
+    }
+    size_t n = ((size_t)dataLen < dstSize) ? (size_t)dataLen : dstSize;
+    /* Stop at an embedded NUL like a plain string copy would. */
+    const char *end = memchr(data, '\0', n);
+    if (end != NULL) {
+        n = (size_t)(end - data);
+    }
+    EscapeStr(dst, dstSize, data, n);
+}
+
+static void AppendStr(char *buf, size_t bufSize, int *pos, const char *fmt, ...)
+{
+    if (*pos < 0 || (size_t)(*pos) + 1 >= bufSize) {
+        return;
+    }
+    va_list args;
+    va_start(args, fmt);
+    int ret = vsnprintf(buf + *pos, bufSize - (size_t)(*pos), fmt, args);
+    va_end(args);
+    if (ret < 0) {
+        return;
+    }
+    if ((size_t)(*pos) + (size_t)ret >= bufSize) {
+        *pos = (int)(bufSize - 1); // truncated, no more room
+        return;
+    }
+    *pos += ret;
+}
+
+static const char *StateToStr(int state)
+{
+    if (state == PWR_ENABLE) {
+        return "enable";
+    }
+    if (state == PWR_DISABLE) {
+        return "disable";
+    }
+    return "unknown";
+}
+
+/* Append a bounded pid list, e.g. "procs=[123,456,...]" */
+static void AppendPidList(char *param, size_t paramSize, int *pos, const pid_t *procs, uint32_t num)
+{
+    AppendStr(param, paramSize, pos, "procs=[");
+    for (uint32_t i = 0; i < num && i < AUDIT_MAX_ITEMS_IN_PARAM; i++) {
+        AppendStr(param, paramSize, pos, "%s%d", (i == 0) ? "" : ",", procs[i]);
+    }
+    AppendStr(param, paramSize, pos, "%s]", (num > AUDIT_MAX_ITEMS_IN_PARAM) ? ",..." : "");
+}
+
+/*
+ * BuildParamStr - decode the request data of an audited operation into a
+ * human-readable parameter string. Unknown or malformed payloads fall back
+ * to "dataLen=<n>" so raw binary never enters the audit file.
+ */
+static void BuildParamStr(uint16_t optType, const char *data, uint32_t dataLen, char *param, size_t paramSize)
+{
+    int pos = 0;
+    param[0] = '\0';
+
+    if (data == NULL || dataLen == 0) {
+        AppendStr(param, paramSize, &pos, "dataLen=%u", dataLen);
+        return;
+    }
+
+    switch (optType) {
+        case CPU_SET_CUR_FREQ: {
+            if (dataLen % sizeof(PWR_CPU_CurFreq) != 0) {
+                break;
+            }
+            uint32_t num = dataLen / sizeof(PWR_CPU_CurFreq);
+            const PWR_CPU_CurFreq *freq = (const PWR_CPU_CurFreq *)data;
+            AppendStr(param, paramSize, &pos, "freq=[");
+            for (uint32_t i = 0; i < num && i < AUDIT_MAX_ITEMS_IN_PARAM; i++) {
+                AppendStr(param, paramSize, &pos, "%s{policy%d:%.0fMHz}", (i == 0) ? "" : ",",
+                    freq[i].policyId, freq[i].curFreq);
+            }
+            AppendStr(param, paramSize, &pos, "%s]", (num > AUDIT_MAX_ITEMS_IN_PARAM) ? ",..." : "");
+            return;
+        }
+        case CPU_SET_FREQ_GOVERNOR:
+        case CPU_SET_IDLE_GOV: {
+            char gov[PWR_MAX_ELEMENT_NAME_LEN + 1] = {0};
+            CopyDataStr(gov, sizeof(gov), data, dataLen);
+            AppendStr(param, paramSize, &pos, "governor=\"%s\"", gov);
+            return;
+        }
+        case CPU_SET_FREQ_GOV_ATTR: {
+            if (dataLen < sizeof(PWR_CPU_FreqGovAttr)) {
+                break;
+            }
+            const PWR_CPU_FreqGovAttr *attr = (const PWR_CPU_FreqGovAttr *)data;
+            char gov[PWR_MAX_ELEMENT_NAME_LEN + 1] = {0};
+            char key[PWR_MAX_ELEMENT_NAME_LEN + 1] = {0};
+            char value[PWR_MAX_VALUE_LEN + 1] = {0};
+            CopyDataStr(gov, sizeof(gov), attr->gov, sizeof(attr->gov));
+            CopyDataStr(key, sizeof(key), attr->attr.key, sizeof(attr->attr.key));
+            CopyDataStr(value, sizeof(value), attr->attr.value, sizeof(attr->attr.value));
+            AppendStr(param, paramSize, &pos, "gov=\"%s\" key=\"%s\" value=\"%s\"", gov, key, value);
+            return;
+        }
+        case CPU_SET_FREQ_RANGE: {
+            if (dataLen < sizeof(PWR_CPU_FreqRange)) {
+                break;
+            }
+            const PWR_CPU_FreqRange *range = (const PWR_CPU_FreqRange *)data;
+            AppendStr(param, paramSize, &pos, "range=[%d,%d]MHz", range->minFreq, range->maxFreq);
+            return;
+        }
+        case CPU_SET_DMA_LATENCY: {
+            if (dataLen < sizeof(int)) {
+                break;
+            }
+            AppendStr(param, paramSize, &pos, "latency=%d", *(const int *)data);
+            return;
+        }
+        case SYS_SET_POWER_STATE: {
+            if (dataLen < sizeof(int)) {
+                break;
+            }
+            AppendStr(param, paramSize, &pos, "powerState=%d", *(const int *)data);
+            return;
+        }
+        case HBM_SET_ALL_POWER_STATE:
+        case PROC_SET_WATT_STATE:
+        case PROC_SET_SMART_GRID_STATE: {
+            if (dataLen < sizeof(int)) {
+                break;
+            }
+            AppendStr(param, paramSize, &pos, "state=%s", StateToStr(*(const int *)data));
+            return;
+        }
+        case PROC_SET_WATT_FIRST_DOMAIN: {
+            if (dataLen < sizeof(int)) {
+                break;
+            }
+            AppendStr(param, paramSize, &pos, "cpuId=%d", *(const int *)data);
+            return;
+        }
+        case PROC_SET_WATT_ARRTS: {
+            if (dataLen < sizeof(PWR_PROC_WattAttrs)) {
+                break;
+            }
+            const PWR_PROC_WattAttrs *watt = (const PWR_PROC_WattAttrs *)data;
+            AppendStr(param, paramSize, &pos, "threshold=%d interval=%d domainMask=%d",
+                watt->scaleThreshold, watt->scaleInterval, watt->domainMask);
+            return;
+        }
+        case PROC_ADD_WATT_PROCS:
+        case PROC_DEL_WATT_PROCS: {
+            if (dataLen % sizeof(pid_t) != 0) {
+                break;
+            }
+            AppendPidList(param, paramSize, &pos, (const pid_t *)data, dataLen / sizeof(pid_t));
+            return;
+        }
+        case PROC_SET_SMART_GRID_PROCS_LEVEL: {
+            if (dataLen < sizeof(PWR_PROC_SmartGridProcs)) {
+                break;
+            }
+            const PWR_PROC_SmartGridProcs *sg = (const PWR_PROC_SmartGridProcs *)data;
+            uint32_t num = (uint32_t)((dataLen - sizeof(PWR_PROC_SmartGridProcs)) / sizeof(pid_t));
+            if (sg->procNum >= 0 && (uint32_t)sg->procNum < num) {
+                num = (uint32_t)sg->procNum;
+            }
+            AppendStr(param, paramSize, &pos, "level=%d procNum=%d ", sg->level, sg->procNum);
+            AppendPidList(param, paramSize, &pos, sg->procs, num);
+            return;
+        }
+        case PROC_SET_SMART_GRID_GOV: {
+            if (dataLen < sizeof(PWR_PROC_SmartGridGov)) {
+                break;
+            }
+            const PWR_PROC_SmartGridGov *gov = (const PWR_PROC_SmartGridGov *)data;
+            char lv0[PWR_MAX_ELEMENT_NAME_LEN + 1] = {0};
+            char lv1[PWR_MAX_ELEMENT_NAME_LEN + 1] = {0};
+            CopyDataStr(lv0, sizeof(lv0), gov->sgLevel0Gov, sizeof(gov->sgLevel0Gov));
+            CopyDataStr(lv1, sizeof(lv1), gov->sgLevel1Gov, sizeof(gov->sgLevel1Gov));
+            AppendStr(param, paramSize, &pos, "agentState=%s level0Gov=\"%s\" level1Gov=\"%s\"",
+                StateToStr(gov->sgAgentState), lv0, lv1);
+            return;
+        }
+        case PROC_SET_SERVICE_STATE: {
+            if (dataLen < sizeof(PWR_PROC_ServiceState)) {
+                break;
+            }
+            const PWR_PROC_ServiceState *svc = (const PWR_PROC_ServiceState *)data;
+            AppendStr(param, paramSize, &pos, "service=%d state=%d", (int)svc->name, svc->state);
+            return;
+        }
+        default:
+            break;
+    }
+
+    if (pos == 0) {
+        AppendStr(param, paramSize, &pos, "dataLen=%u", dataLen);
+    }
+}
+
+static int AuditBkpFilter(const struct dirent *item)
+{
+    if (item->d_type != DT_REG) {
+        return 0;
+    }
+    return strncmp(item->d_name, AUDIT_BKP_PFX, strlen(AUDIT_BKP_PFX)) == 0;
+}
+
+/* Delete the oldest audit backups, keep at most AUDIT_MAX_BKP_CNT files. */
+static void PruneAuditBackups(void)
+{
+    const char *dir = GetLogCfg()->logPath;
+    struct dirent **fileList = NULL;
+    int fileCnt = scandir(dir, &fileList, AuditBkpFilter, alphasort);
+    if (fileCnt < 0) {
+        return;
+    }
+    int delCnt = fileCnt - (int)AUDIT_MAX_BKP_CNT;
+    for (int i = 0; i < fileCnt; i++) {
+        if (i < delCnt) {
+            char fullPath[MAX_FULL_NAME] = {0};
+            if (snprintf(fullPath, sizeof(fullPath), "%s/%s", dir, fileList[i]->d_name) > 0) {
+                (void)unlink(fullPath);
+            }
+        }
+        free(fileList[i]);
+    }
+    free(fileList);
+}
+
+static FILE *OpenAuditFile(void)
+{
+    char fullName[MAX_FULL_NAME] = {0};
+    if (snprintf(fullName, sizeof(fullName), "%s/%s", GetLogCfg()->logPath, AUDIT_FILE_NAME) < 0) {
+        return NULL;
+    }
+    FILE *fp = fopen(fullName, "a");
+    if (fp == NULL) {
+        return NULL;
+    }
+    struct stat st;
+    g_auditSize = 0;
+    if (stat(fullName, &st) == 0) {
+        g_auditSize = (uint64_t)st.st_size;
+    }
+    return fp;
+}
+
+static int RotateAuditFile(void)
+{
+    char curTime[MAX_STD_TIME] = {0};
+    char fullName[MAX_FULL_NAME] = {0};
+    char bakName[MAX_FULL_NAME] = {0};
+
+    if (g_auditFile != NULL) {
+        fclose(g_auditFile);
+        g_auditFile = NULL;
+    }
+
+    if (snprintf(fullName, sizeof(fullName), "%s/%s", GetLogCfg()->logPath, AUDIT_FILE_NAME) < 0) {
+        return PWR_ERR_SYS_EXCEPTION;
+    }
+    GetCurFmtTmStr("%Y%m%d%H%M%S", curTime, sizeof(curTime) - 1);
+    if (snprintf(bakName, sizeof(bakName), "%s/%s%s", GetLogCfg()->logPath, AUDIT_BKP_PFX, curTime) < 0) {
+        return PWR_ERR_SYS_EXCEPTION;
+    }
+    (void)rename(fullName, bakName); // even if rename fails, reopen a fresh file
+    PruneAuditBackups();
+    g_auditFile = OpenAuditFile();
+    return (g_auditFile != NULL) ? PWR_SUCCESS : PWR_ERR_SYS_EXCEPTION;
+}
+
+/* Emit one audit line. Self-heals by reopening the file when possible. */
+static void EmitAuditLine(const char *line)
+{
+    pthread_mutex_lock(&g_auditLock);
+    if (g_auditFile == NULL) {
+        g_auditFile = OpenAuditFile();
+        if (g_auditFile == NULL) {
+            pthread_mutex_unlock(&g_auditLock);
+            return;
+        }
+    }
+    size_t len = strlen(line);
+    if (fputs(line, g_auditFile) >= 0 && fputc('\n', g_auditFile) != EOF && fflush(g_auditFile) >= 0) {
+        g_auditSize += len + 1;
+        if (g_auditSize > AUDIT_MAX_FILE_SIZE) {
+            (void)RotateAuditFile();
+        }
+    }
+    pthread_mutex_unlock(&g_auditLock);
+}
+
+static void ComposeCommonHead(char *line, size_t size, int *pos, const char *tag,
+    const PwrClient *client, const PwrMsg *req)
+{
+    const char *userName = (client != NULL) ? client->userName : NULL;
+    uid_t uid = (client != NULL) ? client->uid : (uid_t)-1;
+    uint32_t sysId = (client != NULL) ? (uint32_t)client->sysId : req->head.sysId;
+
+    char curTime[MAX_STD_TIME] = {0};
+    GetCurFullTime(curTime, sizeof(curTime) - 1);
+    AppendStr(line, size, pos, "%s [AUDIT][%s][API] user=%s uid=%u pid=%u opt=%s seq=%u",
+        curTime, tag, (userName != NULL && userName[0] != '\0') ? userName : "unknown",
+        (unsigned)uid, sysId, GetAuditOptName(req->head.optType), req->head.seqId);
+}
+
+int InitAuditLogger(void)
+{
+    const char *logPath = GetLogCfg()->logPath;
+    if (access(logPath, F_OK) != 0) {
+        if (MkDirs(logPath, AUDIT_DIR_MODE) != PWR_SUCCESS) {
+            Logger(ERROR, MD_NM_LOG, "create audit log dir failed. path:%s", logPath);
+            return PWR_ERR_SYS_EXCEPTION;
+        }
+    }
+    pthread_mutex_lock(&g_auditLock);
+    g_auditFile = OpenAuditFile();
+    pthread_mutex_unlock(&g_auditLock);
+    if (g_auditFile == NULL) {
+        Logger(ERROR, MD_NM_LOG, "open audit log file failed. path:%s/%s", logPath, AUDIT_FILE_NAME);
+        return PWR_ERR_COMMON;
+    }
+    return PWR_SUCCESS;
+}
+
+void ClearAuditLogger(void)
+{
+    pthread_mutex_lock(&g_auditLock);
+    if (g_auditFile != NULL) {
+        fclose(g_auditFile);
+        g_auditFile = NULL;
+    }
+    g_auditSize = 0;
+    pthread_mutex_unlock(&g_auditLock);
+}
+
+void AuditClientConn(const PwrClient *client, enum AuditEvtType evt)
+{
+    const char *tag = (evt == AUDIT_EVT_CONN) ? "CONN" : "DISCONN";
+    const char *userName = (client != NULL) ? client->userName : NULL;
+    uid_t uid = (client != NULL) ? client->uid : (uid_t)-1;
+    uint32_t sysId = (client != NULL) ? (uint32_t)client->sysId : 0;
+
+    char line[AUDIT_MAX_LINE_LEN] = {0};
+    int pos = 0;
+    char curTime[MAX_STD_TIME] = {0};
+    GetCurFullTime(curTime, sizeof(curTime) - 1);
+    AppendStr(line, sizeof(line), &pos, "%s [AUDIT][%s][API] user=%s uid=%u pid=%u",
+        curTime, tag, (userName != NULL && userName[0] != '\0') ? userName : "unknown",
+        (unsigned)uid, sysId);
+    EmitAuditLine(line);
+}
+
+void AuditSettingReq(const PwrClient *client, const PwrMsg *req)
+{
+    if (req == NULL || !IsAuditOpt(req->head.optType)) {
+        return;
+    }
+
+    char param[AUDIT_MAX_PARAM_LEN] = {0};
+    BuildParamStr(req->head.optType, req->data, req->head.dataLen, param, sizeof(param));
+
+    char line[AUDIT_MAX_LINE_LEN] = {0};
+    int pos = 0;
+    ComposeCommonHead(line, sizeof(line), &pos, "REQ", client, req);
+    AppendStr(line, sizeof(line), &pos, " param=\"%s\"", param);
+    EmitAuditLine(line);
+
+    /* Register the call so WRITER events can correlate against it. */
+    pthread_mutex_lock(&g_callLock);
+    struct InflightCall *slot = AcquireCallSlot();
+    if (slot != NULL) {
+        slot->used = 1;
+        slot->hasTid = 0;
+        slot->tid = -1;
+        slot->seq = req->head.seqId;
+        slot->optType = req->head.optType;
+        slot->uid = (client != NULL) ? client->uid : (uid_t)-1;
+        snprintf(slot->user, sizeof(slot->user), "%s",
+            (client != NULL && client->userName[0] != '\0') ? client->userName : "unknown");
+        slot->startMs = NowMs();
+    }
+    pthread_mutex_unlock(&g_callLock);
+}
+
+void AuditSettingRsp(const PwrClient *client, const PwrMsg *req, int rspCode)
+{
+    if (req == NULL || !IsAuditOpt(req->head.optType)) {
+        return;
+    }
+
+    char line[AUDIT_MAX_LINE_LEN] = {0};
+    int pos = 0;
+    ComposeCommonHead(line, sizeof(line), &pos, "RSP", client, req);
+    AppendStr(line, sizeof(line), &pos, " result=%s rspCode=%d",
+        (rspCode == PWR_SUCCESS) ? "success" : "failed", rspCode);
+    EmitAuditLine(line);
+
+    pthread_mutex_lock(&g_callLock);
+    struct InflightCall *slot = FindCall(req->head.seqId, req->head.optType);
+    if (slot != NULL) {
+        slot->used = 0;
+    }
+    pthread_mutex_unlock(&g_callLock);
+}
+
+void AuditCallBegin(const PwrMsg *req)
+{
+    if (req == NULL || !IsAuditOpt(req->head.optType)) {
+        return;
+    }
+    pid_t tid = (pid_t)syscall(SYS_gettid);
+    pthread_mutex_lock(&g_callLock);
+    struct InflightCall *slot = FindCall(req->head.seqId, req->head.optType);
+    if (slot != NULL) {
+        slot->tid = tid;
+        slot->hasTid = 1;
+    }
+    pthread_mutex_unlock(&g_callLock);
+}
+
+void AuditCallEnd(void)
+{
+    pid_t tid = (pid_t)syscall(SYS_gettid);
+    pthread_mutex_lock(&g_callLock);
+    for (int i = 0; i < AUDIT_MAX_INFLIGHT; i++) {
+        if (g_calls[i].used && g_calls[i].hasTid && g_calls[i].tid == tid) {
+            g_calls[i].hasTid = 0;
+            g_calls[i].tid = -1;
+        }
+    }
+    pthread_mutex_unlock(&g_callLock);
+}
+
+/* Resolve the API-call context of a WRITER event emitted by the service
+ * itself: exact match by the executing thread first, otherwise the most
+ * recent in-flight call as an approximation. Caller provides buffers. */
+static int FindWriterCall(pid_t tid, uint16_t *optType, uint32_t *seq,
+    uid_t *uid, char *user, size_t userSize, int *approx)
+{
+    struct InflightCall *match = NULL;
+    pthread_mutex_lock(&g_callLock);
+    for (int i = 0; i < AUDIT_MAX_INFLIGHT; i++) {
+        if (g_calls[i].used && g_calls[i].hasTid && g_calls[i].tid == tid) {
+            match = &g_calls[i];
+            *approx = 0;
+            break;
+        }
+    }
+    if (match == NULL) {
+        long long newest = -1;
+        for (int i = 0; i < AUDIT_MAX_INFLIGHT; i++) {
+            if (g_calls[i].used && g_calls[i].startMs > newest) {
+                newest = g_calls[i].startMs;
+                match = &g_calls[i];
+            }
+        }
+        if (match != NULL) {
+            *approx = 1;
+        }
+    }
+    if (match != NULL) {
+        *optType = match->optType;
+        *seq = match->seq;
+        *uid = match->uid;
+        snprintf(user, userSize, "%s", match->user);
+    }
+    pthread_mutex_unlock(&g_callLock);
+    return (match != NULL);
+}
+
+void AuditWriterEvent(const struct WriterAudit *wa)
+{
+    if (wa == NULL || wa->file == NULL) {
+        return;
+    }
+    char curTime[MAX_STD_TIME] = {0};
+    const char *ts = wa->ts;
+    if (ts == NULL || ts[0] == '\0') {
+        GetCurFullTime(curTime, sizeof(curTime) - 1);
+        ts = curTime;
+    }
+
+    char sComm[32] = {0};
+    char sFile[AUDIT_MAX_LINE_LEN] = {0};
+    char sValue[AUDIT_MAX_LINE_LEN] = {0};
+    char sExe[AUDIT_MAX_LINE_LEN] = {0};
+    char sCmd[AUDIT_MAX_LINE_LEN] = {0};
+    if (wa->comm != NULL) {
+        EscapeStr(sComm, sizeof(sComm), wa->comm, strnlen(wa->comm, sizeof(sComm) - 1));
+    }
+    if (wa->file != NULL) {
+        EscapeStr(sFile, sizeof(sFile), wa->file, strnlen(wa->file, sizeof(sFile) - 1));
+    }
+    if (wa->value != NULL) {
+        EscapeStr(sValue, sizeof(sValue), wa->value, strnlen(wa->value, AUDIT_MAX_PARAM_LEN - 1));
+    }
+    if (wa->exe != NULL) {
+        EscapeStr(sExe, sizeof(sExe), wa->exe, strnlen(wa->exe, sizeof(sExe) - 1));
+    }
+    if (wa->cmd != NULL) {
+        EscapeStr(sCmd, sizeof(sCmd), wa->cmd, strnlen(wa->cmd, sizeof(sCmd) - 1));
+    }
+
+    char line[AUDIT_MAX_LINE_LEN] = {0};
+    int pos = 0;
+    if (wa->pid == (int)getpid()) {
+        /* The service itself wrote: correlate with the in-flight API call. */
+        uint16_t optType = 0;
+        uint32_t seq = 0;
+        uid_t callerUid = (uid_t)-1;
+        char callerUser[MAX_NAME] = {0};
+        int approx = 0;
+        if (FindWriterCall(wa->tid, &optType, &seq, &callerUid, callerUser,
+            sizeof(callerUser), &approx)) {
+            AppendStr(line, sizeof(line), &pos,
+                "%s [AUDIT][WRITER][API] user=%s uid=%u opt=%s seq=%u%s pid=%d comm=\"%s\" file=\"%s\" value=\"%s\"",
+                ts, callerUser, (unsigned)callerUid, GetAuditOptName(optType), seq,
+                approx ? " ctx=approx" : "", wa->pid, sComm, sFile, sValue);
+        } else {
+            AppendStr(line, sizeof(line), &pos,
+                "%s [AUDIT][WRITER][API] user=- uid=- opt=- seq=- pid=%d comm=\"%s\" file=\"%s\" value=\"%s\"",
+                ts, wa->pid, sComm, sFile, sValue);
+        }
+    } else {
+        /* Foreign writer: enrich with process evidence. file= was resolved
+         * from /proc after the write completed, so a racing dup2(2) can
+         * mislabel it (attr=late); an ESC byte in the value is the typical
+         * signature of a terminal-title write caught by that race. */
+        const char *suspect = (strstr(sValue, "\\x1b") != NULL) ? "esc" : "0";
+        AppendStr(line, sizeof(line), &pos,
+            "%s [AUDIT][WRITER][OS] uid=%u pid=%d user=%s comm=\"%s\" exe=\"%s\" cmd=\"%s\" file=\"%s\" value=\"%s\" attr=late suspect=%s",
+            ts, wa->uid, wa->pid,
+            (wa->userName != NULL && wa->userName[0] != '\0') ? wa->userName : "unknown",
+            sComm,
+            (sExe[0] != '\0') ? sExe : "-",
+            (sCmd[0] != '\0') ? sCmd : "-",
+            sFile, sValue, suspect);
+    }
+    EmitAuditLine(line);
+}

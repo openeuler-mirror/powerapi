@@ -25,6 +25,7 @@
 #include <sys/un.h>
 #include "common.h"
 #include "log.h"
+#include "audit.h"
 #include "pwrclient.h"
 #include "config.h"
 #include "pwrbuffer.h"
@@ -207,6 +208,8 @@ static void AcceptConnection(void)
     PwrClient client = {0};
     client.fd = newClientFd;
     client.sysId = credSocket.pid;
+    client.uid = credSocket.uid;
+    client.gid = credSocket.gid;
     int ret = PassCredVerification(&credSocket, client.userName);
     if (ret == PWR_ERR_NOT_AUTHED) {
         Logger(ERROR, MD_NM_CRED, "credentials verification failed");
@@ -235,6 +238,7 @@ static void AcceptConnection(void)
         return;
     }
     Logger(INFO, MD_NM_SVR, "Create new connection succeed. fd:%d, sysId:%d", client.fd, client.sysId);
+    AuditClientConn(&client, AUDIT_EVT_CONN);
 }
 
 static void CleanClientResource(PwrClient clients[], int idx)
@@ -245,6 +249,7 @@ static void CleanClientResource(PwrClient clients[], int idx)
     }
     CleanControlAuth(clients[idx].sysId);
     CleanDataCollTaskByClient(clients[idx].sysId);
+    AuditClientConn(&clients[idx], AUDIT_EVT_DISCONN);
     DeleteFromClientList(g_pwrClients, idx);
 }
 
@@ -326,6 +331,10 @@ static void ProcessRecvMsgFromClient(int clientIdx)
         ReleasePwrMsg(&msg);
         return;
     }
+
+    // Audit the setting request before dispatch. This single point covers
+    // both the HBM fast path and the ordinary queue path.
+    AuditSettingReq(&g_pwrClients[clientIdx], msg);
 
     // Route before the ordinary queue so a busy ordinary worker cannot delay HBM dispatch.
     if (msg->head.optType == HBM_SET_ALL_POWER_STATE) {
@@ -578,7 +587,11 @@ static void ProcessReqMsg(PwrMsg *req)
     int count = sizeof(g_optToFunct) / sizeof(g_optToFunct[0]);
     for (int i = 0; i < count; i++) {
         if (req->head.optType == g_optToFunct[i].type) {
+            /* Announce the executing thread so WRITER audit events can
+             * correlate the sysfs writes of this call precisely. */
+            AuditCallBegin(req);
             g_optToFunct[i].funct(req);
+            AuditCallEnd();
             break;
         }
     }
@@ -683,6 +696,7 @@ void SendRspToClient(const PwrMsg *req, int rspCode, char *data, uint32_t len)
     if (!req) {
         return;
     }
+    AuditSettingRsp(GetClientBySysId(g_pwrClients, req->head.sysId), req, rspCode);
     if (!data && len != 0) {
         return;
     }

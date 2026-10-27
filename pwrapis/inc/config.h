@@ -27,6 +27,10 @@
 #define MAX_SERVER_PORT 65535
 #define MD5_LEN 33
 #define DEFAULT_SERVER_SOCK_FILE "/etc/sysconfig/pwrapis/pwrserver.sock"
+/* Directory holding the per-arch eBPF writer objects. The loader appends
+ * bpf_writer_x86.bpf.o or bpf_writer_arm64.bpf.o based on uname(); a concrete
+ * *.o path in the config overrides this. */
+#define BPF_OBJ_DEFAULT_PATH "/usr/lib/pwrapis"
 
 // LogCfg
 enum LogLevel {
@@ -48,6 +52,9 @@ enum CnfItemType {
     E_CFG_IT_SKF,
     E_CFG_IT_ADM,
     E_CFG_IT_OBSER,
+    E_CFG_IT_WATCH_FILES,
+    E_CFG_IT_BPF_EN,
+    E_CFG_IT_BPF_OBJ,
 };
 
 typedef struct LogCfg {
@@ -77,10 +84,23 @@ typedef struct ServCfg {
     char sockFile[MAX_FILE_NAME];
 } ServCfg;
 
+/* Extra watch files (comma separated) for the eBPF writer attribution. The
+ * config key stays "drift_watch_files" for backward compatibility. */
+typedef struct WatchCfg {
+    char extraFiles[MAX_LINE_LENGTH];
+} WatchCfg;
+
+typedef struct BpfCfg {
+    int enable;
+    char objPath[MAX_FULL_NAME];
+} BpfCfg;
+
 int UpdateConfigPath(const char* configPath);
 int InitConfig(void);
 LogCfg *GetLogCfg(void);
 ServCfg *GetServCfg(void);
+WatchCfg *GetWatchCfg(void);
+BpfCfg *GetBpfCfg(void);
 int CheckAndUpdateConfig(void);
 int IsAdmin(const char* user);
 int IsObserver(const char* user);

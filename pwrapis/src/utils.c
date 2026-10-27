@@ -131,7 +131,7 @@ const char *GetCurFullTime(char *fullTime, int bufLen)
     if (strftime(strStdTime, sizeof(strStdTime), "%F %T", tmp) == 0) {
         return NULL;
     }
-    res = snprintf(strTime, sizeof(strTime) - 1, "%s.%ld", strStdTime, curTime.tv_usec / MS_TO_SEC);
+    res = snprintf(strTime, sizeof(strTime) - 1, "%s.%03ld", strStdTime, curTime.tv_usec / MS_TO_SEC);
     if (res < 0) {
         return NULL;
     }

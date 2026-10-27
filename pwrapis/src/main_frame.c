@@ -18,6 +18,8 @@
 #include "server.h"
 #include "config.h"
 #include "log.h"
+#include "audit.h"
+#include "bpfwriter.h"
 #include "pwrerr.h"
 
 #define ARGS_NUM 2
@@ -42,12 +44,20 @@ static int BaseInit(void)
         return ret;
     }
 
+    // Audit is best-effort: never block the power service on audit failures.
+    ret = InitAuditLogger();
+    if (ret != PWR_SUCCESS) {
+        Logger(ERROR, MD_NM_LOG, "InitAuditLogger failed. ret:%d", ret);
+    }
+
     return PWR_SUCCESS;
 }
 
 static void ClearEnv(void)
 {
     // todo：必要的环境清理动作
+    ClearBpfWriter();
+    ClearAuditLogger();
     ClearLogger();
 }
 
@@ -93,6 +103,14 @@ int main(int argc, const char *args[])
         exit(-1);
     }
     Logger(INFO, MD_NM_MAN, "Start Server succeed.");
+
+    /* BPF writer attribution is best-effort: bring it up AFTER the server is
+     * listening so a slow BPF attach (e.g. 608 CPUs, several seconds of
+     * perf_event_open) never delays client connectivity. */
+    ret = InitBpfWriter();
+    if (ret != PWR_SUCCESS) {
+        Logger(ERROR, MD_NM_MAN, "InitBpfWriter failed. ret:%d", ret);
+    }
 
     SetupSignal();
     g_keepMainRunning = KEEP_RUN;
