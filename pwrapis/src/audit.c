@@ -8,12 +8,14 @@
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR
  * PURPOSE.
  * See the Mulan PSL v2 for more details.
- * Description: provide audit log service. Every audited setting request is
- *              recorded twice: an REQ line (who/when/what/params) when the
- *              request is accepted by the server, and an RSP line (result)
- *              when the response is sent. The two lines are correlated by
- *              seqId. Records go to <log_path>/audit.log, rotated by size,
- *              independent of log level.
+ * Description: provide audit log service. Audit records answer "who did
+ *              what at what time": client CONN/DISCONN lines, setting
+ *              requests as REQ/RSP pairs correlated by seqId, and WRITER
+ *              lines attributing every write to a watched sysfs file - to
+ *              the in-flight API call when the service itself writes, to
+ *              the writing process (uid/pid/exe/cmd) otherwise. Records go
+ *              to <log_path>/audit.log, rotated by size, independent of
+ *              log level.
  * **************************************************************************** */
 #include "audit.h"
 
@@ -152,24 +154,25 @@ static const AuditOptName g_auditOptNames[] = {
     {HBM_SET_ALL_POWER_STATE, "PWR_HBM_SetAllPwrState"},
 };
 
-static const char *GetAuditOptName(uint16_t optType)
+static int FindAuditOptIdx(uint16_t optType)
 {
     for (size_t i = 0; i < sizeof(g_auditOptNames) / sizeof(g_auditOptNames[0]); i++) {
         if (g_auditOptNames[i].optType == optType) {
-            return g_auditOptNames[i].apiName;
+            return (int)i;
         }
     }
-    return "UNKNOWN";
+    return -1;
+}
+
+static const char *GetAuditOptName(uint16_t optType)
+{
+    int idx = FindAuditOptIdx(optType);
+    return (idx >= 0) ? g_auditOptNames[idx].apiName : "UNKNOWN";
 }
 
 int IsAuditOpt(uint16_t optType)
 {
-    for (size_t i = 0; i < sizeof(g_auditOptNames) / sizeof(g_auditOptNames[0]); i++) {
-        if (g_auditOptNames[i].optType == optType) {
-            return PWR_TRUE;
-        }
-    }
-    return PWR_FALSE;
+    return (FindAuditOptIdx(optType) >= 0) ? PWR_TRUE : PWR_FALSE;
 }
 
 /* Escape non-printable bytes so audit lines stay single-line while control
@@ -221,6 +224,25 @@ static size_t EscapeStr(char *dst, size_t dstSize, const char *src, size_t srcLe
     }
     dst[out] = '\0';
     return escapes;
+}
+
+/* Escape one NUL-terminated string field into dst ("", a "-", "-" style
+ * fallback stays with the caller). Bounded by the destination buffer. */
+static void EscField(char *dst, size_t dstSize, const char *src)
+{
+    if (dstSize == 0) {
+        return;
+    }
+    dst[0] = '\0';
+    if (src != NULL) {
+        (void)EscapeStr(dst, dstSize, src, strnlen(src, dstSize - 1));
+    }
+}
+
+/* Bounded string copy, snprintf("%s") semantics without the format scan. */
+static void SetStr(char *dst, size_t dstSize, const char *src)
+{
+    (void)snprintf(dst, dstSize, "%s", src);
 }
 
 /* Copy at most dataLen bytes into dst, always NUL-terminated with
@@ -526,18 +548,28 @@ static void EmitAuditLine(const char *line)
     pthread_mutex_unlock(&g_auditLock);
 }
 
+/* Caller identity helpers: client may be NULL, the identity is then
+ * recorded as "unknown" / uid -1. */
+static const char *ClientName(const PwrClient *client)
+{
+    return (client != NULL && client->userName[0] != '\0') ? client->userName : "unknown";
+}
+
+static unsigned int ClientUid(const PwrClient *client)
+{
+    return (client != NULL) ? (unsigned int)client->uid : (unsigned int)-1;
+}
+
 static void ComposeCommonHead(char *line, size_t size, int *pos, const char *tag,
     const PwrClient *client, const PwrMsg *req)
 {
-    const char *userName = (client != NULL) ? client->userName : NULL;
-    uid_t uid = (client != NULL) ? client->uid : (uid_t)-1;
     uint32_t sysId = (client != NULL) ? (uint32_t)client->sysId : req->head.sysId;
 
     char curTime[MAX_STD_TIME] = {0};
     GetCurFullTime(curTime, sizeof(curTime) - 1);
     AppendStr(line, size, pos, "%s [AUDIT][%s][API] user=%s uid=%u pid=%u opt=%s seq=%u",
-        curTime, tag, (userName != NULL && userName[0] != '\0') ? userName : "unknown",
-        (unsigned)uid, sysId, GetAuditOptName(req->head.optType), req->head.seqId);
+        curTime, tag, ClientName(client), ClientUid(client), sysId,
+        GetAuditOptName(req->head.optType), req->head.seqId);
 }
 
 int InitAuditLogger(void)
@@ -576,8 +608,6 @@ void ClearAuditLogger(void)
 void AuditClientConn(const PwrClient *client, enum AuditEvtType evt)
 {
     const char *tag = (evt == AUDIT_EVT_CONN) ? "CONN" : "DISCONN";
-    const char *userName = (client != NULL) ? client->userName : NULL;
-    uid_t uid = (client != NULL) ? client->uid : (uid_t)-1;
     uint32_t sysId = (client != NULL) ? (uint32_t)client->sysId : 0;
 
     char line[AUDIT_MAX_LINE_LEN] = {0};
@@ -585,8 +615,7 @@ void AuditClientConn(const PwrClient *client, enum AuditEvtType evt)
     char curTime[MAX_STD_TIME] = {0};
     GetCurFullTime(curTime, sizeof(curTime) - 1);
     AppendStr(line, sizeof(line), &pos, "%s [AUDIT][%s][API] user=%s uid=%u pid=%u",
-        curTime, tag, (userName != NULL && userName[0] != '\0') ? userName : "unknown",
-        (unsigned)uid, sysId);
+        curTime, tag, ClientName(client), ClientUid(client), sysId);
     EmitAuditLine(line);
 }
 
@@ -614,9 +643,8 @@ void AuditSettingReq(const PwrClient *client, const PwrMsg *req)
         slot->tid = -1;
         slot->seq = req->head.seqId;
         slot->optType = req->head.optType;
-        slot->uid = (client != NULL) ? client->uid : (uid_t)-1;
-        snprintf(slot->user, sizeof(slot->user), "%s",
-            (client != NULL && client->userName[0] != '\0') ? client->userName : "unknown");
+        slot->uid = (uid_t)ClientUid(client);
+        SetStr(slot->user, sizeof(slot->user), ClientName(client));
         slot->startMs = NowMs();
         slot->endMs = 0;
     }
@@ -798,6 +826,7 @@ static void FlushWriterAggrLocked(void)
     }
     const char *fileKey = (g_wAggr.count > 1) ? "file_glob" : "file";
     const char *fileVal = (g_wAggr.count > 1) ? g_wAggr.globPath : g_wAggr.file;
+
     char agg[AUDIT_MAX_LINE_LEN] = {0};
     int aggPos = 0;
     if (g_wAggr.count > 1) {
@@ -808,19 +837,16 @@ static void FlushWriterAggrLocked(void)
     char line[AUDIT_MAX_LINE_LEN] = {0};
     int pos = 0;
     if (g_wAggr.isApi) {
+        AppendStr(line, sizeof(line), &pos, "%s [AUDIT][WRITER][API] ", g_wAggr.tsFirst);
         if (g_wAggr.hasCall) {
-            AppendStr(line, sizeof(line), &pos,
-                "%s [AUDIT][WRITER][API] user=%s uid=%u opt=%s seq=%u pid=%d comm=\"%s\" %s=\"%s\"%s value=\"%s\"",
-                g_wAggr.tsFirst, g_wAggr.user, g_wAggr.uid,
-                GetAuditOptName(g_wAggr.optType), g_wAggr.seq,
-                g_wAggr.pid, g_wAggr.comm,
-                fileKey, fileVal, agg, g_wAggr.value);
+            AppendStr(line, sizeof(line), &pos, "user=%s uid=%u opt=%s seq=%u",
+                g_wAggr.user, g_wAggr.uid,
+                GetAuditOptName(g_wAggr.optType), g_wAggr.seq);
         } else {
-            AppendStr(line, sizeof(line), &pos,
-                "%s [AUDIT][WRITER][API] user=- uid=- opt=- seq=- pid=%d comm=\"%s\" %s=\"%s\"%s value=\"%s\"",
-                g_wAggr.tsFirst, g_wAggr.pid, g_wAggr.comm,
-                fileKey, fileVal, agg, g_wAggr.value);
+            AppendStr(line, sizeof(line), &pos, "user=- uid=- opt=- seq=-");
         }
+        AppendStr(line, sizeof(line), &pos, " pid=%d comm=\"%s\" %s=\"%s\"%s value=\"%s\"",
+            g_wAggr.pid, g_wAggr.comm, fileKey, fileVal, agg, g_wAggr.value);
     } else {
         /* An ESC byte in the value is the typical signature of a
          * terminal-title write caught by a dup2(2) fd race. */
@@ -871,25 +897,12 @@ void AuditWriterEvent(const struct WriterAudit *wa)
     char sExe[AUDIT_MAX_LINE_LEN] = {0};
     char sCmd[AUDIT_MAX_LINE_LEN] = {0};
     char sUserName[64] = {0};
-    if (wa->comm != NULL) {
-        EscapeStr(sComm, sizeof(sComm), wa->comm, strnlen(wa->comm, sizeof(sComm) - 1));
-    }
-    if (wa->file != NULL) {
-        EscapeStr(sFile, sizeof(sFile), wa->file, strnlen(wa->file, sizeof(sFile) - 1));
-    }
-    if (wa->value != NULL) {
-        EscapeStr(sValue, sizeof(sValue), wa->value, strnlen(wa->value, AUDIT_MAX_PARAM_LEN - 1));
-    }
-    if (wa->exe != NULL) {
-        EscapeStr(sExe, sizeof(sExe), wa->exe, strnlen(wa->exe, sizeof(sExe) - 1));
-    }
-    if (wa->cmd != NULL) {
-        EscapeStr(sCmd, sizeof(sCmd), wa->cmd, strnlen(wa->cmd, sizeof(sCmd) - 1));
-    }
-    if (wa->userName != NULL) {
-        EscapeStr(sUserName, sizeof(sUserName), wa->userName,
-            strnlen(wa->userName, sizeof(sUserName) - 1));
-    }
+    EscField(sComm, sizeof(sComm), wa->comm);
+    EscField(sFile, sizeof(sFile), wa->file);
+    EscField(sValue, sizeof(sValue), wa->value);
+    EscField(sExe, sizeof(sExe), wa->exe);
+    EscField(sCmd, sizeof(sCmd), wa->cmd);
+    EscField(sUserName, sizeof(sUserName), wa->userName);
 
     int isApi = (wa->pid == (int)getpid());
     /* Resolve the API context first: the pending run needs it, and it must
@@ -907,7 +920,7 @@ void AuditWriterEvent(const struct WriterAudit *wa)
     char globRaw[AUDIT_MAX_LINE_LEN] = {0};
     char sGlob[AUDIT_MAX_LINE_LEN] = {0};
     NormalizeGlobPath(wa->file, globRaw, sizeof(globRaw));
-    EscapeStr(sGlob, sizeof(sGlob), globRaw, strnlen(globRaw, sizeof(globRaw) - 1));
+    EscField(sGlob, sizeof(sGlob), globRaw);
 
     int compact = (GetBpfCfg()->compact != 0);
 
@@ -929,7 +942,7 @@ void AuditWriterEvent(const struct WriterAudit *wa)
 
     if (matched) {
         g_wAggr.count++;
-        snprintf(g_wAggr.tsLast, sizeof(g_wAggr.tsLast), "%s", ts);
+        SetStr(g_wAggr.tsLast, sizeof(g_wAggr.tsLast), ts);
         g_wAggrTouched = 1;
         pthread_mutex_unlock(&g_wAggrLock);
         return;
@@ -948,21 +961,19 @@ void AuditWriterEvent(const struct WriterAudit *wa)
     a->pid = wa->pid;
     if (isApi) {
         a->uid = (unsigned)callerUid;
-        snprintf(a->user, sizeof(a->user), "%s",
-            (callerUser[0] != '\0') ? callerUser : "unknown");
+        SetStr(a->user, sizeof(a->user), (callerUser[0] != '\0') ? callerUser : "unknown");
     } else {
         a->uid = wa->uid;
-        snprintf(a->userName, sizeof(a->userName), "%s",
-            (sUserName[0] != '\0') ? sUserName : "unknown");
-        snprintf(a->exe, sizeof(a->exe), "%s", (sExe[0] != '\0') ? sExe : "-");
-        snprintf(a->cmd, sizeof(a->cmd), "%s", (sCmd[0] != '\0') ? sCmd : "-");
+        SetStr(a->userName, sizeof(a->userName), (sUserName[0] != '\0') ? sUserName : "unknown");
+        SetStr(a->exe, sizeof(a->exe), (sExe[0] != '\0') ? sExe : "-");
+        SetStr(a->cmd, sizeof(a->cmd), (sCmd[0] != '\0') ? sCmd : "-");
     }
-    snprintf(a->comm, sizeof(a->comm), "%s", sComm);
-    snprintf(a->file, sizeof(a->file), "%s", sFile);
-    snprintf(a->globPath, sizeof(a->globPath), "%s", sGlob);
-    snprintf(a->value, sizeof(a->value), "%s", sValue);
-    snprintf(a->tsFirst, sizeof(a->tsFirst), "%s", ts);
-    snprintf(a->tsLast, sizeof(a->tsLast), "%s", ts);
+    SetStr(a->comm, sizeof(a->comm), sComm);
+    SetStr(a->file, sizeof(a->file), sFile);
+    SetStr(a->globPath, sizeof(a->globPath), sGlob);
+    SetStr(a->value, sizeof(a->value), sValue);
+    SetStr(a->tsFirst, sizeof(a->tsFirst), ts);
+    SetStr(a->tsLast, sizeof(a->tsLast), ts);
     a->count = 1;
     g_wAggrTouched = 1;
 

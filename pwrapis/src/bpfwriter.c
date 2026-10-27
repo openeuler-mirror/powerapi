@@ -2,11 +2,15 @@
  * Copyright (c) Huawei Technologies Co., Ltd. 2026-2026. All rights reserved.
  * PowerAPI licensed under the Mulan PSL v2.
  * Description: loader/collector implementation for the writer-attribution
- *              eBPF program. Uses the raw bpf() syscall and a hand-rolled
+ *              eBPF programs. Uses the raw bpf() syscall and a hand-rolled
  *              ELF parser for the BPF object, so no libbpf dependency is
- *              required. Path resolution for each write's fd is done in user
- *              space via /proc/<pid>/fd/<fd>, which keeps the BPF program
- *              kernel-version independent.
+ *              required. Every kprobe/kretprobe section of the object is
+ *              loaded as its own program; maps are created by their .maps
+ *              symbol name. Kernel-side fd -> path tracking (open enter/exit
+ *              pair plus the dup probe) attaches the real path of the fd to
+ *              each write event at write time, so short-lived fds stay
+ *              attributable; fds the probes never saw still fall back to
+ *              the user-space /proc/<pid>/fd/<fd> lookup.
  * **************************************************************************** */
 #include "bpfwriter.h"
 
@@ -38,9 +42,14 @@
 #include "pwrerr.h"
 #include "utils.h"
 
-/* Must match struct WriterEvent in bpf_writer.bpf.c. */
+/* Must match struct WriterEvent in bpf_writer.bpf.c byte for byte (natural
+ * alignment). pathValid/path carry the kernel-tracked path of the written fd
+ * captured at write time, so short-lived fds (open/write/close) stay
+ * attributable even after the fd is gone; events without a tracked path are
+ * emitted short (through pathValid) and fall back to the /proc lookup. */
 #define WRITER_BUF_LEN 64
 #define WRITER_COMM_LEN 16
+#define WRITER_PATH_LEN 64
 struct WriterEvent {
     unsigned int uid;
     int pid;
@@ -49,14 +58,55 @@ struct WriterEvent {
     int fd;
     unsigned int bufLen;
     char buf[WRITER_BUF_LEN];
-    uint64_t ktime; /* bpf_ktime_get_ns() at write entry (CLOCK_MONOTONIC) */
+    uint64_t ktime;      /* bpf_ktime_get_ns() at write entry (CLOCK_MONOTONIC) */
+    uint64_t pathValid;  /* 1 when path[] below holds the tracked path */
+    char path[WRITER_PATH_LEN];
 };
+/* Offset of path in struct WriterEvent: the size of the short event form. */
+#define WRITER_EVENT_CORE 120
 
-#define BPF_KPROBE_FUNC "ksys_write"
-#define BPF_PROG_NAME "kp_ksys_write"
-/* Name of the kprobe registered in tracefs kprobe_events. The probe provides
- * the tracepoint id used to open the perf event that carries the program. */
-#define KPROBE_EVENT_NAME "pwraudit_write"
+/* Upstream helper symbols we may attach the open probes to, tried in order
+ * (5.10 keeps do_sys_openat2/do_sys_open static, so they are only probeable
+ * when the kernel was built with CONFIG_KALLSYMS_ALL; the syscall wrappers
+ * are always present). The filename argument sits in the same register for
+ * every entry of the chain, so one BPF program serves them all. */
+#define OPEN_SYM_1 "do_sys_openat2"
+#define OPEN_SYM_2 "do_sys_open"
+/* dup2/dup3 chain: ksys_dup3 is static on 5.10; the wrappers always exist
+ * (arm64 has no dup2 syscall - libc dup2() enters through dup3 there). */
+#define DUP_SYM_1 "ksys_dup3"
+
+/* tracefs kprobe_events instance names, one per probe. */
+#define KP_NAME_WRITE "pwraudit_write"
+#define KP_NAME_OPENENT "pwraudit_openent"
+#define KP_NAME_OPENRET "pwraudit_openret"
+#define KP_NAME_DUP3 "pwraudit_dup3"
+#define KP_NAME_SYMTEST "pwraudit_symtest"
+
+/* Number of BPF programs/maps the loader knows how to handle. */
+#define BPF_MAX_PROGS 4
+#define BPF_MAX_MAPS 4
+/* Watched path prefixes pushed into the path_prefixes ARRAY map. */
+#define BPF_PREFIX_SLOTS 8
+/* fd_paths entries older than this are swept so the hash map cannot fill
+ * up over weeks of distinct (pid, fd) pairs. Long-lived fds do not need
+ * their entries: they resolve live via /proc while they stay open. */
+#define FD_SWEEP_AGE_MS 30000
+
+/* One loaded BPF program: which section it came from, which kernel symbol
+ * the tracefs probe was registered on, and the cpu0 tracepoint carrier fd
+ * that carries it. */
+struct BpfProgCtx {
+    char secName[48];
+    char ksym[48];
+    char kpName[32];
+    int isRet; /* 1 = kretprobe (r:) */
+    int secIdx;      /* ELF section index of the program */
+    int registered;  /* 1 once the kprobe_events entry exists */
+    int progFd;
+    int tpFd;
+    unsigned int tpId;
+};
 #define PERF_PAGE_COUNT 64
 #define PERF_WATERMARK 1
 #define MAX_WATCH_PATHS 64
@@ -65,11 +115,18 @@ struct WriterEvent {
  * derive from the online CPU count clamped here. */
 #define MAX_CPUS 1024
 
-static int g_bpfProgFd = -1;
-static int g_bpfMapFd = -1;
-/* One tracepoint perf fd (cpu0) carries the BPF program; one BPF_OUTPUT ring
+/* Loaded programs (kprobe/ksys_write, open enter/exit pair, dup). */
+static struct BpfProgCtx g_bpfProgs[BPF_MAX_PROGS];
+static int g_bpfProgCnt = 0;
+static int g_bpfMapFd = -1; /* the shared writer_events perf-event array */
+/* Map fds by symbol name (writer_events/open_paths/fd_paths/path_prefixes). */
+static int g_bpfMapFds[BPF_MAX_MAPS];
+static char g_bpfMapNames[BPF_MAX_MAPS][24];
+static int g_bpfMapCnt = 0;
+/* 1 when the open/dup probes are attached (kernel-side fd tracking). */
+static int g_fdTracking = 0;
+/* One tracepoint perf fd (cpu0) carries each program; one BPF_OUTPUT ring
  * fd per online CPU is registered in the perf-event-array map. */
-static int g_tpFd = -1;
 static int g_perfFd[MAX_CPUS];
 static void *g_perfBase[MAX_CPUS];
 static size_t g_perfMmapSize = 0;
@@ -90,9 +147,12 @@ static uint64_t g_statLost;
 static uint64_t g_statSamples;
 static uint64_t g_statBadRaw;
 static uint64_t g_statResolveFail;
+static uint64_t g_statTracked;
 static uint64_t g_statWatched;
 
 static void CleanupPerf(void);
+static void CloseLoadedObjects(void);
+static int FindMapFd(const char *name);
 
 /* ---- minimal ELF helpers: find the first SHT_PROGBITS in section 1..n ---- */
 
@@ -199,96 +259,67 @@ static void RunLoadProbe(void)
         "-> environment allows BPF loads; the failure is in the writer program itself.");
 }
 
-/* Parse the BPF ELF object, create the perf-event-array map it references,
- * apply relocations (patch map fds into ld_imm64 instructions) and load the
- * program. On success sets g_bpfProgFd. Returns PWR_SUCCESS or an error. */
-static int ParseAndLoadBpf(void *obj, size_t objSize)
+/* Create one BPF map by its .maps symbol name, with the parameters the
+ * kernel-side fd tracking expects (see bpf_writer.bpf.c). The loader owns
+ * the map layout so object file and user space cannot silently drift. */
+static int CreateNamedMap(const char *name, int *outFd)
 {
-    const struct ElfHdr *eh = (const struct ElfHdr *)obj;
-    if (objSize < sizeof(struct ElfHdr) || eh->ident[0] != 0x7f ||
-        eh->ident[1] != 'E' || eh->ident[2] != 'L' || eh->ident[3] != 'F') {
-        return PWR_ERR_COMMON;
-    }
-    if (eh->ident[4] != 2 || eh->ident[5] != 1) { /* 64-bit LE only */
-        return PWR_ERR_COMMON;
-    }
-    if (eh->shoff == 0 || eh->shnum == 0 || eh->shentsize < sizeof(struct Shdr)) {
-        return PWR_ERR_COMMON;
-    }
-    const struct Shdr *shdrs = (const struct Shdr *)((const uint8_t *)obj + eh->shoff);
-    if (eh->shstrndx >= eh->shnum) {
-        return PWR_ERR_COMMON;
-    }
-    const struct Shdr *strSh = &shdrs[eh->shstrndx];
-    if (strSh->offset + strSh->size > objSize) {
-        return PWR_ERR_COMMON;
-    }
-    const char *strtab = (const char *)obj + strSh->offset;
-
-    /* 1. Locate the program section (sections starting with kprobe/ are
-     *    preferred; .text is the fallback). */
-    int progSecIdx = -1;
-    int textSecIdx = -1;
-    for (int i = 0; i < eh->shnum; i++) {
-        if (shdrs[i].type != 1) { /* SHT_PROGBITS */
-            continue;
-        }
-        const char *name = strtab + shdrs[i].name;
-        if (strncmp(name, "kprobe/", 7) == 0 && shdrs[i].size > 0) {
-            progSecIdx = i;
-            break;
-        }
-        if (strcmp(name, ".text") == 0) {
-            textSecIdx = i;
-        }
-    }
-    if (progSecIdx < 0 && textSecIdx >= 0 && shdrs[textSecIdx].size > 0) {
-        progSecIdx = textSecIdx;
-    }
-    if (progSecIdx < 0) {
-        Logger(ERROR, MD_NM_LOG, "No BPF program section found.");
-        return PWR_ERR_COMMON;
-    }
-    const struct Shdr *progSh = &shdrs[progSecIdx];
-    if (progSh->offset + progSh->size > objSize) {
-        return PWR_ERR_COMMON;
-    }
-
-    /* Copy instructions into a writable buffer (we may patch them). */
-    size_t insnSize = (size_t)progSh->size;
-    size_t insnCnt = insnSize / sizeof(struct BpfInsn);
-    struct BpfInsn *insns = malloc(insnSize);
-    if (insns == NULL) {
-        return PWR_ERR_COMMON;
-    }
-    memcpy(insns, (const uint8_t *)obj + progSh->offset, insnSize);
-
-    /* 2. Create the perf-event-array map the program references. We create
-     *    one unconditionally; if the program has no map reference the fd is
-     *    simply unused. */
     union bpf_attr mapAttr;
     bzero(&mapAttr, sizeof(mapAttr));
-    mapAttr.map_type = BPF_MAP_TYPE_PERF_EVENT_ARRAY;
-    mapAttr.key_size = sizeof(int);
-    mapAttr.value_size = sizeof(int);
-    /* The map is indexed by CPU id (BPF_F_CURRENT_CPU), so max_entries must
-     * cover every CPU we may attach a perf event to: min(online, MAX_CPUS). */
-    long nCpu = sysconf(_SC_NPROCESSORS_ONLN);
-    mapAttr.max_entries =
-        (uint32_t)(((nCpu > MAX_CPUS) || (nCpu <= 0)) ? MAX_CPUS : nCpu);
-    int mapFd = (int)syscall(__NR_bpf, BPF_MAP_CREATE, &mapAttr, sizeof(mapAttr));
-    if (mapFd < 0) {
-        Logger(ERROR, MD_NM_LOG, "BPF_MAP_CREATE failed: %d (%s)", errno, strerror(errno));
-        free(insns);
+    if (strcmp(name, "writer_events") == 0) {
+        mapAttr.map_type = BPF_MAP_TYPE_PERF_EVENT_ARRAY;
+        mapAttr.key_size = sizeof(int);
+        mapAttr.value_size = sizeof(int);
+        /* The map is indexed by CPU id (BPF_F_CURRENT_CPU), so max_entries
+         * must cover every CPU we may attach a perf event to. */
+        long nCpu = sysconf(_SC_NPROCESSORS_ONLN);
+        mapAttr.max_entries =
+            (uint32_t)(((nCpu > MAX_CPUS) || (nCpu <= 0)) ? MAX_CPUS : nCpu);
+    } else if (strcmp(name, "open_paths") == 0) {
+        mapAttr.map_type = BPF_MAP_TYPE_HASH;
+        mapAttr.key_size = sizeof(uint32_t);          /* tid */
+        mapAttr.value_size = WRITER_PATH_LEN;          /* filename or "" marker */
+        mapAttr.max_entries = 4096;
+    } else if (strcmp(name, "fd_paths") == 0) {
+        mapAttr.map_type = BPF_MAP_TYPE_HASH;
+        mapAttr.key_size = sizeof(uint64_t);           /* pid << 32 | fd */
+        mapAttr.value_size = sizeof(uint64_t) + WRITER_PATH_LEN; /* ktime + path */
+        mapAttr.max_entries = 16384;
+    } else if (strcmp(name, "path_prefixes") == 0) {
+        mapAttr.map_type = BPF_MAP_TYPE_ARRAY;
+        mapAttr.key_size = sizeof(uint32_t);           /* slot index */
+        mapAttr.value_size = WRITER_PATH_LEN;
+        mapAttr.max_entries = BPF_PREFIX_SLOTS;
+    } else {
+        return PWR_ERR_COMMON;
+    }
+    int fd = (int)syscall(__NR_bpf, BPF_MAP_CREATE, &mapAttr, sizeof(mapAttr));
+    if (fd < 0) {
+        Logger(ERROR, MD_NM_LOG, "BPF_MAP_CREATE(%s) failed: %d (%s)",
+            name, errno, strerror(errno));
         return PWR_ERR_SYS_EXCEPTION;
     }
+    *outFd = fd;
+    return PWR_SUCCESS;
+}
 
-    /* 3. Apply relocations from the .rel<progsec> section: for each relocation
-     *    that targets a symbol defined in a .maps section, patch the ld_imm64
-     *    instruction at the relocation offset with the map fd. */
-    char relaName[32];
-    snprintf(relaName, sizeof(relaName), ".rela%s", strtab + progSh->name);
-    /* Also accept the clang-emitted short form ".rel" + section name. */
+static int FindMapFd(const char *name)
+{
+    for (int i = 0; i < g_bpfMapCnt; i++) {
+        if (strcmp(g_bpfMapNames[i], name) == 0) {
+            return g_bpfMapFds[i];
+        }
+    }
+    return -1;
+}
+
+/* Apply the relocations of one program section: every ld_imm64 that
+ * references a symbol defined in the .maps section is patched with the fd
+ * of the map created under that symbol name. */
+static int PatchMapRelocs(const void *obj, size_t objSize, const struct ElfHdr *eh,
+    const struct Shdr *shdrs, const char *strtab, const struct Shdr *progSh,
+    struct BpfInsn *insns, size_t insnCnt)
+{
     for (int i = 0; i < eh->shnum; i++) {
         if (shdrs[i].type != SHT_RELA && shdrs[i].type != 9 /* SHT_REL */) {
             continue;
@@ -331,6 +362,13 @@ static int ParseAndLoadBpf(void *obj, size_t objSize)
             if (strcmp(symSecName, ".maps") != 0) {
                 continue;
             }
+            const char *symName = strtab + syms[symIdx].name;
+            int mfd = FindMapFd(symName);
+            if (mfd < 0) {
+                Logger(WARNING, MD_NM_LOG, "No map created for symbol %s; relocation skipped.",
+                    symName);
+                continue;
+            }
             size_t insnIdx = (size_t)(rel->offset / sizeof(struct BpfInsn));
             if (insnIdx + 1 >= insnCnt) {
                 continue;
@@ -345,13 +383,40 @@ static int ParseAndLoadBpf(void *obj, size_t objSize)
             uint8_t dstReg = (uint8_t)(insns[insnIdx].regs & 0x0f);
             insns[insnIdx].code = BPF_LD_IMM64;
             insns[insnIdx].regs = (uint8_t)((BPF_PSEUDO_MAP_FD << 4) | dstReg);
-            insns[insnIdx].imm = mapFd;
+            insns[insnIdx].imm = mfd;
             insns[insnIdx + 1].imm = 0;
         }
-        break;
+        break; /* only the one rela section matching progSh matters */
+    }
+    return PWR_SUCCESS;
+}
+
+/* Copy one program section out of the object, patch its map relocations and
+ * load it as a kprobe program. */
+static int LoadOneSection(const void *obj, size_t objSize, const struct ElfHdr *eh,
+    const struct Shdr *shdrs, const char *strtab, struct BpfProgCtx *pc)
+{
+    const struct Shdr *progSh = &shdrs[pc->secIdx];
+    if (progSh->offset + progSh->size > objSize) {
+        return PWR_ERR_COMMON;
     }
 
-    /* 4. Load the program with the (possibly patched) instructions. */
+    /* Copy instructions into a writable buffer (we may patch them). */
+    size_t insnSize = (size_t)progSh->size;
+    size_t insnCnt = insnSize / sizeof(struct BpfInsn);
+    struct BpfInsn *insns = malloc(insnSize);
+    if (insns == NULL) {
+        return PWR_ERR_COMMON;
+    }
+    memcpy(insns, (const uint8_t *)obj + progSh->offset, insnSize);
+
+    if (PatchMapRelocs(obj, objSize, eh, shdrs, strtab, progSh, insns, insnCnt) !=
+        PWR_SUCCESS) {
+        free(insns);
+        return PWR_ERR_COMMON;
+    }
+
+    /* Load the program with the (possibly patched) instructions. */
     char logBuf[65536] = {0};
     union bpf_attr attr;
     bzero(&attr, sizeof(attr));
@@ -368,8 +433,8 @@ static int ParseAndLoadBpf(void *obj, size_t objSize)
         int savedErrno = errno;
         char flat[1600];
         FlattenVerifierLog(logBuf, flat, sizeof(flat));
-        Logger(ERROR, MD_NM_LOG, "BPF_PROG_LOAD failed: %d (%s). insnCnt:%u verifier: %s",
-            savedErrno, strerror(savedErrno), (unsigned)insnCnt, flat);
+        Logger(ERROR, MD_NM_LOG, "BPF_PROG_LOAD(%s) failed: %d (%s). insnCnt:%u verifier: %s",
+            pc->secName, savedErrno, strerror(savedErrno), (unsigned)insnCnt, flat);
         /* Retry once with log_level=2 for a fuller verifier trace. */
         attr.log_level = 2;
         (void)memset(logBuf, 0, sizeof(logBuf));
@@ -385,15 +450,115 @@ static int ParseAndLoadBpf(void *obj, size_t objSize)
         }
         RunLoadProbe();
         free(insns);
-        close(mapFd);
         return PWR_ERR_SYS_EXCEPTION;
     }
     free(insns);
-    /* Keep the map fd for the collector; closing it after attach is fine since
-     * the kernel holds a reference, but retain it for clarity. */
-    g_bpfMapFd = mapFd;
-    g_bpfProgFd = progFd;
-    Logger(INFO, MD_NM_LOG, "BPF writer program loaded. progFd:%d mapFd:%d", progFd, mapFd);
+    pc->progFd = progFd;
+    return PWR_SUCCESS;
+}
+
+/* Parse the BPF ELF object, create the maps its programs reference, apply
+ * relocations (patch map fds into ld_imm64 instructions) and load every
+ * kprobe/kretprobe section as its own program. On success g_bpfProgs holds
+ * the loaded programs. Returns PWR_SUCCESS or an error. */
+static int ParseAndLoadBpf(void *obj, size_t objSize)
+{
+    const struct ElfHdr *eh = (const struct ElfHdr *)obj;
+    if (objSize < sizeof(struct ElfHdr) || eh->ident[0] != 0x7f ||
+        eh->ident[1] != 'E' || eh->ident[2] != 'L' || eh->ident[3] != 'F') {
+        return PWR_ERR_COMMON;
+    }
+    if (eh->ident[4] != 2 || eh->ident[5] != 1) { /* 64-bit LE only */
+        return PWR_ERR_COMMON;
+    }
+    if (eh->shoff == 0 || eh->shnum == 0 || eh->shentsize < sizeof(struct Shdr)) {
+        return PWR_ERR_COMMON;
+    }
+    const struct Shdr *shdrs = (const struct Shdr *)((const uint8_t *)obj + eh->shoff);
+    if (eh->shstrndx >= eh->shnum) {
+        return PWR_ERR_COMMON;
+    }
+    const struct Shdr *strSh = &shdrs[eh->shstrndx];
+    if (strSh->offset + strSh->size > objSize) {
+        return PWR_ERR_COMMON;
+    }
+    const char *strtab = (const char *)obj + strSh->offset;
+
+    /* 1. Collect the program sections: each kprobe/<sym> or kretprobe/<sym>
+     *    section is one program probing kernel symbol <sym>. Attach may
+     *    substitute alternative symbols (see AttachPerCpu) for helper
+     *    functions that are static and unprobeable on some kernels. */
+    g_bpfProgCnt = 0;
+    for (int i = 0; i < eh->shnum && g_bpfProgCnt < BPF_MAX_PROGS; i++) {
+        if (shdrs[i].type != 1 /* SHT_PROGBITS */ || shdrs[i].size == 0) {
+            continue;
+        }
+        const char *name = strtab + shdrs[i].name;
+        const char *sym = NULL;
+        int isRet = 0;
+        if (strncmp(name, "kretprobe/", 10) == 0) {
+            sym = name + 10;
+            isRet = 1;
+        } else if (strncmp(name, "kprobe/", 7) == 0) {
+            sym = name + 7;
+        }
+        if (sym == NULL || sym[0] == '\0') {
+            continue;
+        }
+        struct BpfProgCtx *pc = &g_bpfProgs[g_bpfProgCnt];
+        (void)memset(pc, 0, sizeof(*pc));
+        (void)snprintf(pc->secName, sizeof(pc->secName), "%s", name);
+        (void)snprintf(pc->ksym, sizeof(pc->ksym), "%s", sym);
+        pc->isRet = isRet;
+        pc->secIdx = i;
+        pc->progFd = -1;
+        pc->tpFd = -1;
+        /* Stable tracefs instance names for the known programs. */
+        if (isRet == 0 && strcmp(sym, "ksys_write") == 0) {
+            (void)snprintf(pc->kpName, sizeof(pc->kpName), "%s", KP_NAME_WRITE);
+        } else if (isRet == 0 && strcmp(sym, "do_sys_openat2") == 0) {
+            (void)snprintf(pc->kpName, sizeof(pc->kpName), "%s", KP_NAME_OPENENT);
+        } else if (isRet == 1 && strcmp(sym, "do_sys_openat2") == 0) {
+            (void)snprintf(pc->kpName, sizeof(pc->kpName), "%s", KP_NAME_OPENRET);
+        } else if (isRet == 0 && strcmp(sym, "ksys_dup3") == 0) {
+            (void)snprintf(pc->kpName, sizeof(pc->kpName), "%s", KP_NAME_DUP3);
+        } else {
+            (void)snprintf(pc->kpName, sizeof(pc->kpName), "pwraudit_p%d", g_bpfProgCnt);
+        }
+        g_bpfProgCnt++;
+    }
+    if (g_bpfProgCnt == 0) {
+        Logger(ERROR, MD_NM_LOG, "No BPF program section found.");
+        return PWR_ERR_COMMON;
+    }
+
+    /* 2. Create the maps the programs reference, by .maps symbol name. */
+    static const char *const mapNames[] = {
+        "writer_events", "open_paths", "fd_paths", "path_prefixes",
+    };
+    g_bpfMapCnt = 0;
+    for (size_t i = 0; i < sizeof(mapNames) / sizeof(mapNames[0]); i++) {
+        int fd = -1;
+        if (CreateNamedMap(mapNames[i], &fd) != PWR_SUCCESS) {
+            CloseLoadedObjects();
+            return PWR_ERR_SYS_EXCEPTION;
+        }
+        g_bpfMapFds[g_bpfMapCnt] = fd;
+        (void)snprintf(g_bpfMapNames[g_bpfMapCnt], sizeof(g_bpfMapNames[0]), "%s",
+            mapNames[i]);
+        g_bpfMapCnt++;
+    }
+    g_bpfMapFd = FindMapFd("writer_events");
+
+    /* 3. Load every program (relocations are patched per section). */
+    for (int p = 0; p < g_bpfProgCnt; p++) {
+        if (LoadOneSection(obj, objSize, eh, shdrs, strtab, &g_bpfProgs[p]) != PWR_SUCCESS) {
+            CloseLoadedObjects();
+            return PWR_ERR_SYS_EXCEPTION;
+        }
+    }
+    Logger(INFO, MD_NM_LOG, "BPF writer object loaded: %d programs, %d maps, perfMapFd:%d",
+        g_bpfProgCnt, g_bpfMapCnt, g_bpfMapFd);
     return PWR_SUCCESS;
 }
 
@@ -499,96 +664,216 @@ static int WriteTraceCmd(const char *traceDir, const char *file, const char *cmd
     return PWR_SUCCESS;
 }
 
-/* Delete our kprobe from kprobe_events. Only succeeds after every perf fd
- * referencing the event is closed (otherwise the kernel refuses with EBUSY);
- * CleanupPerf therefore closes the fds first. Best-effort: a failure here
- * only leaves a harmless unused probe behind. */
-static void RemoveKprobeEvent(void)
+/* Delete one of our kprobes from kprobe_events by name. Only succeeds after
+ * every perf fd referencing the event is closed (otherwise the kernel
+ * refuses with EBUSY); CleanupPerf therefore closes the fds first.
+ * Best-effort: a failure here only leaves a harmless unused probe behind. */
+static void RemoveKprobeByName(const char *kpName)
 {
     char traceDir[MAX_FULL_NAME];
     char cmd[64];
     if (!FindTracefsDir(traceDir, sizeof(traceDir))) {
         return;
     }
-    (void)snprintf(cmd, sizeof(cmd), "-:%s", KPROBE_EVENT_NAME);
+    (void)snprintf(cmd, sizeof(cmd), "-:%s", kpName);
     if (WriteTraceCmd(traceDir, "kprobe_events", cmd) != PWR_SUCCESS) {
         Logger(WARNING, MD_NM_LOG, "Remove kprobe event %s failed: %d (%s)",
-            KPROBE_EVENT_NAME, errno, strerror(errno));
+            kpName, errno, strerror(errno));
     }
 }
 
-/* Attach the writer probe with the classic kprobe_events + tracepoint path
- * (the model bcc/libbpf use on 5.x):
+/* Probe whether a kernel symbol can be registered in kprobe_events: register
+ * a scratch probe on it, then remove it again. Helper functions like
+ * do_sys_openat2/ksys_dup3 are static on 5.10 and only kprobe-able when the
+ * kernel was built with CONFIG_KALLSYMS_ALL, so availability has to be
+ * tested, not assumed. */
+static bool SymbolProbeable(const char *traceDir, const char *sym)
+{
+    char cmd[128];
+    (void)snprintf(cmd, sizeof(cmd), "-:%s", KP_NAME_SYMTEST);
+    (void)WriteTraceCmd(traceDir, "kprobe_events", cmd); /* clear a stale one */
+    (void)snprintf(cmd, sizeof(cmd), "p:%s %s", KP_NAME_SYMTEST, sym);
+    if (WriteTraceCmd(traceDir, "kprobe_events", cmd) != PWR_SUCCESS) {
+        return false;
+    }
+    (void)snprintf(cmd, sizeof(cmd), "-:%s", KP_NAME_SYMTEST);
+    (void)WriteTraceCmd(traceDir, "kprobe_events", cmd);
+    return true;
+}
+
+/* Prefix of the arch syscall wrapper symbols (__arm64_sys_ / __x64_sys_). */
+static const char *SyscallWrapperPrefix(void)
+{
+    struct utsname uts;
+    if (uname(&uts) == 0 &&
+        (strcmp(uts.machine, "aarch64") == 0 || strcmp(uts.machine, "arm64") == 0 ||
+         strncmp(uts.machine, "armv8", 5) == 0)) {
+        return "__arm64_sys_";
+    }
+    return "__x64_sys_";
+}
+
+/* Pick the symbol for the open probes: prefer do_sys_openat2 (covers
+ * open/openat/openat2), then do_sys_open, then the arch syscall wrapper
+ * for openat. Enter and exit probes must hook the SAME symbol or their
+ * events would pair across different calls. NULL when nothing is probeable. */
+static const char *ResolveOpenSymbol(const char *traceDir)
+{
+    static char wrapName[32];
+    const char *chain[3] = {OPEN_SYM_1, OPEN_SYM_2, NULL};
+    (void)snprintf(wrapName, sizeof(wrapName), "%sopenat", SyscallWrapperPrefix());
+    chain[2] = wrapName;
+    for (int i = 0; i < 3; i++) {
+        if (SymbolProbeable(traceDir, chain[i])) {
+            return chain[i];
+        }
+    }
+    return NULL;
+}
+
+/* Same for the dup probe: ksys_dup3, then the arch dup3 syscall wrapper
+ * (arm64 has no dup2 syscall - libc dup2() enters via dup3 there), and the
+ * dup2 wrapper on x86_64 where the syscall still exists. */
+static const char *ResolveDupSymbol(const char *traceDir)
+{
+    static char wrapDup3[32];
+    static char wrapDup2[32];
+    const char *chain[3] = {DUP_SYM_1, NULL, NULL};
+    int len = 1;
+    (void)snprintf(wrapDup3, sizeof(wrapDup3), "%sdup3", SyscallWrapperPrefix());
+    chain[len++] = wrapDup3;
+    if (strcmp(SyscallWrapperPrefix(), "__x64_sys_") == 0) {
+        (void)snprintf(wrapDup2, sizeof(wrapDup2), "%sdup2", SyscallWrapperPrefix());
+        chain[len++] = wrapDup2;
+    }
+    for (int i = 0; i < len; i++) {
+        if (SymbolProbeable(traceDir, chain[i])) {
+            return chain[i];
+        }
+    }
+    return NULL;
+}
+
+/* Undo one AttachOneProbe (carrier fd first, then the probe entry). */
+static void DetachOneProbe(struct BpfProgCtx *pc)
+{
+    if (pc->tpFd >= 0) {
+        (void)ioctl(pc->tpFd, PERF_EVENT_IOC_DISABLE, 0);
+        close(pc->tpFd);
+        pc->tpFd = -1;
+    }
+    if (pc->registered) {
+        RemoveKprobeByName(pc->kpName);
+        pc->registered = 0;
+    }
+}
+
+/* Register one probe in kprobe_events and hang the loaded program on a
+ * cpu0 tracepoint carrier for it (the model bcc/libbpf use on 5.x):
  *
- *   1. Register a kprobe named pwraudit_write on ksys_write via
- *      <tracefs>/kprobe_events, then read the auto-assigned tracepoint id
- *      from events/kprobes/pwraudit_write/id.
+ *   1. Register the probe via <tracefs>/kprobe_events, then read the
+ *      auto-assigned tracepoint id from events/kprobes/<name>/id.
  *   2. Open ONE tracepoint perf event (cpu0) and attach the loaded program
  *      with PERF_EVENT_IOC_SET_BPF. Opening the event enables the underlying
  *      kprobe (TRACE_REG_PERF_REGISTER -> TP_FLAG_PROFILE + enable_kprobe),
  *      and SET_BPF installs the program into the kprobe event's shared
  *      prog_array, so the program runs on every CPU where the kprobe fires.
  *      No per-CPU kprobe fds are needed for the BPF output.
- *   3. Open one PERF_COUNT_SW_BPF_OUTPUT software ring per CPU and register
- *      it in the perf-event-array map at the CPU index - exactly where the
- *      program's bpf_perf_event_output(BPF_F_CURRENT_CPU) looks the ring up.
  *
- * The kprobe PMU used previously is not viable: it does not exist in mainline
- * 5.10 trace_kprobe.c (vendor backports open fine but never enable the probe
+ * The kprobe PMU is not viable: it does not exist in mainline 5.10
+ * trace_kprobe.c (vendor backports open fine but never enable the probe
  * into the perf/BPF path), and its fds are rejected by
  * __bpf_perf_event_output (-EINVAL) because they are not
  * PERF_COUNT_SW_BPF_OUTPUT software events, so the ring stayed empty.
  *
- * pid = -1 so writes from every process are captured. Requires root /
- * CAP_PERFMON plus CONFIG_KPROBE_EVENTS; on failure the caller degrades
- * gracefully. */
+ * Requires root / CAP_PERFMON plus CONFIG_KPROBE_EVENTS. On failure
+ * everything registered here is undone again. */
+static int AttachOneProbe(struct BpfProgCtx *pc, const char *traceDir, const char *sym)
+{
+    char cmd[128];
+    /* Best-effort cleanup of a stale probe left by a crashed previous run;
+     * an existing probe would make the registration below fail with EEXIST. */
+    (void)snprintf(cmd, sizeof(cmd), "-:%s", pc->kpName);
+    (void)WriteTraceCmd(traceDir, "kprobe_events", cmd);
+
+    (void)snprintf(cmd, sizeof(cmd), "%c:%s %s", pc->isRet ? 'r' : 'p', pc->kpName, sym);
+    if (WriteTraceCmd(traceDir, "kprobe_events", cmd) != PWR_SUCCESS) {
+        Logger(ERROR, MD_NM_LOG, "Register probe '%s' failed: %d (%s). "
+            "Need CONFIG_KPROBE_EVENTS and a kprobe-able %s.",
+            cmd, errno, strerror(errno), sym);
+        return PWR_ERR_SYS_EXCEPTION;
+    }
+    pc->registered = 1;
+
+    char idPath[MAX_FULL_NAME + 64];
+    (void)snprintf(idPath, sizeof(idPath), "%s/events/kprobes/%s/id",
+        traceDir, pc->kpName);
+    unsigned int tpId = 0;
+    FILE *fp = fopen(idPath, "r");
+    if (fp != NULL) {
+        if (fscanf(fp, "%u", &tpId) != 1) {
+            tpId = 0;
+        }
+        fclose(fp);
+    }
+    if (tpId == 0) {
+        Logger(ERROR, MD_NM_LOG, "Cannot read tracepoint id from %s.", idPath);
+        goto fail;
+    }
+
+    /* The prog carrier: one tracepoint perf event on cpu0. */
+    struct perf_event_attr pea;
+    bzero(&pea, sizeof(pea));
+    pea.type = PERF_TYPE_TRACEPOINT;
+    pea.size = sizeof(pea);
+    pea.config = tpId;
+    pea.sample_period = 1;                 /* record every hit */
+    pea.sample_type = PERF_SAMPLE_RAW;
+    pea.wakeup_events = PERF_WATERMARK;
+    pea.disabled = 1;
+    int tpFd = (int)syscall(__NR_perf_event_open, &pea, -1, 0, -1, 0);
+    if (tpFd < 0) {
+        Logger(WARNING, MD_NM_LOG, "perf_event_open tracepoint %u cpu0 failed: %d (%s). "
+            "Need root / CAP_PERFMON.", tpId, errno, strerror(errno));
+        goto fail;
+    }
+    if (ioctl(tpFd, PERF_EVENT_IOC_SET_BPF, pc->progFd) < 0) {
+        Logger(ERROR, MD_NM_LOG, "PERF_EVENT_IOC_SET_BPF failed: %d (%s)", errno, strerror(errno));
+        close(tpFd);
+        goto fail;
+    }
+    pc->tpFd = tpFd;
+    pc->tpId = tpId;
+    return PWR_SUCCESS;
+
+fail:
+    DetachOneProbe(pc);
+    return PWR_ERR_SYS_EXCEPTION;
+}
+
+/* Attach the writer probes with the classic kprobe_events + tracepoint path:
+ *   - pwraudit_write on ksys_write (mandatory): captures every write;
+ *   - pwraudit_openent + pwraudit_openret on one shared open symbol:
+ *     kernel-side fd -> path tracking, so short-lived fds stay attributable;
+ *   - pwraudit_dup3 on dup2/dup3: keeps tracked paths correct across the
+ *     dup dance every shell performs for redirections.
+ * One BPF_OUTPUT ring per CPU is shared by all probes, which preserves
+ * event order across programs. pid = -1 so writes from every process are
+ * captured. On partial failure the caller degrades gracefully: the write
+ * probe alone still audits long-lived fds, while everything short-lived
+ * would be missed. */
 static int AttachPerCpu(void)
 {
     char traceDir[MAX_FULL_NAME];
-    char cmd[128];
-    /* traceDir can fill MAX_FULL_NAME; the suffix needs extra room. */
-    char idPath[MAX_FULL_NAME + 64];
-    struct perf_event_attr pea;
-
     if (!FindTracefsDir(traceDir, sizeof(traceDir))) {
         Logger(ERROR, MD_NM_LOG, "tracefs kprobe_events not found (tracefs not mounted?). "
             "Writer attribution disabled.");
         return PWR_ERR_SYS_EXCEPTION;
     }
 
-    /* Best-effort cleanup of a stale probe left by a crashed previous run;
-     * an existing probe would make the registration below fail with EEXIST. */
-    (void)snprintf(cmd, sizeof(cmd), "-:%s", KPROBE_EVENT_NAME);
-    (void)WriteTraceCmd(traceDir, "kprobe_events", cmd);
-
-    (void)snprintf(cmd, sizeof(cmd), "p:%s %s", KPROBE_EVENT_NAME, BPF_KPROBE_FUNC);
-    if (WriteTraceCmd(traceDir, "kprobe_events", cmd) != PWR_SUCCESS) {
-        Logger(ERROR, MD_NM_LOG, "Register kprobe '%s' failed: %d (%s). "
-            "Need CONFIG_KPROBE_EVENTS and a kprobe-able %s.",
-            cmd, errno, strerror(errno), BPF_KPROBE_FUNC);
-        return PWR_ERR_SYS_EXCEPTION;
-    }
-
-    (void)snprintf(idPath, sizeof(idPath), "%s/events/kprobes/%s/id",
-        traceDir, KPROBE_EVENT_NAME);
-    unsigned int tpId = 0;
-    FILE *fp = fopen(idPath, "r");
-    if (fp != NULL && fscanf(fp, "%u", &tpId) != 1) {
-        tpId = 0;
-    }
-    if (fp != NULL) {
-        fclose(fp);
-    }
-    if (tpId == 0) {
-        Logger(ERROR, MD_NM_LOG, "Cannot read tracepoint id from %s.", idPath);
-        RemoveKprobeEvent();
-        return PWR_ERR_SYS_EXCEPTION;
-    }
-
     int cpuCnt = (int)sysconf(_SC_NPROCESSORS_ONLN);
     if (cpuCnt <= 0) {
         Logger(ERROR, MD_NM_LOG, "Invalid online cpu count %d.", cpuCnt);
-        RemoveKprobeEvent();
         return PWR_ERR_SYS_EXCEPTION;
     }
     if (cpuCnt > MAX_CPUS) {
@@ -597,7 +882,7 @@ static int AttachPerCpu(void)
         cpuCnt = MAX_CPUS;
     }
 
-    /* One ring fd per monitored CPU plus the carrier fd; make sure the fd
+    /* One ring fd per monitored CPU plus the carrier fds; make sure the fd
      * limit allows it (e.g. 608 online CPUs vs a default soft limit of 1024). */
     struct rlimit nf;
     if (getrlimit(RLIMIT_NOFILE, &nf) == 0 && (int)nf.rlim_cur < cpuCnt + 64) {
@@ -613,28 +898,75 @@ static int AttachPerCpu(void)
         g_perfBase[i] = NULL;
     }
 
-    /* 1. The prog carrier: one tracepoint perf event on cpu0. */
-    bzero(&pea, sizeof(pea));
-    pea.type = PERF_TYPE_TRACEPOINT;
-    pea.size = sizeof(pea);
-    pea.config = tpId;
-    pea.sample_period = 1;                 /* record every hit */
-    pea.sample_type = PERF_SAMPLE_RAW;
-    pea.wakeup_events = PERF_WATERMARK;
-    pea.disabled = 1;
-    g_tpFd = (int)syscall(__NR_perf_event_open, &pea, -1, 0, -1, 0);
-    if (g_tpFd < 0) {
-        Logger(WARNING, MD_NM_LOG, "perf_event_open tracepoint %s/%u cpu0 failed: %d (%s). "
-            "Writer attribution disabled (need root / CAP_PERFMON).",
-            KPROBE_EVENT_NAME, tpId, errno, strerror(errno));
-        goto fail;
+    /* Classify the loaded programs by the symbols their sections name. */
+    struct BpfProgCtx *writeProg = NULL;
+    struct BpfProgCtx *openEnt = NULL;
+    struct BpfProgCtx *openRet = NULL;
+    struct BpfProgCtx *dupProg = NULL;
+    for (int i = 0; i < g_bpfProgCnt; i++) {
+        struct BpfProgCtx *pc = &g_bpfProgs[i];
+        if (pc->isRet == 0 && strcmp(pc->ksym, "ksys_write") == 0) {
+            writeProg = pc;
+        } else if (pc->isRet == 0 && strcmp(pc->ksym, "do_sys_openat2") == 0) {
+            openEnt = pc;
+        } else if (pc->isRet == 1 && strcmp(pc->ksym, "do_sys_openat2") == 0) {
+            openRet = pc;
+        } else if (pc->isRet == 0 && strcmp(pc->ksym, "ksys_dup3") == 0) {
+            dupProg = pc;
+        }
     }
-    if (ioctl(g_tpFd, PERF_EVENT_IOC_SET_BPF, g_bpfProgFd) < 0) {
-        Logger(ERROR, MD_NM_LOG, "PERF_EVENT_IOC_SET_BPF failed: %d (%s)", errno, strerror(errno));
+    if (writeProg == NULL) {
+        Logger(ERROR, MD_NM_LOG, "Writer program missing from BPF object.");
+        return PWR_ERR_COMMON;
+    }
+
+    /* 1. Write probe: mandatory. */
+    if (AttachOneProbe(writeProg, traceDir, writeProg->ksym) != PWR_SUCCESS) {
         goto fail;
     }
 
-    /* 2. One BPF_OUTPUT software ring per CPU, registered in the map. */
+    /* 2. Open enter/exit pair on one shared symbol; without it every write
+     *    through a short-lived fd loses its path. Degrade gracefully: a
+     *    half-attached pair would leak open_paths entries, so undo the
+     *    enter probe when the exit probe cannot attach. */
+    g_fdTracking = 0;
+    if (openEnt != NULL && openRet != NULL) {
+        const char *openSym = ResolveOpenSymbol(traceDir);
+        if (openSym == NULL) {
+            Logger(WARNING, MD_NM_LOG, "No probeable open symbol; fd tracking disabled, "
+                "short-lived-fd writes will be missed.");
+        } else if (AttachOneProbe(openEnt, traceDir, openSym) != PWR_SUCCESS) {
+            Logger(WARNING, MD_NM_LOG, "Open enter probe not attached; fd tracking disabled, "
+                "short-lived-fd writes will be missed.");
+        } else if (AttachOneProbe(openRet, traceDir, openSym) != PWR_SUCCESS) {
+            DetachOneProbe(openEnt);
+            Logger(WARNING, MD_NM_LOG, "Open exit probe not attached; fd tracking disabled, "
+                "short-lived-fd writes will be missed.");
+        } else {
+            g_fdTracking = 1;
+            Logger(INFO, MD_NM_LOG, "Open probes attached on %s.", openSym);
+        }
+    }
+
+    /* 3. dup probe (shell redirections): pure refinement of fd tracking. */
+    if (g_fdTracking && dupProg != NULL) {
+        const char *dupSym = ResolveDupSymbol(traceDir);
+        if (dupSym == NULL) {
+            Logger(WARNING, MD_NM_LOG, "No probeable dup symbol; dup-based redirections "
+                "not tracked.");
+        } else if (AttachOneProbe(dupProg, traceDir, dupSym) != PWR_SUCCESS) {
+            Logger(WARNING, MD_NM_LOG, "Dup probe not attached; dup-based redirections "
+                "not tracked.");
+        } else {
+            Logger(INFO, MD_NM_LOG, "Dup probe attached on %s.", dupSym);
+        }
+    }
+
+    /* 4. One BPF_OUTPUT software ring per CPU, registered in the shared
+     *    perf-event-array map at the CPU index - exactly where every
+     *    program's bpf_perf_event_output(BPF_F_CURRENT_CPU) looks the ring
+     *    up. All probes share the same rings, which keeps event order. */
+    struct perf_event_attr pea;
     bzero(&pea, sizeof(pea));
     pea.type = PERF_TYPE_SOFTWARE;
     pea.size = sizeof(pea);
@@ -668,12 +1000,8 @@ static int AttachPerCpu(void)
         g_perfFd[i] = fd;
     }
 
-    /* 3. Enable the carrier and all rings together. */
-    if (ioctl(g_tpFd, PERF_EVENT_IOC_ENABLE, 0) < 0) {
-        Logger(ERROR, MD_NM_LOG, "PERF_EVENT_IOC_ENABLE carrier failed: %d (%s)",
-            errno, strerror(errno));
-        goto fail;
-    }
+    /* 5. Enable the rings first and the tracepoint carriers after, so no
+     *    early probe hit can be dropped for lack of an enabled ring. */
     for (int i = 0; i < cpuCnt; i++) {
         if (ioctl(g_perfFd[i], PERF_EVENT_IOC_ENABLE, 0) < 0) {
             Logger(ERROR, MD_NM_LOG, "PERF_EVENT_IOC_ENABLE cpu%d failed: %d (%s)",
@@ -681,10 +1009,18 @@ static int AttachPerCpu(void)
             goto fail;
         }
     }
+    for (int i = 0; i < g_bpfProgCnt; i++) {
+        if (g_bpfProgs[i].tpFd >= 0 &&
+            ioctl(g_bpfProgs[i].tpFd, PERF_EVENT_IOC_ENABLE, 0) < 0) {
+            Logger(ERROR, MD_NM_LOG, "PERF_EVENT_IOC_ENABLE %s failed: %d (%s)",
+                g_bpfProgs[i].kpName, errno, strerror(errno));
+            goto fail;
+        }
+    }
 
     g_perfCnt = cpuCnt;
-    Logger(INFO, MD_NM_LOG, "Kprobe/ksys_write attached: probe %s (tp id %u) carrier on cpu0, "
-        "%d BPF_OUTPUT rings enabled.", KPROBE_EVENT_NAME, tpId, cpuCnt);
+    Logger(INFO, MD_NM_LOG, "Writer probes attached: %d programs (fdTracking:%d), "
+        "%d BPF_OUTPUT rings enabled.", g_bpfProgCnt, g_fdTracking, cpuCnt);
     return PWR_SUCCESS;
 
 fail:
@@ -744,20 +1080,19 @@ static void SnapshotWatchPaths(void)
             tok = strtok(NULL, ",");
         }
     }
-    /* Always watch the cpufreq sysfs root prefix and HBM state roots - any
+    /* Always watch the cpufreq sysfs root prefix and the other roots - any
      * write to a path starting with these is interesting. We store them as
      * prefixes and do prefix matching. */
-    if (g_watchPathCount < MAX_WATCH_PATHS) {
-        StrCopy(g_watchPaths[g_watchPathCount++], "/sys/devices/system/cpu/cpufreq/", MAX_FULL_NAME);
-    }
-    if (g_watchPathCount < MAX_WATCH_PATHS) {
-        StrCopy(g_watchPaths[g_watchPathCount++], "/sys/kernel/hbm_cache/", MAX_FULL_NAME);
-    }
-    if (g_watchPathCount < MAX_WATCH_PATHS) {
-        StrCopy(g_watchPaths[g_watchPathCount++], "/sys/devices/system/container/", MAX_FULL_NAME);
-    }
-    if (g_watchPathCount < MAX_WATCH_PATHS) {
-        StrCopy(g_watchPaths[g_watchPathCount++], "/sys/firmware/efi/efivars/", MAX_FULL_NAME);
+    static const char *const builtinPrefix[] = {
+        "/sys/devices/system/cpu/cpufreq/",
+        "/sys/kernel/hbm_cache/",
+        "/sys/devices/system/container/",
+        "/sys/firmware/efi/efivars/",
+    };
+    for (size_t i = 0; i < sizeof(builtinPrefix) / sizeof(builtinPrefix[0]); i++) {
+        if (g_watchPathCount < MAX_WATCH_PATHS) {
+            StrCopy(g_watchPaths[g_watchPathCount++], builtinPrefix[i], MAX_FULL_NAME);
+        }
     }
     pthread_mutex_unlock(&g_writerLock);
 }
@@ -778,9 +1113,101 @@ static bool PathIsWatched(const char *path)
     return false;
 }
 
+/* Push the watched path prefixes into the kernel path_prefixes map so
+ * kp_open_enter can filter opens in-kernel and keep map traffic bounded.
+ * Must run after the maps are created and before the open probes attach.
+ * Prefixes longer than the map value are truncated: a truncated prefix can
+ * over-match, never under-match, and user space re-filters every hit. */
+static void PopulatePathPrefixes(void)
+{
+    int mapFd = FindMapFd("path_prefixes");
+    if (mapFd < 0) {
+        return;
+    }
+    pthread_mutex_lock(&g_writerLock);
+    int pushed = 0;
+    for (int i = 0; i < g_watchPathCount && pushed < BPF_PREFIX_SLOTS; i++) {
+        char pfx[WRITER_PATH_LEN] = {0};
+        size_t len = strlen(g_watchPaths[i]);
+        if (len >= sizeof(pfx)) {
+            Logger(WARNING, MD_NM_LOG, "Watch path longer than %d chars; prefix truncated.",
+                (int)sizeof(pfx) - 1);
+            len = sizeof(pfx) - 1;
+        }
+        memcpy(pfx, g_watchPaths[i], len);
+        uint32_t key = (uint32_t)pushed;
+        union bpf_attr attr;
+        bzero(&attr, sizeof(attr));
+        attr.map_fd = mapFd;
+        attr.key = (uint64_t)(uintptr_t)&key;
+        attr.value = (uint64_t)(uintptr_t)pfx;
+        attr.flags = BPF_ANY;
+        if ((int)syscall(__NR_bpf, BPF_MAP_UPDATE_ELEM, &attr, sizeof(attr)) < 0) {
+            Logger(WARNING, MD_NM_LOG, "Push path prefix failed: %d (%s)",
+                errno, strerror(errno));
+        } else {
+            pushed++;
+        }
+    }
+    pthread_mutex_unlock(&g_writerLock);
+    Logger(INFO, MD_NM_LOG, "Pushed %d watched path prefixes into the BPF map.", pushed);
+}
+
+/* Sweep aged fd_paths entries so the hash map cannot fill with entries of
+ * dead (pid, fd) pairs over weeks of uptime. Long-lived fds do not need
+ * their entries: they resolve live via /proc while they stay open. */
+static void SweepFdPaths(void)
+{
+    int mapFd = FindMapFd("fd_paths");
+    if (mapFd < 0) {
+        return;
+    }
+    struct timespec now;
+    clock_gettime(CLOCK_MONOTONIC, &now);
+    uint64_t nowNs = (uint64_t)now.tv_sec * 1000000000ULL + (uint64_t)now.tv_nsec;
+
+    struct {
+        uint64_t ktime;
+        char path[WRITER_PATH_LEN];
+    } val;
+    uint64_t keyBuf;
+    uint64_t next;
+    const void *curKey = NULL; /* NULL key fetches the first entry */
+    int swept = 0;
+    for (int guard = 0; guard < 20000; guard++) {
+        union bpf_attr attr;
+        bzero(&attr, sizeof(attr));
+        attr.map_fd = mapFd;
+        attr.key = (uint64_t)(uintptr_t)curKey;
+        attr.next_key = (uint64_t)(uintptr_t)&next;
+        if ((int)syscall(__NR_bpf, BPF_MAP_GET_NEXT_KEY, &attr, sizeof(attr)) < 0) {
+            break; /* end of map */
+        }
+        bzero(&attr, sizeof(attr));
+        attr.map_fd = mapFd;
+        attr.key = (uint64_t)(uintptr_t)&next;
+        attr.value = (uint64_t)(uintptr_t)&val;
+        if ((int)syscall(__NR_bpf, BPF_MAP_LOOKUP_ELEM, &attr, sizeof(attr)) == 0 &&
+            nowNs > val.ktime &&
+            nowNs - val.ktime > (uint64_t)FD_SWEEP_AGE_MS * 1000000ULL) {
+            bzero(&attr, sizeof(attr));
+            attr.map_fd = mapFd;
+            attr.key = (uint64_t)(uintptr_t)&next;
+            if ((int)syscall(__NR_bpf, BPF_MAP_DELETE_ELEM, &attr, sizeof(attr)) == 0) {
+                swept++;
+            }
+        }
+        keyBuf = next;
+        curKey = &keyBuf;
+    }
+    if (swept > 0) {
+        Logger(INFO, MD_NM_LOG, "Swept %d stale fd_paths entries.", swept);
+    }
+}
+
 /* Scratch for one perf record: header (16B) + raw size (4B) + payload.
- * Our WriterEvent is 112 bytes, so 512 covers it and any kernel-side
- * ancillary record (e.g. PERF_RECORD_LOST). */
+ * Our WriterEvent is 184 bytes with the tracked path attached, so 512
+ * covers it and any kernel-side ancillary record (e.g. PERF_RECORD_LOST). */
 #define PERF_SAMPLE_MAX 512
 
 #define WRITER_CMD_LEN 100
@@ -923,11 +1350,13 @@ static void DrainPerfRing(void)
                 }
                 continue;
             }
-            /* Layout: PERF_SAMPLE_RAW = u32 size, then size bytes of raw data. */
+            /* Layout: PERF_SAMPLE_RAW = u32 size, then size bytes of raw data.
+             * The event comes in two sizes: 120 bytes bare, 184 with the
+             * kernel-tracked path attached. */
             const uint8_t *sample = evBuf + sizeof(struct perf_event_header);
             uint32_t rawSize = *(const uint32_t *)sample;
             const void *raw = sample + sizeof(uint32_t);
-            if (rawSize < sizeof(struct WriterEvent) ||
+            if (rawSize < WRITER_EVENT_CORE ||
                 rawSize > sizeof(evBuf) - sizeof(struct perf_event_header) - sizeof(uint32_t)) {
                 g_statBadRaw++;
                 continue;
@@ -935,7 +1364,18 @@ static void DrainPerfRing(void)
             g_statSamples++;
             const struct WriterEvent *ev = (const struct WriterEvent *)raw;
             char path[MAX_FULL_NAME] = {0};
-            if (ResolveFdPath(ev->pid, ev->fd, path, sizeof(path)) != PWR_SUCCESS) {
+            /* Prefer the kernel-tracked path: it reflects the fd state at
+             * write time, which is the truth that matters even when the fd
+             * was closed long before this ring got drained (the case that
+             * used to drop every short-lived write). Fall back to the live
+             * /proc lookup for fds the probes never saw: opened before the
+             * service started or tracked past the freshness window. */
+            if (ev->pathValid != 0 && rawSize >= sizeof(struct WriterEvent)) {
+                char tracked[WRITER_PATH_LEN + 1] = {0};
+                memcpy(tracked, ev->path, WRITER_PATH_LEN);
+                StrCopy(path, tracked, sizeof(path));
+                g_statTracked++;
+            } else if (ResolveFdPath(ev->pid, ev->fd, path, sizeof(path)) != PWR_SUCCESS) {
                 g_statResolveFail++;
                 continue;
             }
@@ -943,40 +1383,38 @@ static void DrainPerfRing(void)
                 continue;
             }
             g_statWatched++;
-            {
-                /* NUL-terminate the captured buffer at bufLen for logging. */
-                char val[WRITER_BUF_LEN + 1] = {0};
-                uint32_t n = ev->bufLen;
-                if (n > WRITER_BUF_LEN) {
-                    n = WRITER_BUF_LEN;
-                }
-                memcpy(val, ev->buf, n);
-
-                struct WriterAudit wa;
-                memset(&wa, 0, sizeof(wa));
-                char ts[MAX_STD_TIME] = {0};
-                FormatEventTime(ev->ktime, ts, sizeof(ts));
-                wa.ts = ts;
-                wa.uid = ev->uid;
-                wa.pid = ev->pid;
-                wa.tid = ev->tid;
-                wa.comm = ev->comm;
-                wa.file = path;
-                wa.value = val;
-                if (ev->pid != getpid()) {
-                    /* Foreign writer: resolve process evidence while the
-                     * process is still around. */
-                    char exe[MAX_FULL_NAME] = {0};
-                    char cmd[WRITER_CMD_LEN + 1] = {0};
-                    char user[64] = {0};
-                    EnrichWriterInfo(ev->pid, ev->uid, exe, sizeof(exe),
-                        cmd, sizeof(cmd), user, sizeof(user));
-                    wa.exe = exe;
-                    wa.cmd = cmd;
-                    wa.userName = user;
-                }
-                AuditWriterEvent(&wa);
+            /* NUL-terminate the captured buffer at bufLen for logging. */
+            char val[WRITER_BUF_LEN + 1] = {0};
+            uint32_t n = ev->bufLen;
+            if (n > WRITER_BUF_LEN) {
+                n = WRITER_BUF_LEN;
             }
+            memcpy(val, ev->buf, n);
+
+            struct WriterAudit wa;
+            memset(&wa, 0, sizeof(wa));
+            char ts[MAX_STD_TIME] = {0};
+            FormatEventTime(ev->ktime, ts, sizeof(ts));
+            wa.ts = ts;
+            wa.uid = ev->uid;
+            wa.pid = ev->pid;
+            wa.tid = ev->tid;
+            wa.comm = ev->comm;
+            wa.file = path;
+            wa.value = val;
+            if (ev->pid != getpid()) {
+                /* Foreign writer: resolve process evidence while the
+                 * process is still around. */
+                char exe[MAX_FULL_NAME] = {0};
+                char cmd[WRITER_CMD_LEN + 1] = {0};
+                char user[64] = {0};
+                EnrichWriterInfo(ev->pid, ev->uid, exe, sizeof(exe),
+                    cmd, sizeof(cmd), user, sizeof(user));
+                wa.exe = exe;
+                wa.cmd = cmd;
+                wa.userName = user;
+            }
+            AuditWriterEvent(&wa);
         }
         __atomic_store_n(&header->data_tail, tail, __ATOMIC_RELEASE);
     }
@@ -991,18 +1429,46 @@ static void *WriterCollectorLoop(void *arg)
         /* Close any aggregated WRITER run that received no event in this
          * pass, so a quiet fan-out still reaches the file promptly. */
         AuditWriterTickFlush();
-        /* ~20s at the 50ms poll interval: periodic stats for field diagnosis. */
-        if (++ticks >= 400) {
-            ticks = 0;
+        /* ~30s at the 50ms poll interval: age out fd_paths entries of
+         * fds that are long gone so the hash map cannot fill up. */
+        if (++ticks % 600 == 0) {
+            SweepFdPaths();
+        }
+        /* ~20s: periodic stats for field diagnosis. */
+        if (ticks % 400 == 0) {
             Logger(INFO, MD_NM_LOG,
-                "Writer stats: records=%llu lost=%llu samples=%llu badRaw=%llu resolveFail=%llu watched=%llu",
+                "Writer stats: records=%llu lost=%llu samples=%llu badRaw=%llu "
+                "resolveFail=%llu tracked=%llu watched=%llu fdTracking=%d",
                 (unsigned long long)g_statRecords, (unsigned long long)g_statLost,
                 (unsigned long long)g_statSamples, (unsigned long long)g_statBadRaw,
-                (unsigned long long)g_statResolveFail, (unsigned long long)g_statWatched);
+                (unsigned long long)g_statResolveFail, (unsigned long long)g_statTracked,
+                (unsigned long long)g_statWatched, g_fdTracking);
         }
         usleep(50 * 1000); /* 50ms poll interval - event latency is acceptable for audit */
     }
     return NULL;
+}
+
+/* Close the program and map fds of a loaded (but not necessarily attached)
+ * object; used by init failure paths while the collector is not running. */
+static void CloseLoadedObjects(void)
+{
+    for (int i = 0; i < g_bpfProgCnt; i++) {
+        if (g_bpfProgs[i].progFd >= 0) {
+            close(g_bpfProgs[i].progFd);
+            g_bpfProgs[i].progFd = -1;
+        }
+    }
+    g_bpfProgCnt = 0;
+    for (int i = 0; i < g_bpfMapCnt; i++) {
+        if (g_bpfMapFds[i] >= 0) {
+            close(g_bpfMapFds[i]);
+            g_bpfMapFds[i] = -1;
+        }
+    }
+    g_bpfMapCnt = 0;
+    g_bpfMapFd = -1;
+    g_fdTracking = 0;
 }
 
 int InitBpfWriter(void)
@@ -1025,17 +1491,18 @@ int InitBpfWriter(void)
     if (ret != PWR_SUCCESS) {
         return PWR_SUCCESS; /* best-effort */
     }
+    /* Prefixes must be in the map before the open probes attach, or every
+     * open in the window between attach and update would slip by untracked. */
+    PopulatePathPrefixes();
     ret = AttachPerCpu();
     if (ret != PWR_SUCCESS) {
-        close(g_bpfProgFd);
-        g_bpfProgFd = -1;
+        CloseLoadedObjects();
         return PWR_SUCCESS; /* best-effort */
     }
     ret = SetupPerfRings();
     if (ret != PWR_SUCCESS) {
         CleanupPerf();
-        close(g_bpfProgFd);
-        g_bpfProgFd = -1;
+        CloseLoadedObjects();
         return PWR_SUCCESS; /* best-effort */
     }
 
@@ -1052,8 +1519,8 @@ int InitBpfWriter(void)
     return PWR_SUCCESS;
 }
 
-/* Release all per-CPU perf fds and their mmap'd rings, the tracepoint carrier
- * fd, and the kprobe registered in kprobe_events. */
+/* Release all per-CPU perf fds and their mmap'd rings, every tracepoint
+ * carrier, and the probes registered in kprobe_events. */
 static void CleanupPerf(void)
 {
     for (int i = 0; i < MAX_CPUS; i++) {
@@ -1069,14 +1536,11 @@ static void CleanupPerf(void)
     }
     g_perfCnt = 0;
     g_perfMmapSize = 0;
-    if (g_tpFd >= 0) {
-        (void)ioctl(g_tpFd, PERF_EVENT_IOC_DISABLE, 0);
-        close(g_tpFd);
-        g_tpFd = -1;
-    }
     /* The kernel only accepts the probe deletion once every referencing perf
      * fd is closed, hence after the loops above. */
-    RemoveKprobeEvent();
+    for (int i = 0; i < g_bpfProgCnt; i++) {
+        DetachOneProbe(&g_bpfProgs[i]);
+    }
 }
 
 void ClearBpfWriter(void)
@@ -1086,13 +1550,6 @@ void ClearBpfWriter(void)
     }
     FiniThreadInfo(&g_writerThread);
     CleanupPerf();
-    if (g_bpfProgFd >= 0) {
-        close(g_bpfProgFd);
-        g_bpfProgFd = -1;
-    }
-    if (g_bpfMapFd >= 0) {
-        close(g_bpfMapFd);
-        g_bpfMapFd = -1;
-    }
+    CloseLoadedObjects();
     g_writerEnabled = 0;
 }
