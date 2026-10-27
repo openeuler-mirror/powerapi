@@ -154,13 +154,13 @@ __attribute__((section(".maps"), used)) = {
     .type = 2,
     .key_size = sizeof(u32),
     .value_size = 64,
-    .max_entries = 8,
+    .max_entries = 16,
 };
 
 #define WRITER_BUF_LEN 64
 #define WRITER_COMM_LEN 16
 #define OPEN_PATH_LEN 64
-#define PREFIX_SLOTS 8
+#define PREFIX_SLOTS 16
 /* fd numbers above 1M are never tracked (key packing sanity). */
 #define FD_TRACK_MAX 1048576
 /* A tracked path is attached only while fresh: long-lived fds opened long

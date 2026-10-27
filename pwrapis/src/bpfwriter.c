@@ -88,7 +88,7 @@ struct WriterEvent {
 #define BPF_MAX_PROGS 5
 #define BPF_MAX_MAPS 4
 /* Watched path prefixes pushed into the path_prefixes ARRAY map. */
-#define BPF_PREFIX_SLOTS 8
+#define BPF_PREFIX_SLOTS 16
 /* fd_paths entries older than this are swept so the hash map cannot fill
  * up over weeks of distinct (pid, fd) pairs. Long-lived fds do not need
  * their entries: they resolve live via /proc while they stay open. */
@@ -1165,9 +1165,17 @@ static void SnapshotWatchPaths(void)
     }
     /* Always watch the cpufreq sysfs root prefix and the other roots - any
      * write to a path starting with these is interesting. We store them as
-     * prefixes and do prefix matching. */
+     * prefixes and do prefix matching. Prefix matching runs on the path
+     * STRING passed to open(), so the same sysfs file reached through the
+     * per-cpu symlink form (cpuN/cpufreq/... - what cpupower and most
+     * hand-written scripts use) carries a different string than the
+     * policyX form and needs its own prefix; writing the frequency
+     * directly (scaling_setspeed, scaling_{max,min}_freq) must be caught
+     * in BOTH forms. The cpu prefix also brings per-cpu power knobs such
+     * as online/offline and cpuidle state disables into the audit. */
     static const char *const builtinPrefix[] = {
         "/sys/devices/system/cpu/cpufreq/",
+        "/sys/devices/system/cpu/cpu",
         "/sys/kernel/hbm_cache/",
         "/sys/devices/system/container/",
         "/sys/firmware/efi/efivars/",
