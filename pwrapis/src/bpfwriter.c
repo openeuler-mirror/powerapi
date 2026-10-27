@@ -215,17 +215,38 @@ struct BpfInsn {
 /* ELF section type for SHT_RELA (relocations with addends). */
 #define SHT_RELA 4
 
-/* The verifier log is multi-line. Flatten it onto a single log line so the
- * full trace survives grep filters (which previously hid all but the first
- * insn line and made the failure look like a 1-line mystery). */
+/* The verifier log is multi-line and, for loop-heavy programs at
+ * log_level=2, can reach megabytes. Flatten its TAIL onto a single log
+ * line: the kernel writes the final verdict (processed insns, the
+ * failing instruction) at the END, so keeping the head would hide
+ * exactly the part that explains a failure. */
 static void FlattenVerifierLog(const char *log, char *out, size_t outSize)
 {
+    size_t len = (log != NULL) ? strlen(log) : 0;
+    size_t start = 0;
+    if (len > outSize * 2) {
+        size_t winStart = len - outSize * 2;
+        start = winStart;
+        while (start < len && log[start] != '\n') {
+            start++; /* skip into the middle of a line */
+        }
+        if (start >= len) {
+            /* No newline in the whole window (defensive: verifier lines
+             * always end with '\n', but never drop the diagnostics). */
+            start = winStart;
+        } else {
+            start++;
+        }
+    }
     size_t o = 0;
-    for (size_t i = 0; log != NULL && log[i] != '\0' && o + 1 < outSize; i++) {
+    for (size_t i = start; i < len && o + 1 < outSize; i++) {
         out[o++] = (log[i] == '\n') ? '|' : log[i];
     }
     out[o] = '\0';
 }
+
+/* Upper bound of the verifier trace buffer for failure diagnostics. */
+#define VERIFIER_LOG_MAX (1024U * 1024U)
 
 /* On PROG_LOAD failure, try a minimal 2-insn kprobe program (r0=0; exit).
  * If even this fails, the kernel/LSM refuses BPF program loads in general
@@ -416,45 +437,68 @@ static int LoadOneSection(const void *obj, size_t objSize, const struct ElfHdr *
         return PWR_ERR_COMMON;
     }
 
-    /* Load the program with the (possibly patched) instructions. */
-    char logBuf[65536] = {0};
+    /* Load the program with the (possibly patched) instructions.
+     *
+     * Attempt 1 deliberately passes NO verifier log buffer (log fields all
+     * zero). With a log attached and log_level >= 1, the 5.10 verifier
+     * dumps a register/stack precision backtrace for every stack slot
+     * access; loop-heavy programs (e.g. the 8-prefix-slot scan) generate
+     * traces far beyond 64KB, and once the buffer fills the kernel aborts
+     * the load with ENOSPC -- which masks the real verdict entirely.
+     * libbpf does the same: try silently first, ask for a log only after
+     * a failure. */
     union bpf_attr attr;
     bzero(&attr, sizeof(attr));
     attr.prog_type = BPF_PROG_TYPE_KPROBE;
     attr.insns = (uint64_t)insns;
     attr.insn_cnt = (uint32_t)insnCnt;
     attr.license = (uint64_t)"GPL";
-    attr.log_buf = (uint64_t)logBuf;
-    attr.log_size = sizeof(logBuf);
-    attr.log_level = 1;
+    /* attr.log_buf/log_size/log_level stay zero: silent load. */
 
     int progFd = (int)syscall(__NR_bpf, BPF_PROG_LOAD, &attr, sizeof(attr));
-    if (progFd < 0) {
-        int savedErrno = errno;
-        char flat[1600];
-        FlattenVerifierLog(logBuf, flat, sizeof(flat));
-        Logger(ERROR, MD_NM_LOG, "BPF_PROG_LOAD(%s) failed: %d (%s). insnCnt:%u verifier: %s",
-            pc->secName, savedErrno, strerror(savedErrno), (unsigned)insnCnt, flat);
-        /* Retry once with log_level=2 for a fuller verifier trace. */
+    if (progFd >= 0) {
+        free(insns);
+        pc->progFd = progFd;
+        return PWR_SUCCESS;
+    }
+    int savedErrno = errno;
+    /* Retry once with a large log buffer to capture the real verdict
+     * (the verdict sits at the END of the trace, hence FlattenVerifierLog
+     * keeps the tail). 1MB covers the most verbose loop-heavy programs. */
+    char *logBuf = malloc(VERIFIER_LOG_MAX);
+    if (logBuf == NULL) {
+        Logger(ERROR, MD_NM_LOG, "BPF_PROG_LOAD(%s) failed: %d (%s). insnCnt:%u "
+            "log-enabled retry skipped: log buffer alloc failed: %d (%s).",
+            pc->secName, savedErrno, strerror(savedErrno), (unsigned)insnCnt,
+            errno, strerror(errno));
+    } else {
+        logBuf[0] = '\0';
+        attr.log_buf = (uint64_t)logBuf;
+        attr.log_size = VERIFIER_LOG_MAX;
         attr.log_level = 2;
-        (void)memset(logBuf, 0, sizeof(logBuf));
         int fd2 = (int)syscall(__NR_bpf, BPF_PROG_LOAD, &attr, sizeof(attr));
         if (fd2 >= 0) {
-            close(fd2);
-            Logger(WARNING, MD_NM_LOG, "BPF_PROG_LOAD retry(log_level=2) unexpectedly succeeded.");
-        } else {
-            char flat2[2400];
-            FlattenVerifierLog(logBuf, flat2, sizeof(flat2));
-            Logger(ERROR, MD_NM_LOG, "BPF_PROG_LOAD retry(log_level=2): %d (%s). verifier: %s",
-                errno, strerror(errno), flat2);
+            Logger(WARNING, MD_NM_LOG, "BPF_PROG_LOAD(%s) failed: %d (%s) but succeeded on "
+                "the log-enabled retry (transient failure). insnCnt:%u",
+                pc->secName, savedErrno, strerror(savedErrno), (unsigned)insnCnt);
+            free(logBuf);
+            free(insns);
+            pc->progFd = fd2;
+            return PWR_SUCCESS;
         }
-        RunLoadProbe();
-        free(insns);
-        return PWR_ERR_SYS_EXCEPTION;
+        char flat[2400];
+        FlattenVerifierLog(logBuf, flat, sizeof(flat));
+        Logger(ERROR, MD_NM_LOG, "BPF_PROG_LOAD(%s) failed: %d (%s). insnCnt:%u verifier tail: %s",
+            pc->secName, errno, strerror(errno), (unsigned)insnCnt, flat);
+        if (errno == ENOSPC) {
+            Logger(WARNING, MD_NM_LOG, "The 1MB verifier log itself overflowed on retry; "
+                "the tail above ends where the buffer filled, the final verdict may be absent.");
+        }
+        free(logBuf);
     }
+    RunLoadProbe();
     free(insns);
-    pc->progFd = progFd;
-    return PWR_SUCCESS;
+    return PWR_ERR_SYS_EXCEPTION;
 }
 
 /* Parse the BPF ELF object, create the maps its programs reference, apply
