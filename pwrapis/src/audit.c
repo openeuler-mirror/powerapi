@@ -763,6 +763,9 @@ static int FindWriterCall(pid_t tid, uint16_t *optType, uint32_t *seq,
  * same identity and differ only in the path component before the file name
  * are collapsed into ONE line:
  *   file_glob="/sys/.../cpufreq/STAR/scaling_governor" count=600 first=.. last=..
+ * A run whose events all wrote the exact same path keeps the exact
+ *   file="/var/tmp/watchfile" count=N first=.. last=..
+ * form instead - the star would over-claim directories never written.
  * The pending run is emitted when a non-matching event arrives, before an
  * RSP line, on a collector tick without new events, and at shutdown.
  * count=1 runs keep the original file= form, so nothing is lost for
@@ -782,6 +785,7 @@ struct WriterAggr {
     char cmd[AUDIT_MAX_LINE_LEN];   /* escaped, "-" when unavailable */
     char file[AUDIT_MAX_LINE_LEN];  /* first event's real path, escaped */
     char globPath[AUDIT_MAX_LINE_LEN]; /* glob form of the path, escaped */
+    int samePath;       /* every event in the run wrote the exact same path */
     char value[AUDIT_MAX_LINE_LEN];    /* escaped */
     char tsFirst[MAX_STD_TIME];
     char tsLast[MAX_STD_TIME];
@@ -824,8 +828,12 @@ static void FlushWriterAggrLocked(void)
     if (!g_wAggr.used) {
         return;
     }
-    const char *fileKey = (g_wAggr.count > 1) ? "file_glob" : "file";
-    const char *fileVal = (g_wAggr.count > 1) ? g_wAggr.globPath : g_wAggr.file;
+    /* Runs whose events all wrote the exact same path keep the precise
+     * file= form (a glob with a star would claim writes to directories
+     * that never happened); only genuinely differing sibling directories
+     * collapse into the file_glob= form. */
+    const char *fileKey = (g_wAggr.count > 1 && !g_wAggr.samePath) ? "file_glob" : "file";
+    const char *fileVal = (g_wAggr.count > 1 && !g_wAggr.samePath) ? g_wAggr.globPath : g_wAggr.file;
 
     char agg[AUDIT_MAX_LINE_LEN] = {0};
     int aggPos = 0;
@@ -942,6 +950,9 @@ void AuditWriterEvent(const struct WriterAudit *wa)
 
     if (matched) {
         g_wAggr.count++;
+        if (strcmp(g_wAggr.file, sFile) != 0) {
+            g_wAggr.samePath = 0; /* a sibling wrote a different directory */
+        }
         SetStr(g_wAggr.tsLast, sizeof(g_wAggr.tsLast), ts);
         g_wAggrTouched = 1;
         pthread_mutex_unlock(&g_wAggrLock);
@@ -971,6 +982,7 @@ void AuditWriterEvent(const struct WriterAudit *wa)
     SetStr(a->comm, sizeof(a->comm), sComm);
     SetStr(a->file, sizeof(a->file), sFile);
     SetStr(a->globPath, sizeof(a->globPath), sGlob);
+    a->samePath = 1;
     SetStr(a->value, sizeof(a->value), sValue);
     SetStr(a->tsFirst, sizeof(a->tsFirst), ts);
     SetStr(a->tsLast, sizeof(a->tsLast), ts);
