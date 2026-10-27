@@ -49,11 +49,18 @@ static pthread_mutex_t g_auditLock = PTHREAD_MUTEX_INITIALIZER;
 
 /* ---- in-flight call registry ------------------------------------------- */
 /* AuditSettingReq registers a call, AuditCallBegin binds it to the executing
- * thread, AuditSettingRsp removes it. WRITER events from the service itself
- * resolve their (opt, seq, user) context through this table: first by the
- * captured thread id (exact), otherwise the most recent in-flight call
- * (approximate, tagged ctx=approx in the audit line). */
+ * thread, AuditCallEnd/AuditSettingRsp stamp the finish time. WRITER events
+ * from the service itself resolve their (opt, seq, user) context through
+ * this table by the captured thread id (exact), while the call is in flight
+ * or within the grace window after it finished. Unmatched service writes
+ * are recorded without call context (user=- uid=- opt=- seq=-). */
 #define AUDIT_MAX_INFLIGHT 32
+/* How long a finished call stays attributable: the collector drains the
+ * BPF perf rings on a 50ms poll, so the writes of a call that completed
+ * in a few milliseconds are often harvested AFTER the call finished and
+ * the RSP went out. Keep finished calls (thread binding included) for a
+ * grace window so those late-drained events still carry opt/seq/user. */
+#define AUDIT_CALL_GRACE_MS 1000
 struct InflightCall {
     int used;
     int hasTid;          /* AuditCallBegin seen for this call */
@@ -63,6 +70,7 @@ struct InflightCall {
     uid_t uid;
     char user[MAX_NAME];
     long long startMs;
+    long long endMs;     /* call finished executing; 0 = still in flight */
 };
 static struct InflightCall g_calls[AUDIT_MAX_INFLIGHT];
 static pthread_mutex_t g_callLock = PTHREAD_MUTEX_INITIALIZER;
@@ -74,20 +82,36 @@ static long long NowMs(void)
     return (long long)tv.tv_sec * 1000LL + tv.tv_usec / 1000LL;
 }
 
-/* Find a free slot, or steal the oldest entry when the table is full
- * (dropped correlation is preferred over a blocked audit path). */
+/* Find a slot for a new call: a free one, then one whose correlation
+ * grace has expired, then the oldest finished one, finally the oldest
+ * in-flight one (dropped correlation is preferred over a blocked audit
+ * path - the table is large enough that this is a pathological case). */
 static struct InflightCall *AcquireCallSlot(void)
 {
-    struct InflightCall *oldest = &g_calls[0];
+    long long now = NowMs();
+    struct InflightCall *oldestDone = NULL;
+    struct InflightCall *oldestAny = NULL;
+    long long doneT = 0;
+    long long anyT = 0;
     for (int i = 0; i < AUDIT_MAX_INFLIGHT; i++) {
-        if (!g_calls[i].used) {
-            return &g_calls[i];
+        struct InflightCall *c = &g_calls[i];
+        if (!c->used) {
+            return c;
         }
-        if (g_calls[i].startMs < oldest->startMs) {
-            oldest = &g_calls[i];
+        if (c->endMs != 0 && now - c->endMs >= AUDIT_CALL_GRACE_MS) {
+            return c; /* correlation window over: safe to reuse */
+        }
+        if (c->endMs != 0) {
+            if (oldestDone == NULL || c->endMs < doneT) {
+                oldestDone = c;
+                doneT = c->endMs;
+            }
+        } else if (oldestAny == NULL || c->startMs < anyT) {
+            oldestAny = c;
+            anyT = c->startMs;
         }
     }
-    return oldest;
+    return (oldestDone != NULL) ? oldestDone : oldestAny;
 }
 
 static struct InflightCall *FindCall(uint32_t seq, uint16_t optType)
@@ -594,6 +618,7 @@ void AuditSettingReq(const PwrClient *client, const PwrMsg *req)
         snprintf(slot->user, sizeof(slot->user), "%s",
             (client != NULL && client->userName[0] != '\0') ? client->userName : "unknown");
         slot->startMs = NowMs();
+        slot->endMs = 0;
     }
     pthread_mutex_unlock(&g_callLock);
 }
@@ -617,8 +642,11 @@ void AuditSettingRsp(const PwrClient *client, const PwrMsg *req, int rspCode)
 
     pthread_mutex_lock(&g_callLock);
     struct InflightCall *slot = FindCall(req->head.seqId, req->head.optType);
-    if (slot != NULL) {
-        slot->used = 0;
+    if (slot != NULL && slot->endMs == 0) {
+        /* Keep the registration (and the thread binding) for the grace
+         * window: the call's writes are typically drained from the BPF
+         * rings after the response is out. */
+        slot->endMs = NowMs();
     }
     pthread_mutex_unlock(&g_callLock);
 }
@@ -640,42 +668,54 @@ void AuditCallBegin(const PwrMsg *req)
 
 void AuditCallEnd(void)
 {
+    /* Stamp the finish time but keep the thread binding: writes issued by
+     * this thread during the call reach user space through the perf ring
+     * and are drained up to one collector poll (50ms) AFTER this point.
+     * The slot expires via AUDIT_CALL_GRACE_MS. */
     pid_t tid = (pid_t)syscall(SYS_gettid);
+    long long now = NowMs();
     pthread_mutex_lock(&g_callLock);
     for (int i = 0; i < AUDIT_MAX_INFLIGHT; i++) {
-        if (g_calls[i].used && g_calls[i].hasTid && g_calls[i].tid == tid) {
-            g_calls[i].hasTid = 0;
-            g_calls[i].tid = -1;
+        if (g_calls[i].used && g_calls[i].hasTid && g_calls[i].tid == tid &&
+            g_calls[i].endMs == 0) {
+            g_calls[i].endMs = now;
         }
     }
     pthread_mutex_unlock(&g_callLock);
 }
 
 /* Resolve the API-call context of a WRITER event emitted by the service
- * itself: exact match by the executing thread first, otherwise the most
- * recent in-flight call as an approximation. Caller provides buffers. */
+ * itself: match the captured thread id while the call is in flight, or
+ * within the grace window after it finished (the collector drains the
+ * perf rings on a 50ms poll, long after a fast call completed). Returns
+ * 0 when no call context applies - the event is then logged without
+ * opt/seq/user rather than guessed. Caller provides buffers. */
 static int FindWriterCall(pid_t tid, uint16_t *optType, uint32_t *seq,
-    uid_t *uid, char *user, size_t userSize, int *approx)
+    uid_t *uid, char *user, size_t userSize)
 {
     struct InflightCall *match = NULL;
+    long long now = NowMs();
     pthread_mutex_lock(&g_callLock);
+    /* Pass 1: a call currently executing on this thread. */
     for (int i = 0; i < AUDIT_MAX_INFLIGHT; i++) {
-        if (g_calls[i].used && g_calls[i].hasTid && g_calls[i].tid == tid) {
+        if (g_calls[i].used && g_calls[i].hasTid && g_calls[i].tid == tid &&
+            g_calls[i].endMs == 0) {
             match = &g_calls[i];
-            *approx = 0;
             break;
         }
     }
+    /* Pass 2: a call that finished on this thread within the grace
+     * window (most recent wins if several are still lingering). */
     if (match == NULL) {
-        long long newest = -1;
+        long long best = 0;
         for (int i = 0; i < AUDIT_MAX_INFLIGHT; i++) {
-            if (g_calls[i].used && g_calls[i].startMs > newest) {
-                newest = g_calls[i].startMs;
+            if (g_calls[i].used && g_calls[i].hasTid && g_calls[i].tid == tid &&
+                g_calls[i].endMs != 0 &&
+                now - g_calls[i].endMs < AUDIT_CALL_GRACE_MS &&
+                g_calls[i].endMs > best) {
+                best = g_calls[i].endMs;
                 match = &g_calls[i];
             }
-        }
-        if (match != NULL) {
-            *approx = 1;
         }
     }
     if (match != NULL) {
@@ -703,7 +743,6 @@ struct WriterAggr {
     int used;
     int isApi;          /* [WRITER][API] run: the service's own writes */
     int hasCall;        /* API: call context resolved */
-    int approx;         /* API: ctx=approx */
     uint16_t optType;
     uint32_t seq;
     unsigned int uid;   /* API: caller uid; OS: writer uid */
@@ -771,10 +810,10 @@ static void FlushWriterAggrLocked(void)
     if (g_wAggr.isApi) {
         if (g_wAggr.hasCall) {
             AppendStr(line, sizeof(line), &pos,
-                "%s [AUDIT][WRITER][API] user=%s uid=%u opt=%s seq=%u%s pid=%d comm=\"%s\" %s=\"%s\"%s value=\"%s\"",
+                "%s [AUDIT][WRITER][API] user=%s uid=%u opt=%s seq=%u pid=%d comm=\"%s\" %s=\"%s\"%s value=\"%s\"",
                 g_wAggr.tsFirst, g_wAggr.user, g_wAggr.uid,
                 GetAuditOptName(g_wAggr.optType), g_wAggr.seq,
-                g_wAggr.approx ? " ctx=approx" : "", g_wAggr.pid, g_wAggr.comm,
+                g_wAggr.pid, g_wAggr.comm,
                 fileKey, fileVal, agg, g_wAggr.value);
         } else {
             AppendStr(line, sizeof(line), &pos,
@@ -854,16 +893,15 @@ void AuditWriterEvent(const struct WriterAudit *wa)
 
     int isApi = (wa->pid == (int)getpid());
     /* Resolve the API context first: the pending run needs it, and it must
-     * be read before the call is unregistered by a concurrent RSP. */
+     * be read before the call's grace window expires. */
     uint16_t optType = 0;
     uint32_t seq = 0;
     uid_t callerUid = (uid_t)-1;
     char callerUser[MAX_NAME] = {0};
-    int approx = 0;
     int hasCall = 0;
     if (isApi) {
         hasCall = FindWriterCall(wa->tid, &optType, &seq, &callerUid,
-            callerUser, sizeof(callerUser), &approx);
+            callerUser, sizeof(callerUser));
     }
 
     char globRaw[AUDIT_MAX_LINE_LEN] = {0};
@@ -882,7 +920,7 @@ void AuditWriterEvent(const struct WriterAudit *wa)
     if (matched && isApi) {
         matched = (g_wAggr.hasCall == hasCall) && (!hasCall ||
             (g_wAggr.optType == optType && g_wAggr.seq == seq &&
-             g_wAggr.approx == approx && strcmp(g_wAggr.user, callerUser) == 0));
+             strcmp(g_wAggr.user, callerUser) == 0));
     }
     if (matched && !isApi) {
         matched = g_wAggr.uid == wa->uid && strcmp(g_wAggr.comm, sComm) == 0 &&
@@ -905,7 +943,6 @@ void AuditWriterEvent(const struct WriterAudit *wa)
     a->used = 1;
     a->isApi = isApi;
     a->hasCall = hasCall;
-    a->approx = approx;
     a->optType = optType;
     a->seq = seq;
     a->pid = wa->pid;
