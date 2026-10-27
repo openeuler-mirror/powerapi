@@ -205,6 +205,15 @@ static int UpdateBpfCfg(enum CnfItemType type, char *value)
         case E_CFG_IT_BPF_OBJ:
             strncpy(g_bpfCfg.objPath, value, sizeof(g_bpfCfg.objPath) - 1);
             break;
+        case E_CFG_IT_BPF_COMPACT:
+            actualValue = atoi(value);
+            if (!IsNumStr(value) || (actualValue != 0 && actualValue != 1)) {
+                Logger(ERROR, MD_NM_CFG, "bpf_writer_compact in config is invalid");
+                return PWR_ERR_INVALIDE_PARAM;
+            }
+            g_bpfCfg.compact = actualValue;
+            Logger(INFO, MD_NM_CFG, "bpf_writer_compact set to %d", actualValue);
+            break;
         default:
             break;
     }
@@ -348,6 +357,7 @@ static int InitWatchCfg(void)
 static int InitBpfCfg(void)
 {
     g_bpfCfg.enable = PWR_TRUE;
+    g_bpfCfg.compact = PWR_TRUE; /* WRITER fan-out aggregation on by default */
     strncpy(g_bpfCfg.objPath, BPF_OBJ_DEFAULT_PATH, sizeof(g_bpfCfg.objPath) - 1);
     return PWR_SUCCESS;
 }
@@ -365,7 +375,8 @@ static Name_To_Enum g_strToEnum[] = {
     {CFG_IT_OBSER, E_CFG_IT_OBSER},
     {CFG_IT_WATCH_FILES, E_CFG_IT_WATCH_FILES},
     {CFG_IT_BPF_EN, E_CFG_IT_BPF_EN},
-    {CFG_IT_BPF_OBJ, E_CFG_IT_BPF_OBJ}
+    {CFG_IT_BPF_OBJ, E_CFG_IT_BPF_OBJ},
+    {CFG_IT_BPF_COMPACT, E_CFG_IT_BPF_COMPACT}
 };
 
 static enum CnfItemType NameToEnum(char *name)
@@ -437,6 +448,7 @@ static int LoadCfgHandler(char *itemName, char *itemValue)
             break;
         case E_CFG_IT_BPF_EN:
         case E_CFG_IT_BPF_OBJ:
+        case E_CFG_IT_BPF_COMPACT:
             UpdateBpfCfg(type, itemValue);
             break;
         default:
@@ -586,6 +598,7 @@ int UpdateConfig(char *key, char *value)
             return UpdateWatchCfg(type, value);
         case E_CFG_IT_BPF_EN:
         case E_CFG_IT_BPF_OBJ:
+        case E_CFG_IT_BPF_COMPACT:
             return UpdateBpfCfg(type, value);
         default:
             return HandleInvalidUpdate(key, value);

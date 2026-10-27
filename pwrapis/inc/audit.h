@@ -75,10 +75,20 @@ struct WriterAudit {
     const char *userName; /* passwd name for uid, NULL when unavailable */
 };
 
+/* FlushAuditWriterPending - emit a pending aggregated WRITER run now.
+ * Called before an RSP line is emitted so writes precede their response. */
+void FlushAuditWriterPending(void);
+
+/* AuditWriterTickFlush - called once per collector drain pass; emits a
+ * WRITER aggregation run that received no event in this pass. */
+void AuditWriterTickFlush(void);
+
 /* AuditWriterEvent - record who wrote to a watched sysfs file, captured by
  * the eBPF writer-attribution observer (bpfwriter.c). Writes issued by the
  * service itself are tagged [WRITER][API] and correlated with the in-flight
- * API call; writes from any other process are tagged [WRITER][OS]. */
+ * API call; writes from any other process are tagged [WRITER][OS]. In
+ * compact mode (bpf_writer_compact, default on) runs of sibling writes are
+ * collapsed into one line with count/first/last. */
 void AuditWriterEvent(const struct WriterAudit *wa);
 
 #endif

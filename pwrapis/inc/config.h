@@ -55,6 +55,7 @@ enum CnfItemType {
     E_CFG_IT_WATCH_FILES,
     E_CFG_IT_BPF_EN,
     E_CFG_IT_BPF_OBJ,
+    E_CFG_IT_BPF_COMPACT,
 };
 
 typedef struct LogCfg {
@@ -92,6 +93,7 @@ typedef struct WatchCfg {
 
 typedef struct BpfCfg {
     int enable;
+    int compact;
     char objPath[MAX_FULL_NAME];
 } BpfCfg;
 

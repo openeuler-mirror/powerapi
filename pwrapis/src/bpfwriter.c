@@ -988,6 +988,9 @@ static void *WriterCollectorLoop(void *arg)
     unsigned int ticks = 0;
     while (g_writerThread.keepRunning) {
         DrainPerfRing();
+        /* Close any aggregated WRITER run that received no event in this
+         * pass, so a quiet fan-out still reaches the file promptly. */
+        AuditWriterTickFlush();
         /* ~20s at the 50ms poll interval: periodic stats for field diagnosis. */
         if (++ticks >= 400) {
             ticks = 0;

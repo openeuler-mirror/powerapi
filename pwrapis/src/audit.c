@@ -537,6 +537,9 @@ int InitAuditLogger(void)
 
 void ClearAuditLogger(void)
 {
+    /* Flush a pending aggregated WRITER run before the file is closed. */
+    FlushAuditWriterPending();
+
     pthread_mutex_lock(&g_auditLock);
     if (g_auditFile != NULL) {
         fclose(g_auditFile);
@@ -600,6 +603,10 @@ void AuditSettingRsp(const PwrClient *client, const PwrMsg *req, int rspCode)
     if (req == NULL || !IsAuditOpt(req->head.optType)) {
         return;
     }
+
+    /* Emit a pending aggregated WRITER run first, so the audit file reads
+     * "the writes happened, then the call responded". */
+    FlushAuditWriterPending();
 
     char line[AUDIT_MAX_LINE_LEN] = {0};
     int pos = 0;
@@ -681,6 +688,132 @@ static int FindWriterCall(pid_t tid, uint16_t *optType, uint32_t *seq,
     return (match != NULL);
 }
 
+/* ---- WRITER fan-out aggregation (compact mode) ---------------------------
+ * One SetFreqGovernor call fans out to ~600 sibling sysfs writes on a
+ * 608-CPU machine (one per policy dir). In compact mode
+ * (bpf_writer_compact, default on) runs of sibling writes that share the
+ * same identity and differ only in the path component before the file name
+ * are collapsed into ONE line:
+ *   file_glob="/sys/.../cpufreq/STAR/scaling_governor" count=600 first=.. last=..
+ * The pending run is emitted when a non-matching event arrives, before an
+ * RSP line, on a collector tick without new events, and at shutdown.
+ * count=1 runs keep the original file= form, so nothing is lost for
+ * single writes. Lock order is always wAggrLock -> auditLock. */
+struct WriterAggr {
+    int used;
+    int isApi;          /* [WRITER][API] run: the service's own writes */
+    int hasCall;        /* API: call context resolved */
+    int approx;         /* API: ctx=approx */
+    uint16_t optType;
+    uint32_t seq;
+    unsigned int uid;   /* API: caller uid; OS: writer uid */
+    pid_t pid;          /* API: service pid; OS: writer pid */
+    char user[MAX_NAME];
+    char userName[64];
+    char comm[32];                  /* escaped */
+    char exe[AUDIT_MAX_LINE_LEN];   /* escaped, "-" when unavailable */
+    char cmd[AUDIT_MAX_LINE_LEN];   /* escaped, "-" when unavailable */
+    char file[AUDIT_MAX_LINE_LEN];  /* first event's real path, escaped */
+    char globPath[AUDIT_MAX_LINE_LEN]; /* glob form of the path, escaped */
+    char value[AUDIT_MAX_LINE_LEN];    /* escaped */
+    char tsFirst[MAX_STD_TIME];
+    char tsLast[MAX_STD_TIME];
+    unsigned int count;
+};
+static struct WriterAggr g_wAggr;
+static int g_wAggrTouched; /* events arrived since the last tick flush */
+static pthread_mutex_t g_wAggrLock = PTHREAD_MUTEX_INITIALIZER;
+
+/* Collapse the second-to-last path component into "*": the per-policy or
+ * per-device directory that fans out on big machines, e.g.
+ * /sys/devices/system/cpu/cpufreq/policy200/scaling_governor becomes
+ * /sys/devices/system/cpu/cpufreq/STAR/scaling_governor. Paths without a
+ * distinct directory component (e.g. "/file") are kept as-is. */
+static void NormalizeGlobPath(const char *path, char *out, size_t outSize)
+{
+    const char *lastSlash = strrchr(path, '/');
+    if (lastSlash == NULL) {
+        snprintf(out, outSize, "%s", path);
+        return;
+    }
+    const char *prev = NULL;
+    for (const char *p = path; p < lastSlash; p++) {
+        if (*p == '/') {
+            prev = p;
+        }
+    }
+    if (prev == NULL || prev == path) {
+        /* "/file": the second-to-last component is the parent itself. */
+        snprintf(out, outSize, "%s", path);
+        return;
+    }
+    snprintf(out, outSize, "%.*s*%s", (int)(prev - path + 1), path, lastSlash);
+}
+
+/* Emit the pending run (if any) and reset the slot. Caller holds
+ * g_wAggrLock; EmitAuditLine takes g_auditLock inside. */
+static void FlushWriterAggrLocked(void)
+{
+    if (!g_wAggr.used) {
+        return;
+    }
+    const char *fileKey = (g_wAggr.count > 1) ? "file_glob" : "file";
+    const char *fileVal = (g_wAggr.count > 1) ? g_wAggr.globPath : g_wAggr.file;
+    char agg[AUDIT_MAX_LINE_LEN] = {0};
+    int aggPos = 0;
+    if (g_wAggr.count > 1) {
+        AppendStr(agg, sizeof(agg), &aggPos, " count=%u first=\"%s\" last=\"%s\"",
+            g_wAggr.count, g_wAggr.tsFirst, g_wAggr.tsLast);
+    }
+
+    char line[AUDIT_MAX_LINE_LEN] = {0};
+    int pos = 0;
+    if (g_wAggr.isApi) {
+        if (g_wAggr.hasCall) {
+            AppendStr(line, sizeof(line), &pos,
+                "%s [AUDIT][WRITER][API] user=%s uid=%u opt=%s seq=%u%s pid=%d comm=\"%s\" %s=\"%s\"%s value=\"%s\"",
+                g_wAggr.tsFirst, g_wAggr.user, g_wAggr.uid,
+                GetAuditOptName(g_wAggr.optType), g_wAggr.seq,
+                g_wAggr.approx ? " ctx=approx" : "", g_wAggr.pid, g_wAggr.comm,
+                fileKey, fileVal, agg, g_wAggr.value);
+        } else {
+            AppendStr(line, sizeof(line), &pos,
+                "%s [AUDIT][WRITER][API] user=- uid=- opt=- seq=- pid=%d comm=\"%s\" %s=\"%s\"%s value=\"%s\"",
+                g_wAggr.tsFirst, g_wAggr.pid, g_wAggr.comm,
+                fileKey, fileVal, agg, g_wAggr.value);
+        }
+    } else {
+        /* An ESC byte in the value is the typical signature of a
+         * terminal-title write caught by a dup2(2) fd race. */
+        const char *suspect = (strstr(g_wAggr.value, "\\x1b") != NULL) ? "esc" : "0";
+        AppendStr(line, sizeof(line), &pos,
+            "%s [AUDIT][WRITER][OS] uid=%u pid=%d user=%s comm=\"%s\" exe=\"%s\" cmd=\"%s\" %s=\"%s\"%s value=\"%s\" attr=late suspect=%s",
+            g_wAggr.tsFirst, g_wAggr.uid, g_wAggr.pid, g_wAggr.userName,
+            g_wAggr.comm, g_wAggr.exe, g_wAggr.cmd,
+            fileKey, fileVal, agg, g_wAggr.value, suspect);
+    }
+    EmitAuditLine(line);
+    memset(&g_wAggr, 0, sizeof(g_wAggr));
+}
+
+void FlushAuditWriterPending(void)
+{
+    pthread_mutex_lock(&g_wAggrLock);
+    FlushWriterAggrLocked();
+    pthread_mutex_unlock(&g_wAggrLock);
+}
+
+void AuditWriterTickFlush(void)
+{
+    pthread_mutex_lock(&g_wAggrLock);
+    if (!g_wAggrTouched) {
+        /* No new events in this drain pass: the run has settled. */
+        FlushWriterAggrLocked();
+    }
+    g_wAggrTouched = 0;
+    pthread_mutex_unlock(&g_wAggrLock);
+}
+
 void AuditWriterEvent(const struct WriterAudit *wa)
 {
     if (wa == NULL || wa->file == NULL) {
@@ -698,6 +831,7 @@ void AuditWriterEvent(const struct WriterAudit *wa)
     char sValue[AUDIT_MAX_LINE_LEN] = {0};
     char sExe[AUDIT_MAX_LINE_LEN] = {0};
     char sCmd[AUDIT_MAX_LINE_LEN] = {0};
+    char sUserName[64] = {0};
     if (wa->comm != NULL) {
         EscapeStr(sComm, sizeof(sComm), wa->comm, strnlen(wa->comm, sizeof(sComm) - 1));
     }
@@ -713,41 +847,91 @@ void AuditWriterEvent(const struct WriterAudit *wa)
     if (wa->cmd != NULL) {
         EscapeStr(sCmd, sizeof(sCmd), wa->cmd, strnlen(wa->cmd, sizeof(sCmd) - 1));
     }
-
-    char line[AUDIT_MAX_LINE_LEN] = {0};
-    int pos = 0;
-    if (wa->pid == (int)getpid()) {
-        /* The service itself wrote: correlate with the in-flight API call. */
-        uint16_t optType = 0;
-        uint32_t seq = 0;
-        uid_t callerUid = (uid_t)-1;
-        char callerUser[MAX_NAME] = {0};
-        int approx = 0;
-        if (FindWriterCall(wa->tid, &optType, &seq, &callerUid, callerUser,
-            sizeof(callerUser), &approx)) {
-            AppendStr(line, sizeof(line), &pos,
-                "%s [AUDIT][WRITER][API] user=%s uid=%u opt=%s seq=%u%s pid=%d comm=\"%s\" file=\"%s\" value=\"%s\"",
-                ts, callerUser, (unsigned)callerUid, GetAuditOptName(optType), seq,
-                approx ? " ctx=approx" : "", wa->pid, sComm, sFile, sValue);
-        } else {
-            AppendStr(line, sizeof(line), &pos,
-                "%s [AUDIT][WRITER][API] user=- uid=- opt=- seq=- pid=%d comm=\"%s\" file=\"%s\" value=\"%s\"",
-                ts, wa->pid, sComm, sFile, sValue);
-        }
-    } else {
-        /* Foreign writer: enrich with process evidence. file= was resolved
-         * from /proc after the write completed, so a racing dup2(2) can
-         * mislabel it (attr=late); an ESC byte in the value is the typical
-         * signature of a terminal-title write caught by that race. */
-        const char *suspect = (strstr(sValue, "\\x1b") != NULL) ? "esc" : "0";
-        AppendStr(line, sizeof(line), &pos,
-            "%s [AUDIT][WRITER][OS] uid=%u pid=%d user=%s comm=\"%s\" exe=\"%s\" cmd=\"%s\" file=\"%s\" value=\"%s\" attr=late suspect=%s",
-            ts, wa->uid, wa->pid,
-            (wa->userName != NULL && wa->userName[0] != '\0') ? wa->userName : "unknown",
-            sComm,
-            (sExe[0] != '\0') ? sExe : "-",
-            (sCmd[0] != '\0') ? sCmd : "-",
-            sFile, sValue, suspect);
+    if (wa->userName != NULL) {
+        EscapeStr(sUserName, sizeof(sUserName), wa->userName,
+            strnlen(wa->userName, sizeof(sUserName) - 1));
     }
-    EmitAuditLine(line);
+
+    int isApi = (wa->pid == (int)getpid());
+    /* Resolve the API context first: the pending run needs it, and it must
+     * be read before the call is unregistered by a concurrent RSP. */
+    uint16_t optType = 0;
+    uint32_t seq = 0;
+    uid_t callerUid = (uid_t)-1;
+    char callerUser[MAX_NAME] = {0};
+    int approx = 0;
+    int hasCall = 0;
+    if (isApi) {
+        hasCall = FindWriterCall(wa->tid, &optType, &seq, &callerUid,
+            callerUser, sizeof(callerUser), &approx);
+    }
+
+    char globRaw[AUDIT_MAX_LINE_LEN] = {0};
+    char sGlob[AUDIT_MAX_LINE_LEN] = {0};
+    NormalizeGlobPath(wa->file, globRaw, sizeof(globRaw));
+    EscapeStr(sGlob, sizeof(sGlob), globRaw, strnlen(globRaw, sizeof(globRaw) - 1));
+
+    int compact = (GetBpfCfg()->compact != 0);
+
+    pthread_mutex_lock(&g_wAggrLock);
+    int matched = g_wAggr.used && compact &&
+        g_wAggr.isApi == isApi &&
+        g_wAggr.pid == wa->pid &&
+        strcmp(g_wAggr.globPath, sGlob) == 0 &&
+        strcmp(g_wAggr.value, sValue) == 0;
+    if (matched && isApi) {
+        matched = (g_wAggr.hasCall == hasCall) && (!hasCall ||
+            (g_wAggr.optType == optType && g_wAggr.seq == seq &&
+             g_wAggr.approx == approx && strcmp(g_wAggr.user, callerUser) == 0));
+    }
+    if (matched && !isApi) {
+        matched = g_wAggr.uid == wa->uid && strcmp(g_wAggr.comm, sComm) == 0 &&
+            strcmp(g_wAggr.exe, sExe) == 0 && strcmp(g_wAggr.cmd, sCmd) == 0;
+    }
+
+    if (matched) {
+        g_wAggr.count++;
+        snprintf(g_wAggr.tsLast, sizeof(g_wAggr.tsLast), "%s", ts);
+        g_wAggrTouched = 1;
+        pthread_mutex_unlock(&g_wAggrLock);
+        return;
+    }
+
+    /* Key change (or compact off): emit the previous run, start a new one. */
+    FlushWriterAggrLocked();
+
+    struct WriterAggr *a = &g_wAggr;
+    memset(a, 0, sizeof(*a));
+    a->used = 1;
+    a->isApi = isApi;
+    a->hasCall = hasCall;
+    a->approx = approx;
+    a->optType = optType;
+    a->seq = seq;
+    a->pid = wa->pid;
+    if (isApi) {
+        a->uid = (unsigned)callerUid;
+        snprintf(a->user, sizeof(a->user), "%s",
+            (callerUser[0] != '\0') ? callerUser : "unknown");
+    } else {
+        a->uid = wa->uid;
+        snprintf(a->userName, sizeof(a->userName), "%s",
+            (sUserName[0] != '\0') ? sUserName : "unknown");
+        snprintf(a->exe, sizeof(a->exe), "%s", (sExe[0] != '\0') ? sExe : "-");
+        snprintf(a->cmd, sizeof(a->cmd), "%s", (sCmd[0] != '\0') ? sCmd : "-");
+    }
+    snprintf(a->comm, sizeof(a->comm), "%s", sComm);
+    snprintf(a->file, sizeof(a->file), "%s", sFile);
+    snprintf(a->globPath, sizeof(a->globPath), "%s", sGlob);
+    snprintf(a->value, sizeof(a->value), "%s", sValue);
+    snprintf(a->tsFirst, sizeof(a->tsFirst), "%s", ts);
+    snprintf(a->tsLast, sizeof(a->tsLast), "%s", ts);
+    a->count = 1;
+    g_wAggrTouched = 1;
+
+    if (!compact) {
+        /* Compact disabled: every write stays its own line. */
+        FlushWriterAggrLocked();
+    }
+    pthread_mutex_unlock(&g_wAggrLock);
 }

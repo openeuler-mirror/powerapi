@@ -105,6 +105,7 @@
 #define CFG_IT_WATCH_FILES "drift_watch_files"
 #define CFG_IT_BPF_EN "bpf_writer_enable"
 #define CFG_IT_BPF_OBJ "bpf_writer_obj"
+#define CFG_IT_BPF_COMPACT "bpf_writer_compact"
 
 // Max line length
 #define MAX_LINE_LENGTH 256
