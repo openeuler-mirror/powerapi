@@ -23,6 +23,17 @@
  *                               how every shell builds redirections, and
  *                               invalidates the new fd when the old one was
  *                               not tracked;
+ *                kp_cfr         fires on the copy_file_range syscall
+ *                               wrapper: GNU cp (coreutils >= 8.25) moves
+ *                               regular-file data with copy_file_range(2),
+ *                               so a plain `cp src dst` never issues a
+ *                               write(2) on the destination fd and the
+ *                               write probe cannot see it. The wrapper's
+ *                               argument is a struct pt_regs * holding the
+ *                               raw syscall arguments, so the program reads
+ *                               fd_out through it and emits the event with
+ *                               the tracked path and a "(cfr)" value marker
+ *                               (there is no user buffer to snapshot);
  *                kp_ksys_write  attaches the tracked path to the write event
  *                               at the moment of the write, so the path is
  *                               correct even when the fd closes before the
@@ -65,6 +76,7 @@ static u64 (*bpf_get_current_pid_tgid)(void) = (void *)14;
 static u32 (*bpf_get_current_uid_gid)(void) = (void *)15;
 static u64 (*bpf_ktime_get_ns)(void) = (void *)5;
 static long (*bpf_probe_read_user)(void *dst, u32 size, const void *src) = (void *)112;
+static long (*bpf_probe_read_kernel)(void *dst, u32 size, const void *src) = (void *)113;
 static long (*bpf_probe_read_user_str)(void *dst, u32 size, const void *src) = (void *)114;
 static long (*bpf_perf_event_output)(void *ctx, void *map, u64 flags, void *data, u64 size) = (void *)25;
 static void *(*bpf_map_lookup_elem)(const void *map, const void *key) = (void *)1;
@@ -218,6 +230,15 @@ struct pt_regs {
 #error "Define __TARGET_ARCH_x86 or __TARGET_ARCH_arm64 to select the pt_regs layout"
 #endif
 
+/* Offset of the destination fd (third syscall argument) inside the struct
+ * pt_regs that the copy_file_range syscall wrapper receives as its only
+ * argument: arm64 regs[2], x86_64 dx. */
+#if defined(__TARGET_ARCH_arm64)
+#define CFR_FDOUT_OFF 16
+#else
+#define CFR_FDOUT_OFF 96
+#endif
+
 /* True when path starts with the NUL-terminated prefix pfx. Bounded by the
  * 64-byte buffer size so the verifier can check the loop. */
 static __attribute__((always_inline)) int match_prefix(const char *path, const char *pfx)
@@ -325,6 +346,60 @@ int kp_dup3(struct pt_regs *ctx)
     } else {
         bpf_map_delete_elem(&fd_paths, &newKey);
     }
+    return 0;
+}
+
+/* copy_file_range: data moves kernel-side from fd_in to fd_out - no write(2)
+ * reaches the destination fd, so kp_ksys_write never fires for a plain
+ * `cp src dst` (GNU coreutils >= 8.25 uses copy_file_range for regular
+ * files). The section name is a classification label only: the real attach
+ * symbol is the arch syscall wrapper, resolved in user space. The wrapper's
+ * sole argument is a struct pt_regs * holding the raw syscall arguments, so
+ * fd_out is read through it at offset CFR_FDOUT_OFF. There is no user buffer
+ * to snapshot, so the event carries a "(cfr)" marker as its value; the path
+ * comes from the same fd-tracking map the write probe uses. */
+__attribute__((section("kprobe/copy_file_range"), used))
+int kp_cfr(struct pt_regs *ctx)
+{
+    const char *sysRegs = (const char *)(void *)ctx->PT_ARG1;
+    u64 fdOut = 0;
+    if (bpf_probe_read_kernel(&fdOut, sizeof(fdOut), sysRegs + CFR_FDOUT_OFF) != 0) {
+        return 0;
+    }
+    int fd = (s32)fdOut;
+    if (fd < 0 || fd >= FD_TRACK_MAX) {
+        return 0;
+    }
+
+    struct WriterEvent ev = {};
+    u64 pidTgid = bpf_get_current_pid_tgid();
+    ev.pid = (s32)(pidTgid >> 32);
+    ev.tid = (s32)(u32)pidTgid;
+    ev.uid = bpf_get_current_uid_gid();
+    bpf_get_current_comm(&ev.comm, sizeof(ev.comm));
+    ev.fd = fd;
+    /* "(cfr)" - no user buffer exists in a copy_file_range call. Built via
+     * immediate stores: a string literal would land in .rodata, which this
+     * loader does not relocate. */
+    ev.buf[0] = '(';
+    ev.buf[1] = 'c';
+    ev.buf[2] = 'f';
+    ev.buf[3] = 'r';
+    ev.buf[4] = ')';
+    ev.bufLen = 5;
+    ev.ktime = bpf_ktime_get_ns();
+
+    u64 key = (pidTgid << 32) | (u32)fd;
+    struct fd_path_value *tv = bpf_map_lookup_elem(&fd_paths, &key);
+    if (tv != NULL && ev.ktime >= tv->ktime &&
+        ev.ktime - tv->ktime <= FD_PATH_TTL_NS) {
+        ev.pathValid = 1;
+        __builtin_memcpy((u64 *)ev.path, (const u64 *)tv->path,
+            sizeof(ev.path));
+    }
+
+    bpf_perf_event_output(ctx, &writer_events, BPF_F_CURRENT_CPU, &ev,
+        ev.pathValid ? (u64)sizeof(ev) : (u64)WRITER_EVENT_CORE);
     return 0;
 }
 

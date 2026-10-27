@@ -81,10 +81,11 @@ struct WriterEvent {
 #define KP_NAME_OPENENT "pwraudit_openent"
 #define KP_NAME_OPENRET "pwraudit_openret"
 #define KP_NAME_DUP3 "pwraudit_dup3"
+#define KP_NAME_CFR "pwraudit_cfr"
 #define KP_NAME_SYMTEST "pwraudit_symtest"
 
 /* Number of BPF programs/maps the loader knows how to handle. */
-#define BPF_MAX_PROGS 4
+#define BPF_MAX_PROGS 5
 #define BPF_MAX_MAPS 4
 /* Watched path prefixes pushed into the path_prefixes ARRAY map. */
 #define BPF_PREFIX_SLOTS 8
@@ -566,6 +567,8 @@ static int ParseAndLoadBpf(void *obj, size_t objSize)
             (void)snprintf(pc->kpName, sizeof(pc->kpName), "%s", KP_NAME_OPENRET);
         } else if (isRet == 0 && strcmp(sym, "ksys_dup3") == 0) {
             (void)snprintf(pc->kpName, sizeof(pc->kpName), "%s", KP_NAME_DUP3);
+        } else if (isRet == 0 && strcmp(sym, "copy_file_range") == 0) {
+            (void)snprintf(pc->kpName, sizeof(pc->kpName), "%s", KP_NAME_CFR);
         } else {
             (void)snprintf(pc->kpName, sizeof(pc->kpName), "pwraudit_p%d", g_bpfProgCnt);
         }
@@ -798,6 +801,20 @@ static const char *ResolveDupSymbol(const char *traceDir)
     return NULL;
 }
 
+/* Same for the copy_file_range probe: only the arch syscall wrapper is a
+ * stable, kprobe-able symbol (vfs_copy_file_range takes struct file * and
+ * cannot be translated through the fd map). NULL when not probeable. */
+static const char *ResolveCfrSymbol(const char *traceDir)
+{
+    static char wrapCfr[40];
+    (void)snprintf(wrapCfr, sizeof(wrapCfr), "%scopy_file_range",
+        SyscallWrapperPrefix());
+    if (SymbolProbeable(traceDir, wrapCfr)) {
+        return wrapCfr;
+    }
+    return NULL;
+}
+
 /* Undo one AttachOneProbe (carrier fd first, then the probe entry). */
 static void DetachOneProbe(struct BpfProgCtx *pc)
 {
@@ -900,7 +917,9 @@ fail:
  *   - pwraudit_openent + pwraudit_openret on one shared open symbol:
  *     kernel-side fd -> path tracking, so short-lived fds stay attributable;
  *   - pwraudit_dup3 on dup2/dup3: keeps tracked paths correct across the
- *     dup dance every shell performs for redirections.
+ *     dup dance every shell performs for redirections;
+ *   - pwraudit_cfr on the copy_file_range syscall wrapper: GNU cp moves
+ *     regular-file data without a write(2) on the destination fd.
  * One BPF_OUTPUT ring per CPU is shared by all probes, which preserves
  * event order across programs. pid = -1 so writes from every process are
  * captured. On partial failure the caller degrades gracefully: the write
@@ -947,6 +966,7 @@ static int AttachPerCpu(void)
     struct BpfProgCtx *openEnt = NULL;
     struct BpfProgCtx *openRet = NULL;
     struct BpfProgCtx *dupProg = NULL;
+    struct BpfProgCtx *cfrProg = NULL;
     for (int i = 0; i < g_bpfProgCnt; i++) {
         struct BpfProgCtx *pc = &g_bpfProgs[i];
         if (pc->isRet == 0 && strcmp(pc->ksym, "ksys_write") == 0) {
@@ -957,6 +977,8 @@ static int AttachPerCpu(void)
             openRet = pc;
         } else if (pc->isRet == 0 && strcmp(pc->ksym, "ksys_dup3") == 0) {
             dupProg = pc;
+        } else if (pc->isRet == 0 && strcmp(pc->ksym, "copy_file_range") == 0) {
+            cfrProg = pc;
         }
     }
     if (writeProg == NULL) {
@@ -1003,6 +1025,23 @@ static int AttachPerCpu(void)
                 "not tracked.");
         } else {
             Logger(INFO, MD_NM_LOG, "Dup probe attached on %s.", dupSym);
+        }
+    }
+
+    /* 3b. copy_file_range probe (GNU cp moves regular-file data with
+     * copy_file_range(2), never write(2), so plain `cp src dst` was
+     * invisible). It attributes through the fd-tracking map, so it only
+     * makes sense with fd tracking on; purely optional either way. */
+    if (g_fdTracking && cfrProg != NULL) {
+        const char *cfrSym = ResolveCfrSymbol(traceDir);
+        if (cfrSym == NULL) {
+            Logger(WARNING, MD_NM_LOG, "No probeable copy_file_range symbol; "
+                "cp-style copies not tracked.");
+        } else if (AttachOneProbe(cfrProg, traceDir, cfrSym) != PWR_SUCCESS) {
+            Logger(WARNING, MD_NM_LOG, "copy_file_range probe not attached; "
+                "cp-style copies not tracked.");
+        } else {
+            Logger(INFO, MD_NM_LOG, "copy_file_range probe attached on %s.", cfrSym);
         }
     }
 
