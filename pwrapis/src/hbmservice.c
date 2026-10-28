@@ -794,9 +794,28 @@ void GetHbmNodeState(PwrMsg *req)
 #define HBM_CPLD_MAX_BOARDS 8
 #define HBM_CPLD_TEXT_BUF_LEN 512
 
+/* CpuBoard FRU ids are static per boot (BMC SDR configuration), so the
+ * ipmitool fru enumeration (~5s) runs once per service lifetime and the
+ * result is reused afterwards. Cleared when a raw CPLD query fails so the
+ * next call re-enumerates. */
+static int g_cachedCpuBoardFruIds[HBM_CPLD_MAX_BOARDS];
+static uint32_t g_cachedCpuBoardFruNum = 0;
+
+static void InvalidateCpuBoardFruIds(void)
+{
+    g_cachedCpuBoardFruNum = 0;
+}
+
 /* Parse "CpuBoard1 (ID 16)" style lines from `ipmitool fru` output. */
 static int GetCpuBoardFruIds(int fruIds[], uint32_t maxNum, uint32_t *num)
 {
+    if (g_cachedCpuBoardFruNum > 0) {
+        uint32_t copyNum = (g_cachedCpuBoardFruNum < maxNum) ? g_cachedCpuBoardFruNum : maxNum;
+        memcpy(fruIds, g_cachedCpuBoardFruIds, copyNum * sizeof(int));
+        *num = copyNum;
+        Logger(DEBUG, MD_NM_SVR_HBM, "CpuBoard fruIds from cache. num:%u", copyNum);
+        return PWR_SUCCESS;
+    }
     FILE *fp = popen("ipmitool fru", "r");
     if (fp == NULL) {
         Logger(ERROR, MD_NM_SVR_HBM, "popen ipmitool fru failed.");
@@ -825,6 +844,8 @@ static int GetCpuBoardFruIds(int fruIds[], uint32_t maxNum, uint32_t *num)
         Logger(ERROR, MD_NM_SVR_HBM, "no CpuBoard FRU found from ipmitool fru");
         return PWR_ERR_HBM_NOT_SUPPORTED;
     }
+    memcpy(g_cachedCpuBoardFruIds, fruIds, cnt * sizeof(int));
+    g_cachedCpuBoardFruNum = cnt;
     *num = cnt;
     return PWR_SUCCESS;
 }
@@ -849,6 +870,7 @@ static int ReadCpldVersionText(int fruId, char *text, size_t textSize)
     if (fgets(buf, sizeof(buf) - 1, fp) == NULL) {
         pclose(fp);
         Logger(ERROR, MD_NM_SVR_HBM, "read cpld version of fru 0x%02x failed.", (unsigned)fruId);
+        InvalidateCpuBoardFruIds();
         return PWR_ERR_COMMON;
     }
     pclose(fp);
@@ -870,6 +892,7 @@ static int ReadCpldVersionText(int fruId, char *text, size_t textSize)
     text[pos] = '\0';
     if (pos == 0) {
         Logger(ERROR, MD_NM_SVR_HBM, "cpld version response of fru 0x%02x is empty.", (unsigned)fruId);
+        InvalidateCpuBoardFruIds();
         return PWR_ERR_COMMON;
     }
     Logger(DEBUG, MD_NM_SVR_HBM, "cpld version text of fru 0x%02x: %s", (unsigned)fruId, text);

@@ -10,3 +10,4 @@ pwrapic/gtest/include/gtest
 .cache
 compile_commands.json
 .clang-format
+build_full
