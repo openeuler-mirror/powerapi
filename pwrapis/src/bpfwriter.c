@@ -1377,7 +1377,10 @@ static void EnrichWriterInfo(int pid, unsigned int uid, char *exe, size_t exeSiz
             pwd != NULL && pwd->pw_name != NULL) {
             snprintf(cachedName, sizeof(cachedName), "%s", pwd->pw_name);
         } else {
-            snprintf(cachedName, sizeof(cachedName), "%u", uid);
+            /* No passwd entry (deleted user, container-only uid): the
+             * manual documents user=unknown for this case, and the numeric
+             * uid stays visible in the line's uid= field. */
+            snprintf(cachedName, sizeof(cachedName), "unknown");
         }
         cachedUid = uid;
         cachedValid = true;

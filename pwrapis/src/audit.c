@@ -44,6 +44,8 @@
 #define AUDIT_MAX_PARAM_LEN 512
 #define AUDIT_MAX_ITEMS_IN_PARAM 8
 #define AUDIT_DIR_MODE 0700
+/* The manual promises audit.log mode 644 so non-root auditors can read it. */
+#define AUDIT_FILE_MODE 0644
 
 static FILE *g_auditFile = NULL;
 static uint64_t g_auditSize = 0;
@@ -491,9 +493,18 @@ static FILE *OpenAuditFile(void)
     if (snprintf(fullName, sizeof(fullName), "%s/%s", GetLogCfg()->logPath, AUDIT_FILE_NAME) < 0) {
         return NULL;
     }
+    /* fopen("a") creates with 0666 & ~umask, so on hardened hosts
+     * (umask 077) the file would land 0600 and non-root auditors could
+     * not read it. Nail the manual-promised 0644 at creation time only:
+     * reopens and any later admin chmod are left untouched. Rotation
+     * lands here too (the renamed-over name no longer exists). */
+    int created = (access(fullName, F_OK) != 0);
     FILE *fp = fopen(fullName, "a");
     if (fp == NULL) {
         return NULL;
+    }
+    if (created && fchmod(fileno(fp), AUDIT_FILE_MODE) != 0) {
+        Logger(WARNING, MD_NM_LOG, "fchmod audit.log to 0644 failed");
     }
     struct stat st;
     g_auditSize = 0;
@@ -548,8 +559,9 @@ static void EmitAuditLine(const char *line)
     pthread_mutex_unlock(&g_auditLock);
 }
 
-/* Caller identity helpers: client may be NULL, the identity is then
- * recorded as "unknown" / uid -1. */
+/* Caller identity helpers: client may be NULL (e.g. the client went away
+ * between REQ and RSP); the identity is then recorded as "unknown" / "-",
+ * the same degraded form the manual documents for WRITER[API]. */
 static const char *ClientName(const PwrClient *client)
 {
     return (client != NULL && client->userName[0] != '\0') ? client->userName : "unknown";
@@ -560,6 +572,18 @@ static unsigned int ClientUid(const PwrClient *client)
     return (client != NULL) ? (unsigned int)client->uid : (unsigned int)-1;
 }
 
+/* Display form of the client uid: a missing client prints as "-" instead of
+ * leaking the (unsigned)-1 sentinel as 4294967295 into the log. */
+static const char *ClientUidStr(const PwrClient *client, char *buf, size_t size)
+{
+    if (client != NULL) {
+        snprintf(buf, size, "%u", (unsigned int)client->uid);
+    } else {
+        snprintf(buf, size, "-");
+    }
+    return buf;
+}
+
 static void ComposeCommonHead(char *line, size_t size, int *pos, const char *tag,
     const PwrClient *client, const PwrMsg *req)
 {
@@ -567,9 +591,10 @@ static void ComposeCommonHead(char *line, size_t size, int *pos, const char *tag
 
     char curTime[MAX_STD_TIME] = {0};
     GetCurFullTime(curTime, sizeof(curTime) - 1);
-    AppendStr(line, size, pos, "%s [AUDIT][%s][API] user=%s uid=%u pid=%u opt=%s seq=%u",
-        curTime, tag, ClientName(client), ClientUid(client), sysId,
-        GetAuditOptName(req->head.optType), req->head.seqId);
+    char uidStr[16];
+    AppendStr(line, size, pos, "%s [AUDIT][%s][API] user=%s uid=%s pid=%u opt=%s seq=%u",
+        curTime, tag, ClientName(client), ClientUidStr(client, uidStr, sizeof(uidStr)),
+        sysId, GetAuditOptName(req->head.optType), req->head.seqId);
 }
 
 int InitAuditLogger(void)
@@ -614,8 +639,9 @@ void AuditClientConn(const PwrClient *client, enum AuditEvtType evt)
     int pos = 0;
     char curTime[MAX_STD_TIME] = {0};
     GetCurFullTime(curTime, sizeof(curTime) - 1);
-    AppendStr(line, sizeof(line), &pos, "%s [AUDIT][%s][API] user=%s uid=%u pid=%u",
-        curTime, tag, ClientName(client), ClientUid(client), sysId);
+    char uidStr[16];
+    AppendStr(line, sizeof(line), &pos, "%s [AUDIT][%s][API] user=%s uid=%s pid=%u",
+        curTime, tag, ClientName(client), ClientUidStr(client, uidStr, sizeof(uidStr)), sysId);
     EmitAuditLine(line);
 }
 
