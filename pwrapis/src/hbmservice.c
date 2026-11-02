@@ -645,14 +645,15 @@ static void EnsureHbmDriverForQuery(const char *checkPattern, const char *module
     }
 }
 
-/* Aggregate node states: any unrecognized status wins, then mixed on/off, else unanimous. */
+/* Aggregate device statuses: any unrecognized status wins, then on/off
+ * disagreement, else unanimous. */
 static PWR_HBM_NODE_PWR_STATE AggregateNodeState(int onCnt, int offCnt, int unknownCnt)
 {
     if (unknownCnt > 0) {
         return PWR_HBM_NODE_UNKNOWN;
     }
     if (onCnt > 0 && offCnt > 0) {
-        return PWR_HBM_NODE_MIXED;
+        return PWR_HBM_NODE_PWR_MISMATCH;
     }
     if (onCnt > 0) {
         return PWR_HBM_NODE_ON;
@@ -660,9 +661,67 @@ static PWR_HBM_NODE_PWR_STATE AggregateNodeState(int onCnt, int offCnt, int unkn
     return PWR_HBM_NODE_OFF;
 }
 
+/* Shell one-liner counting memory block states over all HBM nodes (NUMA nodes
+ * whose cpulist is empty). Prints "<online> <offline> <other>". Blocks absent
+ * from sysfs are not counted at all; blocks whose state cannot be read count
+ * as other. */
+#define HBM_BLOCK_STATE_CMD \
+    "on=0; off=0; other=0; " \
+    "for node in /sys/devices/system/node/node*; do " \
+    "[ -e \"$node\" ] || continue; " \
+    "[ -s \"$node/cpulist\" ] && continue; " \
+    "for block in \"$node\"/memory*; do " \
+    "[ -f \"$block/state\" ] || continue; " \
+    "blockState=$(cat \"$block/state\" 2>/dev/null); " \
+    "case \"$blockState\" in " \
+    "online) on=$((on+1));; " \
+    "offline) off=$((off+1));; " \
+    "*) other=$((other+1));; " \
+    "esac; done; done; " \
+    "echo \"$on $off $other\""
+
+/* Count the memory block states of all HBM nodes. Blocks absent from sysfs
+ * (firmware removes them after powering the memory off) are simply not
+ * counted; the caller reads zero online and zero other as "all offline or
+ * absent". */
+static int CountHbmBlockStates(int *onlineCnt, int *offlineCnt, int *otherCnt)
+{
+    *onlineCnt = 0;
+    *offlineCnt = 0;
+    *otherCnt = 0;
+
+    FILE *fp = popen(HBM_BLOCK_STATE_CMD, "r");
+    if (fp == NULL) {
+        Logger(ERROR, MD_NM_SVR_HBM, "Failed to run HBM block state query");
+        return PWR_ERR_COMMON;
+    }
+    char resultBuf[PWR_MAX_STRING_LEN] = {0};
+    int matched = 0;
+    if (fgets(resultBuf, sizeof(resultBuf), fp) != NULL) {
+        matched = sscanf(resultBuf, "%d %d %d", onlineCnt, offlineCnt, otherCnt);
+    }
+    pclose(fp);
+    if (matched != 3) {
+        Logger(ERROR, MD_NM_SVR_HBM, "Failed to parse HBM block state counts. buf:%s", resultBuf);
+        return PWR_ERR_COMMON;
+    }
+    return PWR_SUCCESS;
+}
+
 /*
- * Flat mode: each PNP0A06 container's PNP0C80 memory devices report the power state in
- * firmware_node status (15 on, 13 off). The statuses exist regardless of hisi_hbmdev.
+ * Flat mode: each PNP0A06 container's PNP0C80 memory devices report the power state
+ * in firmware_node status (15 on, 13 off), and each HBM node (a NUMA node whose
+ * cpulist is empty) exposes its memory blocks' states. Judgment uses two levels:
+ *   ON requires every device status 15 AND every memory block online;
+ *   OFF requires every device status 13 AND every block offline or absent from
+ *   sysfs (firmware removes the blocks after powering the memory off);
+ *   devices disagreeing on/off report PWR_MISMATCH;
+ *   unanimous statuses not backed by the blocks report MIXED_BLOCK;
+ *   any unrecognized firmware status reports UNKNOWN.
+ * Device state files do not participate: power-off writes devices strictly after
+ * ALL blocks are offlined (a stuck device write leaves the blocks mixed, which
+ * the block level reports), and power-on cannot reach "all status 15" while a
+ * device online-write failed (that device keeps status 13).
  */
 static int CollectFlatNodeState(PWR_HBM_NODE_PWR_STATE *state)
 {
@@ -697,15 +756,39 @@ static int CollectFlatNodeState(PWR_HBM_NODE_PWR_STATE *state)
     }
     globfree(&statusPaths);
 
-    Logger(DEBUG, MD_NM_SVR_HBM, "HBM flat node states. on:%d, off:%d, unknown:%d",
-        onCnt, offCnt, unknownCnt);
-    *state = AggregateNodeState(onCnt, offCnt, unknownCnt);
+    int blockOnlineCnt = 0;
+    int blockOfflineCnt = 0;
+    int blockOtherCnt = 0;
+    int ret = CountHbmBlockStates(&blockOnlineCnt, &blockOfflineCnt, &blockOtherCnt);
+    if (ret != PWR_SUCCESS) {
+        return ret;
+    }
+
+    /* "All online" needs at least one visible block; absent blocks read offline. */
+    int blockAllOnline = (blockOnlineCnt > 0 && blockOfflineCnt == 0 && blockOtherCnt == 0);
+    int blockAllOffline = (blockOnlineCnt == 0 && blockOtherCnt == 0);
+
+    PWR_HBM_NODE_PWR_STATE statusState = AggregateNodeState(onCnt, offCnt, unknownCnt);
+    PWR_HBM_NODE_PWR_STATE result = statusState;
+    if (statusState == PWR_HBM_NODE_ON && !blockAllOnline) {
+        result = PWR_HBM_NODE_MIXED_BLOCK;
+    } else if (statusState == PWR_HBM_NODE_OFF && !blockAllOffline) {
+        result = PWR_HBM_NODE_MIXED_BLOCK;
+    }
+
+    Logger(DEBUG, MD_NM_SVR_HBM,
+        "HBM flat node state detail. result:%d, status:on=%d off=%d unknown=%d, "
+        "block:online=%d offline=%d other=%d",
+        (int)result, onCnt, offCnt, unknownCnt,
+        blockOnlineCnt, blockOfflineCnt, blockOtherCnt);
+    *state = result;
     return PWR_SUCCESS;
 }
 
 /*
  * Cache mode: each hbm_cache device reports the power state in firmware_node status
- * (15 on, 0 off).
+ * (15 on, 0 off). There is no block level to consult, so the judgment rests on the
+ * device statuses alone and never reports PWR_HBM_NODE_MIXED_BLOCK.
  */
 static int CollectCacheNodeState(PWR_HBM_NODE_PWR_STATE *state)
 {

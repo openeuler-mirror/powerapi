@@ -84,9 +84,11 @@ PWR_API int PWR_PROC_SetServiceState(PWR_PROC_ServiceState *sState);
 
 // HBM
 PWR_API int PWR_HBM_GetSysState(PWR_HBM_SYS_STATE *hbmState);
-/* Query the aggregated node-level HBM power state: PWR_HBM_NODE_ON when all
- * nodes are powered on, PWR_HBM_NODE_OFF when all are powered off, and
- * PWR_HBM_NODE_MIXED when the node states differ. */
+/* Query the aggregated node-level HBM power state: PWR_HBM_NODE_OFF (0) when all
+ * nodes are powered off, PWR_HBM_NODE_ON (1) when all are powered on,
+ * PWR_HBM_NODE_MIXED_BLOCK (2) when the memory block states are inconsistent
+ * (flat mode), PWR_HBM_NODE_PWR_MISMATCH (3) when node power states differ, and
+ * PWR_HBM_NODE_UNKNOWN (4) when an unrecognized firmware status is seen. */
 PWR_API int PWR_HBM_GetNodeState(PWR_HBM_NODE_PWR_STATE *state);
 /* Query whether node-level HBM reset is supported. The capability is derived
  * from the CpuBoard CPLD versions reported by BMC: supported only when every
