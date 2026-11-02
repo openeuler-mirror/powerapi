@@ -148,8 +148,13 @@ static int IsNodeEmptyCpuList(const char *nodePath)
         return 0;
     }
 
-    if (fgets(cpuListBuf, sizeof(cpuListBuf), cpuListFp) != NULL &&
-        (strlen(cpuListBuf) == 0 || strcmp(cpuListBuf, "\n") == 0)) {
+    /* Empty content means an HBM (memory-only) node: no bytes at all, or a
+     * lone newline. fgets returning NULL covers the zero-byte file. */
+    if (fgets(cpuListBuf, sizeof(cpuListBuf), cpuListFp) == NULL) {
+        fclose(cpuListFp);
+        return 1;
+    }
+    if (strlen(cpuListBuf) == 0 || strcmp(cpuListBuf, "\n") == 0) {
         fclose(cpuListFp);
         return 1;
     }
@@ -664,12 +669,16 @@ static PWR_HBM_NODE_PWR_STATE AggregateNodeState(int onCnt, int offCnt, int unkn
 /* Shell one-liner counting memory block states over all HBM nodes (NUMA nodes
  * whose cpulist is empty). Prints "<online> <offline> <other>". Blocks absent
  * from sysfs are not counted at all; blocks whose state cannot be read count
- * as other. */
+ * as other. NOTE: do NOT use [ -s ] on sysfs attribute files here - sysfs
+ * reports st_size == PAGE_SIZE for every attribute regardless of content, so
+ * -s is always true and would skip every node, HBM ones included. Compare the
+ * file CONTENT instead, matching IsNodeEmptyCpuList below. */
 #define HBM_BLOCK_STATE_CMD \
     "on=0; off=0; other=0; " \
     "for node in /sys/devices/system/node/node*; do " \
     "[ -e \"$node\" ] || continue; " \
-    "[ -s \"$node/cpulist\" ] && continue; " \
+    "cpuList=$(cat \"$node/cpulist\" 2>/dev/null); " \
+    "[ -n \"$cpuList\" ] && continue; " \
     "for block in \"$node\"/memory*; do " \
     "[ -f \"$block/state\" ] || continue; " \
     "blockState=$(cat \"$block/state\" 2>/dev/null); " \
