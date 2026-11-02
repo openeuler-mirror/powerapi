@@ -47,6 +47,16 @@ inline BpfCfg *GetBpfCfg(void)
     return (BpfCfg *)&g_bpfCfg;
 }
 
+/* Flat-mode HBM power-off cache flush (hbm_flush.ko) switch. 0 = disabled
+ * (default): the flush phase, including the insmod of the kernel module, is
+ * skipped entirely - escape hatch while hbm_flush.ko oopses the kernel.
+ * 1 = platform-expected flush for data integrity before device power-off. */
+static int g_hbmFlushEnable = 0;
+inline int GetHbmFlushEnable(void)
+{
+    return g_hbmFlushEnable;
+}
+
 static char g_configPath[MAX_PATH_NAME] = "/etc/sysconfig/pwrapis/pwrapis_config.ini";
 static char g_lastMd5[MD5_LEN] = {0};
 static char** g_adminArray = NULL;
@@ -220,6 +230,25 @@ static int UpdateBpfCfg(enum CnfItemType type, char *value)
     return PWR_SUCCESS;
 }
 
+static int UpdateHbmFlushCfg(enum CnfItemType type, char *value)
+{
+    int actualValue;
+    if (strlen(value) == 0) {
+        return PWR_ERR_INVALIDE_PARAM;
+    }
+    if (type != E_CFG_IT_HBM_FLUSH_EN) {
+        return PWR_ERR_INVALIDE_PARAM;
+    }
+    actualValue = atoi(value);
+    if (!IsNumStr(value) || (actualValue != 0 && actualValue != 1)) {
+        Logger(ERROR, MD_NM_CFG, "hbm_flush_enable in config is invalid");
+        return PWR_ERR_INVALIDE_PARAM;
+    }
+    g_hbmFlushEnable = actualValue;
+    Logger(INFO, MD_NM_CFG, "hbm_flush_enable set to %d", actualValue);
+    return PWR_SUCCESS;
+}
+
 static char** UpdateRoleArrayAction(const char *value)
 {
     if (!value || strlen(value) == 0) {
@@ -376,7 +405,8 @@ static Name_To_Enum g_strToEnum[] = {
     {CFG_IT_WATCH_FILES, E_CFG_IT_WATCH_FILES},
     {CFG_IT_BPF_EN, E_CFG_IT_BPF_EN},
     {CFG_IT_BPF_OBJ, E_CFG_IT_BPF_OBJ},
-    {CFG_IT_BPF_COMPACT, E_CFG_IT_BPF_COMPACT}
+    {CFG_IT_BPF_COMPACT, E_CFG_IT_BPF_COMPACT},
+    {CFG_IT_HBM_FLUSH_EN, E_CFG_IT_HBM_FLUSH_EN}
 };
 
 static enum CnfItemType NameToEnum(char *name)
@@ -450,6 +480,9 @@ static int LoadCfgHandler(char *itemName, char *itemValue)
         case E_CFG_IT_BPF_OBJ:
         case E_CFG_IT_BPF_COMPACT:
             UpdateBpfCfg(type, itemValue);
+            break;
+        case E_CFG_IT_HBM_FLUSH_EN:
+            UpdateHbmFlushCfg(type, itemValue);
             break;
         default:
             break;

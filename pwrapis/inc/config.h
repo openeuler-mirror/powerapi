@@ -56,6 +56,7 @@ enum CnfItemType {
     E_CFG_IT_BPF_EN,
     E_CFG_IT_BPF_OBJ,
     E_CFG_IT_BPF_COMPACT,
+    E_CFG_IT_HBM_FLUSH_EN,
 };
 
 typedef struct LogCfg {
@@ -103,6 +104,7 @@ LogCfg *GetLogCfg(void);
 ServCfg *GetServCfg(void);
 WatchCfg *GetWatchCfg(void);
 BpfCfg *GetBpfCfg(void);
+int GetHbmFlushEnable(void);
 int CheckAndUpdateConfig(void);
 int IsAdmin(const char* user);
 int IsObserver(const char* user);

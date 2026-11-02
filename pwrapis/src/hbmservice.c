@@ -1280,6 +1280,11 @@ static int PrepareFlatPowerOff(HbmTask *task, int *alreadyOffline)
         }
         return ret;
     }
+    if (GetHbmFlushEnable() == 0) {
+        Logger(WARNING, MD_NM_SVR_HBM,
+            "HBM flush disabled by hbm_flush_enable=0, skip cache flush before power-off");
+        return PWR_SUCCESS;
+    }
     return FlushHbmCacheBeforePowerOff(task);
 }
 
