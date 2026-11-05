@@ -44,6 +44,8 @@ void InitPwrClient(PwrClient clients[])
     for (int i = 0; i < MAX_CLIENT_NUM; i++) {
         clients[i].fd = INVALID_FD;
         clients[i].sysId = INVALID_INDEX;
+        clients[i].uid = (uid_t)-1;
+        clients[i].gid = (gid_t)-1;
     }
 }
 
@@ -118,6 +120,16 @@ const char *GetUserNameBySysId(const PwrClient clients[], uint32_t sysId)
     for (int i = 0; i < MAX_CLIENT_NUM; i++) {
         if (clients[i].sysId == (int)sysId) {
             return clients[i].userName;
+        }
+    }
+    return NULL;
+}
+
+const PwrClient *GetClientBySysId(const PwrClient clients[], uint32_t sysId)
+{
+    for (int i = 0; i < MAX_CLIENT_NUM; i++) {
+        if (clients[i].sysId == (int)sysId && clients[i].fd != INVALID_FD) {
+            return &clients[i];
         }
     }
     return NULL;

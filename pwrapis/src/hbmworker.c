@@ -20,6 +20,7 @@
 #include "log.h"
 #include "hbmtask.h"
 #include "server.h"
+#include "audit.h"
 
 #define WATCHDOG_POLL_NS 50000000L
 
@@ -166,7 +167,11 @@ static void *RunHbmWorker(void *arg)
         pthread_mutex_unlock(&g_hbmLock);
         Logger(DEBUG, MD_NM_SVR_HBM, "HBM worker request start. opt:%u, sysId:%u, seqId:%u",
             req->head.optType, req->head.sysId, req->head.seqId);
+        /* Announce the executing thread so WRITER audit events can correlate
+         * the HBM sysfs writes of this call precisely. */
+        AuditCallBegin(req);
         int ret = ExecuteHbmPowerTask(task);
+        AuditCallEnd();
         pthread_mutex_lock(&g_hbmLock);
         ReplyCompletedHbmTask(req, task, ret);
         Logger(DEBUG, MD_NM_SVR_HBM,

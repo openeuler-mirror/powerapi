@@ -52,3 +52,45 @@ int SetAllHbmPowerState(int state)
     }
     return ret;
 }
+
+int GetHbmNodeState(PWR_HBM_NODE_PWR_STATE *state)
+{
+    ReqInputParam input;
+    input.optType = HBM_GET_NODE_STATE;
+    input.dataLen = 0;
+    input.data = NULL;
+
+    RspOutputParam output;
+    uint32_t size = sizeof(PWR_HBM_NODE_PWR_STATE);
+    output.rspBuffSize = &size;
+    output.rspData = (char *)state;
+
+    int ret = SendReqAndWaitForRsp(input, output);
+    if (ret != PWR_SUCCESS) {
+        PwrLog(ERROR, "GetHbmNodeState failed. ret: %d", ret);
+    } else {
+        PwrLog(DEBUG, "GetHbmNodeState succeed. state: %d", (int)(*state));
+    }
+    return ret;
+}
+
+int GetHbmNodeResetCap(int *supported)
+{
+    ReqInputParam input;
+    input.optType = HBM_GET_NODE_RESET_CAP;
+    input.dataLen = 0;
+    input.data = NULL;
+
+    RspOutputParam output;
+    uint32_t size = sizeof(int);
+    output.rspBuffSize = &size;
+    output.rspData = (char *)supported;
+
+    int ret = SendReqAndWaitForRsp(input, output);
+    if (ret != PWR_SUCCESS) {
+        PwrLog(ERROR, "GetHbmNodeResetCap failed. ret: %d", ret);
+    } else {
+        PwrLog(DEBUG, "GetHbmNodeResetCap succeed. supported: %d", *supported);
+    }
+    return ret;
+}

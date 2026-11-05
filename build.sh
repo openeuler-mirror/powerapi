@@ -58,6 +58,17 @@ mkdir ./release/pwrapis
 cp ./build/pwrapis/src/pwrapis ./release/pwrapis/
 cp -r ./pwrapis/conf  ./release/pwrapis/
 
+# Ship the pre-compiled eBPF writer-attribution objects. The bytecode is
+# arch-neutral except for the pt_regs register offsets, so one object per
+# CPU architecture (x86 / arm64) ships and the loader picks the right one
+# via uname(). CMake compiles them when clang is available; otherwise fall
+# back to the objects placed in pwrapis/bpf/ so the RPM always carries them.
+if ls ./build/bpf_writer_*.bpf.o >/dev/null 2>&1; then
+    cp ./build/bpf_writer_*.bpf.o ./release/pwrapis/
+elif ls ./pwrapis/bpf/bpf_writer_*.bpf.o >/dev/null 2>&1; then
+    cp ./pwrapis/bpf/bpf_writer_*.bpf.o ./release/pwrapis/
+fi
+
 #make clean
 #cd ..
 #rm -rf build

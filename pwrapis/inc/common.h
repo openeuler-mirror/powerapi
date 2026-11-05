@@ -100,6 +100,13 @@
 #define CFG_IT_GML "get_data_max_len"
 #define CFG_IT_IPH "imp_file_path"
 #define CFG_IT_EPH "exp_file_path"
+/* Kept the historical "drift_watch_files" key name for config compatibility;
+ * the list now feeds the eBPF writer attribution (P2) only. */
+#define CFG_IT_WATCH_FILES "drift_watch_files"
+#define CFG_IT_BPF_EN "bpf_writer_enable"
+#define CFG_IT_BPF_OBJ "bpf_writer_obj"
+#define CFG_IT_BPF_COMPACT "bpf_writer_compact"
+#define CFG_IT_HBM_FLUSH_EN "hbm_flush_enable"
 
 // Max line length
 #define MAX_LINE_LENGTH 256
