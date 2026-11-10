@@ -122,8 +122,10 @@ int PWR_Register(void)
 
 int PWR_UnRegister(void)
 {
-    int ret = FiniSockClient();
+    // Reset the status FIRST so concurrent business calls fail fast with
+    // 100/101 (state gate) instead of racing into a dying library.
     (void)SetPwrApiStatus(STATUS_UNREGISTERED);
+    int ret = FiniSockClient();
     return ret;
 }
 
