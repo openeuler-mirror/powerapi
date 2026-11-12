@@ -34,6 +34,8 @@ struct __ResultWaitingMsgNode {
     struct __ResultWaitingMsgNode *prev;
     PwrMsg *reqMsg;
     PwrMsg *rspMsg;
+    int isFinished; // 1: rsp arrived or the request was cancelled (e.g. by Fini)
+    int errCode;    // completion/cancel reason, valid when isFinished is 1
 };
 typedef struct __ResultWaitingMsgNode ResultWaitingMsgNode;
 
@@ -68,9 +70,10 @@ void ReleaseResultWaitingMsgNode(ResultWaitingMsgNode *node);
 void InitResultWaitingList(ResultWaitingMsgList *rwm);
 void ResetResultWaitingList(ResultWaitingMsgList *rwm);
 void AddToWaitingListTail(ResultWaitingMsgList *rwm, ResultWaitingMsgNode *newNode);
-ResultWaitingMsgNode *FindAndMoveWaitingMsg(ResultWaitingMsgList *rwm, uint32_t seqId);
+ResultWaitingMsgNode *FindAndMoveWaitingMsg(ResultWaitingMsgList *rwm, uint32_t seqId, PwrMsg *rsp);
 void MoveOutWaitingMsg(ResultWaitingMsgList *rwm, ResultWaitingMsgNode *node);
 int WaitingForResponse(const ResultWaitingMsgNode *node);
 int DoRspToWaitingMsg(const ResultWaitingMsgNode *node);
+void BroadcastAllWaitingMsg(ResultWaitingMsgList *rwm, int errCode);
 
 #endif

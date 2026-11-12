@@ -49,6 +49,15 @@ static char g_serverAddr[MAX_PATH_LEN] = "/etc/sysconfig/pwrapis/pwrserver.sock"
 static char cus_clientAddr[MAX_PATH_LEN] = ""; // User defined client path
 static PwrApiStatus g_status = STATUS_UNREGISTERED;
 
+// Lifecycle guard: serializes Init/Fini against in-flight requests.
+// Lock order: g_lifeMutex -> g_waitList.mutex -> node->waitMutex
+#define FINI_DRAIN_TIME_OUT 160 // s, must exceed WAITING_RESULT_TIME_OUT(150)
+static pthread_mutex_t g_lifeMutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t g_statusMutex = PTHREAD_MUTEX_INITIALIZER; // guards g_status only
+static int g_inflightReq = 0;   // requests inside SendReqAndWaitForRsp
+static int g_finiing = PWR_FALSE;
+static int g_sockInited = PWR_FALSE; // TRUE between successful Init and full destroy
+
 #define CHECK_SOCKET_STATUS()                         \
     if (g_sockFd == INVALID_FD) {                     \
         PwrLog(ERROR, "check socket status failed."); \
@@ -178,15 +187,12 @@ static void DoEventCallback(PwrMsg *msg)
 
 static void ProcessRspMsg(PwrMsg *rsp)
 {
-    ResultWaitingMsgNode *rwm = FindAndMoveWaitingMsg(&g_waitList, rsp->head.seqId);
+    // FindAndMoveWaitingMsg hands over the rsp and marks the node finished
+    // atomically under the list+node mutexes. NULL means no waiter matched
+    // (already timed out or cancelled by Fini): drop the rsp here.
+    ResultWaitingMsgNode *rwm = FindAndMoveWaitingMsg(&g_waitList, rsp->head.seqId, rsp);
     if (!rwm) {
         ReleasePwrMsg(&rsp);
-        return; // drop this msg
-    }
-    rwm->rspMsg = rsp;
-    if (DoRspToWaitingMsg(rwm) != PWR_SUCCESS) {
-        ReleasePwrMsg(&rsp);
-        return;
     }
 }
 static void ProcessEvtMsg(PwrMsg *msg)
@@ -349,7 +355,12 @@ static void *RunSocketProcess(void *none)
     while (g_sockThread.keepRunning) {
         if (g_sockFd == INVALID_FD) {
             sleep(RECONNECTE_INTERVAL);
-            CreateConnection(); // resume the connection
+            pthread_mutex_lock(&g_lifeMutex);
+            // Do not reconnect while the client is being destroyed
+            if (!g_finiing && g_sockFd == INVALID_FD && g_sockThread.keepRunning) {
+                CreateConnection(); // resume the connection
+            }
+            pthread_mutex_unlock(&g_lifeMutex);
             continue;
         }
 
@@ -395,13 +406,17 @@ static int SendMsgSyn(PwrMsg *msg, PwrMsg **rsp)
     node->reqMsg = msg;
     AddToWaitingListTail(&g_waitList, node);
     int ret = WaitingForResponse(node);
-    if (ret != PWR_SUCCESS) {
-        // timeout or error scenario. the msg still waiting in the list. need to move out.
-        MoveOutWaitingMsg(&g_waitList, node);
-    }
+    // Detach: remove the node from the list if the recv thread hasn't claimed
+    // it yet, then re-take the node mutex before reading rspMsg. If the recv
+    // thread removed it first, its claim (rsp handover + finished mark) ran
+    // while holding the node mutex inside the list mutex, so this lock either
+    // sees the final state or was never contended - no use-after-free window.
+    (void)MoveOutWaitingMsg(&g_waitList, node);
+    pthread_mutex_lock(&(node->waitMutex));
     *rsp = node->rspMsg;
     node->reqMsg = NULL;
     node->rspMsg = NULL;
+    pthread_mutex_unlock(&(node->waitMutex));
     ReleaseResultWaitingMsgNode(node);
     return ret;
 }
@@ -443,8 +458,20 @@ int SetClientSockPath(const char* socketPath)
     return PWR_SUCCESS;
 }
 
+static int FiniSockClientInternal(void);
+
 int InitSockClient(void)
 {
+    pthread_mutex_lock(&g_lifeMutex);
+    if (g_finiing) { // destruction in progress, refuse re-init
+        pthread_mutex_unlock(&g_lifeMutex);
+        PwrLog(ERROR, "InitSockClient failed: client is being destroyed.");
+        return PWR_ERR_COMMON;
+    }
+    if (g_sockInited) { // already initialized (connected OR reconnecting), idempotent
+        pthread_mutex_unlock(&g_lifeMutex);
+        return PWR_SUCCESS;
+    }
     InitPwrMsgBuffer(&g_sendBuff);
     InitPwrMsgBuffer(&g_recvBuff);
     InitResultWaitingList(&g_waitList);
@@ -463,13 +490,20 @@ int InitSockClient(void)
             break;
         }
     } while (0);
-    if (ret != PWR_SUCCESS) {
-        FiniSockClient();
+    if (ret == PWR_SUCCESS) {
+        g_sockInited = PWR_TRUE;
+        pthread_mutex_unlock(&g_lifeMutex);
+        return PWR_SUCCESS;
     }
+    // Failed: undo what THIS attempt initialized, in place. Never route through
+    // FiniSockClient(): ResetPwrMsgBuffer/ResetResultWaitingList are NOT safe to
+    // run twice (they walk+free without re-zeroing msgList and destroy mutexes).
+    FiniSockClientInternal();
+    pthread_mutex_unlock(&g_lifeMutex);
     return ret;
 }
 
-int FiniSockClient(void)
+static int FiniSockClientInternal(void)
 {
     FiniThreadInfo(&g_sockThread);
     close(g_sockFd);
@@ -479,6 +513,55 @@ int FiniSockClient(void)
     ResetResultWaitingList(&g_waitList);
     DestroyMsgFactory();
     return PWR_SUCCESS;
+}
+
+int FiniSockClient(void)
+{
+    pthread_mutex_lock(&g_lifeMutex);
+    if (g_finiing) { // re-entrant guard
+        pthread_mutex_unlock(&g_lifeMutex);
+        return PWR_SUCCESS;
+    }
+    if (!g_sockInited) { // already destroyed: nothing to drain or free. Running
+        // the reset path twice would double-free buffer entries and lock
+        // destroyed mutexes, so it must be a strict no-op here.
+        pthread_mutex_unlock(&g_lifeMutex);
+        return PWR_SUCCESS;
+    }
+    g_finiing = PWR_TRUE;
+    pthread_mutex_unlock(&g_lifeMutex);
+
+    // 1. Wake up every waiter so in-flight requests fail fast with an error code
+    //    instead of hanging until timeout (and never touch freed nodes).
+    BroadcastAllWaitingMsg(&g_waitList, PWR_ERR_DISCONNECTED);
+
+    // 2. Wait for in-flight requests to leave. Requests that passed the status
+    //    gate before g_finiing was set may add their node AFTER the first
+    //    broadcast, so keep re-broadcasting each second. Bounded by
+    //    FINI_DRAIN_TIME_OUT (> WAITING_RESULT_TIME_OUT) as a last resort.
+    int waited = 0;
+    pthread_mutex_lock(&g_lifeMutex);
+    while (g_inflightReq > 0 && waited < FINI_DRAIN_TIME_OUT) {
+        pthread_mutex_unlock(&g_lifeMutex);
+        sleep(1);
+        waited++;
+        BroadcastAllWaitingMsg(&g_waitList, PWR_ERR_DISCONNECTED);
+        pthread_mutex_lock(&g_lifeMutex);
+    }
+    if (g_inflightReq > 0) {
+        PwrLog(ERROR, "FiniSockClient: %d request(s) still inflight after %ds, destroy anyway.",
+               g_inflightReq, waited);
+    }
+    pthread_mutex_unlock(&g_lifeMutex);
+
+    // 3. No business thread is using these resources anymore, safe to destroy.
+    int ret = FiniSockClientInternal();
+
+    pthread_mutex_lock(&g_lifeMutex);
+    g_sockInited = PWR_FALSE;
+    g_finiing = PWR_FALSE;
+    pthread_mutex_unlock(&g_lifeMutex);
+    return ret;
 }
 
 int SetMetaDataCallback(void(MetaDataCallback)(const PWR_COM_CallbackData *))
@@ -511,55 +594,81 @@ int SendReqAndWaitForRsp(const ReqInputParam input, RspOutputParam output)
         return PWR_ERR_MSG_BUFFER_FULL;
     }
 
-    char *inputData = NULL;
-    if (input.data && input.dataLen != 0) {
-        inputData = (char *)malloc(input.dataLen); // Be released when PwrMsg released
-        bzero(inputData, input.dataLen);
-        memcpy(inputData, input.data, input.dataLen);
+    // Lifecycle gate: reject requests while the client is being destroyed or
+    // disconnected, and count this request as in-flight so FiniSockClient
+    // waits for it before destroying shared resources.
+    pthread_mutex_lock(&g_lifeMutex);
+    if (g_finiing || g_sockFd == INVALID_FD) {
+        pthread_mutex_unlock(&g_lifeMutex);
+        PwrLog(ERROR, "Client not ready (destroying or disconnected). optType: %d", input.optType);
+        return PWR_ERR_DISCONNECTED;
     }
+    g_inflightReq++;
+    pthread_mutex_unlock(&g_lifeMutex);
 
-    PwrMsg *req = CreateReqMsg(input.optType, input.taskNo, input.dataLen, inputData);
-    if (!req) {
-        PwrLog(ERROR, "Create req msg failed. optType: %d", input.optType);
-        free(inputData);
-        return PWR_ERR_SYS_EXCEPTION;
-    }
+    int ret = PWR_SUCCESS;
+    do {
+        char *inputData = NULL;
+        if (input.data && input.dataLen != 0) {
+            inputData = (char *)malloc(input.dataLen); // Be released when PwrMsg released
+            bzero(inputData, input.dataLen);
+            memcpy(inputData, input.data, input.dataLen);
+        }
 
-    PwrMsg *rsp = NULL;
-    int ret = SendReqMsgAndWaitForRsp(req, &rsp);
-    if (ret != PWR_SUCCESS) {
-        PwrLog(ERROR, "Send req failed. optType: %d, ret: %d", input.optType, ret);
-        ReleasePwrMsg(&req);
-        ReleasePwrMsg(&rsp);
-        return ret;
-    }
+        PwrMsg *req = CreateReqMsg(input.optType, input.taskNo, input.dataLen, inputData);
+        if (!req) {
+            PwrLog(ERROR, "Create req msg failed. optType: %d", input.optType);
+            free(inputData);
+            ret = PWR_ERR_SYS_EXCEPTION;
+            break;
+        }
 
-    if (output.rspData) {
-        uint32_t srcSize = *output.rspBuffSize;
-        if (rsp->data) {
-            int dlen = srcSize < rsp->head.dataLen ? srcSize : rsp->head.dataLen;
-            memcpy(output.rspData, rsp->data, dlen);
-            *output.rspBuffSize = dlen;
-        } else {
+        PwrMsg *rsp = NULL;
+        ret = SendReqMsgAndWaitForRsp(req, &rsp);
+        if (ret != PWR_SUCCESS) {
+            PwrLog(ERROR, "Send req failed. optType: %d, ret: %d", input.optType, ret);
             ReleasePwrMsg(&req);
             ReleasePwrMsg(&rsp);
-            return PWR_ERR_WRONG_RESPONSE_FROM_SERVER;
+            break;
         }
-    }
 
-    PwrLog(DEBUG, "Request succeed. optType: %d", input.optType);
-    ReleasePwrMsg(&req);
-    ReleasePwrMsg(&rsp);
-    return PWR_SUCCESS;
+        if (output.rspData) {
+            uint32_t srcSize = *output.rspBuffSize;
+            if (rsp->data) {
+                int dlen = srcSize < rsp->head.dataLen ? srcSize : rsp->head.dataLen;
+                memcpy(output.rspData, rsp->data, dlen);
+                *output.rspBuffSize = dlen;
+            } else {
+                ReleasePwrMsg(&req);
+                ReleasePwrMsg(&rsp);
+                ret = PWR_ERR_WRONG_RESPONSE_FROM_SERVER;
+                break;
+            }
+        }
+
+        PwrLog(DEBUG, "Request succeed. optType: %d", input.optType);
+        ReleasePwrMsg(&req);
+        ReleasePwrMsg(&rsp);
+    } while (0);
+
+    pthread_mutex_lock(&g_lifeMutex);
+    g_inflightReq--;
+    pthread_mutex_unlock(&g_lifeMutex);
+    return ret;
 }
 
 PwrApiStatus GetPwrApiStatus()
 {
-    return g_status;
+    pthread_mutex_lock(&g_statusMutex);
+    PwrApiStatus status = g_status;
+    pthread_mutex_unlock(&g_statusMutex);
+    return status;
 }
 
 int SetPwrApiStatus(PwrApiStatus status)
 {
+    pthread_mutex_lock(&g_statusMutex);
     g_status = status;
+    pthread_mutex_unlock(&g_statusMutex);
     return PWR_SUCCESS;
 }
